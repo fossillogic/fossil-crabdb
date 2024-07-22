@@ -15,7 +15,7 @@
 #include <fossil/mockup/framework.h>   // Includes the Fossil Mockup Framework
 #include <fossil/xassume.h>            // Includes the Fossil Assume Framework
 
-#include "fossil/crabdb/database.h"
+#include "fossil/crabdb/framework.h"
 
 
 FOSSIL_FIXTURE(core_crabdb_fixture);
