@@ -45,7 +45,7 @@ crabdb_memory_t fossil_crabdb_realloc(crabdb_memory_t ptr, size_t size) {
 
     crabdb_memory_t new_ptr;
     if (size == 0) {
-        fossil_memory_free(ptr);
+        fossil_crabdb_free(ptr);
         new_ptr = NULL;
     } else {
         new_ptr = realloc(ptr, size);
@@ -81,7 +81,7 @@ char* fossil_crabdb_strdup(const char* str) {
     size_t len = 0;
     while (str[len] != '\0') len++; // Calculate the length of the string
 
-    char* dup = (char*)fossil_crabdb_alloc((len + 1) * sizeof(char)); // Allocate memory for the duplicate string
+    char* dup = fossil_crabdb_alloc((len + 1) * sizeof(char)); // Allocate memory for the duplicate string
 
     for (size_t i = 0; i < len; i++) {
         dup[i] = str[i]; // Copy each character from the original string to the duplicate

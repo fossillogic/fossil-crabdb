@@ -14,6 +14,9 @@
 #include "fossil/crabdb/internal.h"
 #include "fossil/crabdb/namespace.h"
 
+#include <string.h>
+#include <stdlib.h>
+
 /**
  * @brief Create a new namespace.
  * 
@@ -32,7 +35,7 @@ fossil_crabdb_error_t fossil_crabdb_create_namespace(fossil_crabdb_t *db, const 
         current = current->next;
     }
 
-    fossil_crabdb_namespace_t *new_namespace = fossil_memory_alloc(sizeof(fossil_crabdb_namespace_t));
+    fossil_crabdb_namespace_t *new_namespace = fossil_crabdb_alloc(sizeof(fossil_crabdb_namespace_t));
     if (!new_namespace) return CRABDB_ERR_MEM;
 
     new_namespace->name = fossil_crabdb_strdup(namespace_name);

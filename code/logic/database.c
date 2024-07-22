@@ -15,6 +15,11 @@
 #include "fossil/crabdb/namespace.h"
 #include "fossil/crabdb/internal.h"
 
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <ctype.h>
+
 /**
  * @brief Create a new namespace.
  * 
@@ -23,7 +28,7 @@
  * @return Error code indicating the result of the operation.
  */
 fossil_crabdb_t* fossil_crabdb_create(void) {
-    fossil_crabdb_t *db = (fossil_crabdb_t*)fossil_crab_alloc(sizeof(fossil_crabdb_t));
+    fossil_crabdb_t *db = fossil_crabdb_alloc(sizeof(fossil_crabdb_t));
     if (!db) {
         return NULL;
     }
@@ -88,7 +93,7 @@ fossil_crabdb_error_t fossil_crabdb_insert(fossil_crabdb_t *db, const char *name
                 kv = kv->next;
             }
 
-            fossil_crabdb_keyvalue_t *new_kv = fossil_memory_alloc(sizeof(fossil_crabdb_keyvalue_t));
+            fossil_crabdb_keyvalue_t *new_kv = fossil_crabdb_alloc(sizeof(fossil_crabdb_keyvalue_t));
             if (!new_kv) return CRABDB_ERR_MEM;
 
             new_kv->key = fossil_crabdb_strdup(key);
