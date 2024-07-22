@@ -113,6 +113,7 @@ namespace fossil {
  * 
  */
 
+
 const char *CRABDB_VERSION = "0.1.0";
 const char *CRABDB_AUTHOR = "Michael Gene Brockus";
 const char *CRABDB_CODENAME = "Dimetrodon";

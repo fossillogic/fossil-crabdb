@@ -3,18 +3,18 @@ name: Meson CI
 on:
   push:
     paths:
-      - "**.cpp"
+      - "**.c"
       - "**.h"
+      - "**.kt"
       - "**.py"
-      - "**.build"
-      - "**.options"
+      - "meson.**"
   pull_request:
     paths:
-      - "**.cpp"
+      - "**.c"
       - "**.h"
+      - "**.kt"
       - "**.py"
-      - "**.build"
-      - "**.options"
+      - "meson.**"
 
 jobs:
   build_msvc:
