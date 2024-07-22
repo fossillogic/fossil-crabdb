@@ -1,0 +1,11 @@
+# ======================
+# Git Wrap package definition
+# ======================
+[wrap-git]
+url = https://github.com/fossillogic/fossil-test.git
+revision = v1.0.3
+
+[provide]
+fossil-test = fossil_test_dep
+fossil-mock = fossil_mock_dep
+fossil-mark = fossil_mark_dep
