@@ -131,6 +131,7 @@ namespace fossil {
     };
 
 }
+
 #endif
 
 #endif /* FOSSIL_CRABDB_FRAMEWORK_H */
