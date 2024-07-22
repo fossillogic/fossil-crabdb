@@ -18,14 +18,14 @@
 #include "fossil/crabdb/framework.h"
 
 FOSSIL_FIXTURE(core_crabdb_namespace_fixture);
-fossil_crabdb_t *db = NULL;
+fossil_crabdb_t *db_namespace = NULL;
 
 FOSSIL_SETUP(core_crabdb_namespace_fixture) {
-    db = fossil_crabdb_create();
+    db_namespace = fossil_crabdb_create();
 }
 
 FOSSIL_TEARDOWN(core_crabdb_namespace_fixture) {
-    fossil_crabdb_erase(db);
+    fossil_crabdb_erase(db_namespace);
 }
 
 // * * * * * * * * * * * * * * * * * * * * * * * *
@@ -33,39 +33,39 @@ FOSSIL_TEARDOWN(core_crabdb_namespace_fixture) {
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
 FOSSIL_TEST(test_create_sub_namespace) {
-    ASSUME_NOT_CNULL(db);
+    ASSUME_NOT_CNULL(db_namespace);
 
-    fossil_crabdb_create_namespace(db, "namespace1");
+    fossil_crabdb_create_namespace(db_namespace, "namespace1");
 
-    fossil_crabdb_error_t result = fossil_crabdb_create_sub_namespace(db, "namespace1", "sub_namespace1");
+    fossil_crabdb_error_t result = fossil_crabdb_create_sub_namespace(db_namespace, "namespace1", "sub_namespace1");
     ASSUME_ITS_EQUAL_I32(CRABDB_OK, result);
 
-    result = fossil_crabdb_create_sub_namespace(db, "namespace1", "sub_namespace1");
+    result = fossil_crabdb_create_sub_namespace(db_namespace, "namespace1", "sub_namespace1");
     ASSUME_ITS_EQUAL_I32(CRABDB_ERR_SUB_NS_EXISTS, result);
 }
 
 FOSSIL_TEST(test_erase_namespace) {
-    ASSUME_NOT_CNULL(db);
+    ASSUME_NOT_CNULL(db_namespace);
 
-    fossil_crabdb_create_namespace(db, "namespace1");
+    fossil_crabdb_create_namespace(db_namespace, "namespace1");
 
-    fossil_crabdb_error_t result = fossil_crabdb_erase_namespace(db, "namespace1");
+    fossil_crabdb_error_t result = fossil_crabdb_erase_namespace(db_namespace, "namespace1");
     ASSUME_ITS_EQUAL_I32(CRABDB_OK, result);
 
-    result = fossil_crabdb_erase_namespace(db, "namespace1");
+    result = fossil_crabdb_erase_namespace(db_namespace, "namespace1");
     ASSUME_ITS_EQUAL_I32(CRABDB_ERR_NS_NOT_FOUND, result);
 }
 
 FOSSIL_TEST(test_erase_sub_namespace) {
-    ASSUME_NOT_CNULL(db);
+    ASSUME_NOT_CNULL(db_namespace);
 
-    fossil_crabdb_create_namespace(db, "namespace1");
-    fossil_crabdb_create_sub_namespace(db, "namespace1", "sub_namespace1");
+    fossil_crabdb_create_namespace(db_namespace, "namespace1");
+    fossil_crabdb_create_sub_namespace(db_namespace, "namespace1", "sub_namespace1");
 
-    fossil_crabdb_error_t result = fossil_crabdb_erase_sub_namespace(db, "namespace1", "sub_namespace1");
+    fossil_crabdb_error_t result = fossil_crabdb_erase_sub_namespace(db_namespace, "namespace1", "sub_namespace1");
     ASSUME_ITS_EQUAL_I32(CRABDB_OK, result);
 
-    result = fossil_crabdb_erase_sub_namespace(db, "namespace1", "sub_namespace1");
+    result = fossil_crabdb_erase_sub_namespace(db_namespace, "namespace1", "sub_namespace1");
     ASSUME_ITS_EQUAL_I32(CRABDB_ERR_SUB_NS_NOT_FOUND, result);
 }
 
