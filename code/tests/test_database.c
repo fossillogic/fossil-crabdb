@@ -94,7 +94,6 @@ FOSSIL_TEST(test_delete_value) {
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
 FOSSIL_TEST_GROUP(c_crabdb_tests) {    
-    // Core Blue CrabDB Fixture
     ADD_TESTF(test_create_namespace, core_crabdb_fixture);
     ADD_TESTF(test_insert_and_get_value, core_crabdb_fixture);
     ADD_TESTF(test_update_value, core_crabdb_fixture);

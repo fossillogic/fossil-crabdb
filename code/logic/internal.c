@@ -13,20 +13,24 @@
  */
 #include "fossil/crabdb/internal.h"
 
+#include <stdlib.h>
+#include <stddef.h>
+#include <string.h>
+
 /**
  * @brief Allocate memory.
  * 
  * @param size Size of the memory to allocate.
- * @return Pointer to the allocated memory.
+ * @return Pointer to the allocated memory, or NULL if allocation fails or size is 0.
  */
 crabdb_memory_t fossil_crabdb_alloc(size_t size) {
     if (size == 0) {
-         return NULL;
+        return NULL;
     }
 
     crabdb_memory_t ptr = malloc(size);
     if (!ptr) {
-         return NULL;
+        return NULL;
     }
     return ptr;
 } // end of fun
@@ -36,23 +40,19 @@ crabdb_memory_t fossil_crabdb_alloc(size_t size) {
  * 
  * @param ptr Pointer to the memory to reallocate.
  * @param size Size of the memory to reallocate.
- * @return Pointer to the reallocated memory.
+ * @return Pointer to the reallocated memory, or NULL if reallocation fails.
  */
 crabdb_memory_t fossil_crabdb_realloc(crabdb_memory_t ptr, size_t size) {
-    if (ptr == NULL) {
-        exit(EXIT_FAILURE);
-    }
-
-    crabdb_memory_t new_ptr;
     if (size == 0) {
         fossil_crabdb_free(ptr);
-        new_ptr = NULL;
-    } else {
-        new_ptr = realloc(ptr, size);
-        if (!new_ptr) {
-            exit(EXIT_FAILURE);
-        }
+        return NULL;
     }
+
+    crabdb_memory_t new_ptr = realloc(ptr, size);
+    if (!new_ptr) {
+        return NULL; // Return NULL if reallocation fails
+    }
+
     return new_ptr;
 } // end of fun
 
@@ -64,16 +64,14 @@ crabdb_memory_t fossil_crabdb_realloc(crabdb_memory_t ptr, size_t size) {
 void fossil_crabdb_free(crabdb_memory_t ptr) {
     if (ptr) {
         free(ptr);
-    } else {
-        exit(EXIT_FAILURE);
-    }
+    } // No need to exit if ptr is NULL
 } // end of fun
 
 /**
  * @brief Duplicate a string.
  * 
  * @param str String to duplicate.
- * @return Pointer to the duplicated string.
+ * @return Pointer to the duplicated string, or NULL if allocation fails.
  */
 char* fossil_crabdb_strdup(const char* str) {
     if (!str) return NULL; // Handle NULL pointer gracefully
@@ -82,6 +80,7 @@ char* fossil_crabdb_strdup(const char* str) {
     while (str[len] != '\0') len++; // Calculate the length of the string
 
     char* dup = fossil_crabdb_alloc((len + 1) * sizeof(char)); // Allocate memory for the duplicate string
+    if (!dup) return NULL; // Return NULL if allocation fails
 
     for (size_t i = 0; i < len; i++) {
         dup[i] = str[i]; // Copy each character from the original string to the duplicate
