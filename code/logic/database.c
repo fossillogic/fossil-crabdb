@@ -12,6 +12,7 @@
  * -----------------------------------------------------------------------------
  */
 #include "fossil/crabdb/database.h"
+#include "fossil/crabdb/namespace.h"
 #include "fossil/crabdb/internal.h"
 
 /**
@@ -87,7 +88,7 @@ fossil_crabdb_error_t fossil_crabdb_insert(fossil_crabdb_t *db, const char *name
                 kv = kv->next;
             }
 
-            fossil_crabdb_keyvalue_t *new_kv = (fossil_crabdb_keyvalue_t*)fossil_memory_alloc(sizeof(fossil_crabdb_keyvalue_t));
+            fossil_crabdb_keyvalue_t *new_kv = fossil_memory_alloc(sizeof(fossil_crabdb_keyvalue_t));
             if (!new_kv) return CRABDB_ERR_MEM;
 
             new_kv->key = fossil_crabdb_strdup(key);
