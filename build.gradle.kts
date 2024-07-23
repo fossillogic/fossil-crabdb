@@ -37,8 +37,24 @@ application {
     mainClass.set("com.fossillogic.bluecrabdb.MainKt")
 }
 
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(8))
+    }
+}
+
+kotlin {
+    jvmToolchain {
+        languageVersion.set(JavaLanguageVersion.of(8))
+    }
+}
+
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
     kotlinOptions {
         jvmTarget = "1.8"
     }
+}
+
+tasks.withType<JavaCompile> {
+    options.release.set(8)
 }

@@ -11,65 +11,114 @@
  * Copyright (C) 2024 Fossil Logic. All rights reserved.
  * -----------------------------------------------------------------------------
  */
+
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
-class CrabDBTest {
+import fossil.FossilCrabdb
 
-    private lateinit var fossilCrabdb: FossilCrabdb
-    private lateinit var crabDB: CrabDB
+class FossilCrabdbTest {
+
+    private lateinit var db: FossilCrabdb
 
     @BeforeEach
     fun setUp() {
-        fossilCrabdb = FossilCrabdb()
-        fossilCrabdb = fossilCrabdb.createNamespace() ?: throw IllegalStateException("Failed to create namespace")
-        crabDB = CrabDB(fossilCrabdb)
+        db = FossilCrabdb()
     }
 
     @Test
     fun testCreateNamespace() {
-        val newCrabDB = crabDB.createNamespace()
-        assertNotNull(newCrabDB)
+        val namespace = db.createNamespace("testNamespace")
+        assertNotNull(namespace)
+        assertEquals("testNamespace", namespace.name)
+        assertTrue(namespace.subNamespaces.isEmpty())
+        assertTrue(namespace.data.isEmpty())
     }
 
     @Test
-    fun testErase() {
-        crabDB.insert("root", "key1", "value1")
-        assertNotNull(crabDB.get("root", "key1"))
+    fun testEraseNamespace() {
+        val namespace = db.createNamespace("testNamespace")
+        assertEquals(1, db.namespaces.size)
 
-        crabDB.erase()
-        assertNull(crabDB.get("root", "key1"))
+        db.eraseNamespace(namespace)
+        assertTrue(db.namespaces.isEmpty())
     }
 
     @Test
-    fun testInsertAndGet() {
-        assertEquals(FossilCrabdbError.NS_NOT_FOUND, crabDB.insert("nonexistent", "key", "value"))
-        assertNull(crabDB.get("nonexistent", "key"))
+    fun testInsertData() {
+        val namespace = db.createNamespace("testNamespace")
 
-        crabDB.insert("root", "key1", "value1")
-        assertEquals("value1", crabDB.get("root", "key1"))
+        db.insertData(namespace, "key1", "value1")
+        assertEquals(1, namespace.data.size)
+        assertEquals("value1", namespace.data[0].value)
 
-        assertEquals(FossilCrabdbError.KEY_NOT_FOUND, crabDB.insert("root", "key1", "value2"))
+        val exception = assertThrows(IllegalArgumentException::class.java) {
+            db.insertData(namespace, "key1", "value2")
+        }
+        assertEquals("Key already exists", exception.message)
     }
 
     @Test
-    fun testUpdate() {
-        crabDB.insert("root", "key1", "value1")
-        assertEquals(FossilCrabdbError.OK, crabDB.update("root", "key1", "newvalue1"))
-        assertEquals("newvalue1", crabDB.get("root", "key1"))
+    fun testGetData() {
+        val namespace = db.createNamespace("testNamespace")
 
-        assertEquals(FossilCrabdbError.KEY_NOT_FOUND, crabDB.update("root", "nonexistent", "value"))
-        assertEquals(FossilCrabdbError.NS_NOT_FOUND, crabDB.update("nonexistent", "key", "value"))
+        db.insertData(namespace, "key1", "value1")
+        val value = db.getData(namespace, "key1")
+        assertEquals("value1", value)
+
+        val nullValue = db.getData(namespace, "key2")
+        assertNull(nullValue)
     }
 
     @Test
-    fun testDelete() {
-        crabDB.insert("root", "key1", "value1")
-        assertEquals(FossilCrabdbError.OK, crabDB.delete("root", "key1"))
-        assertNull(crabDB.get("root", "key1"))
+    fun testUpdateData() {
+        val namespace = db.createNamespace("testNamespace")
 
-        assertEquals(FossilCrabdbError.KEY_NOT_FOUND, crabDB.delete("root", "key1"))
-        assertEquals(FossilCrabdbError.NS_NOT_FOUND, crabDB.delete("nonexistent", "key1"))
+        db.insertData(namespace, "key1", "value1")
+        db.updateData(namespace, "key1", "value2")
+        assertEquals("value2", namespace.data[0].value)
+
+        val exception = assertThrows(IllegalArgumentException::class.java) {
+            db.updateData(namespace, "key2", "value3")
+        }
+        assertEquals("Key not found", exception.message)
+    }
+
+    @Test
+    fun testDeleteData() {
+        val namespace = db.createNamespace("testNamespace")
+
+        db.insertData(namespace, "key1", "value1")
+        db.deleteData(namespace, "key1")
+        assertTrue(namespace.data.isEmpty())
+
+        val exception = assertThrows(IllegalArgumentException::class.java) {
+            db.deleteData(namespace, "key2")
+        }
+        assertEquals("Key not found", exception.message)
+    }
+
+    @Test
+    fun testExecuteQuery() {
+        db.executeQuery("create_namespace(testNamespace)")
+        val namespace = db.namespaces.find { it.name == "testNamespace" }
+        assertNotNull(namespace)
+
+        db.executeQuery("insert(testNamespace, key1, value1)")
+        val value = db.getData(namespace!!, "key1")
+        assertEquals("value1", value)
+
+        db.executeQuery("update(testNamespace, key1, value2)")
+        val updatedValue = db.getData(namespace, "key1")
+        assertEquals("value2", updatedValue)
+
+        db.executeQuery("delete(testNamespace, key1)")
+        val deletedValue = db.getData(namespace, "key1")
+        assertNull(deletedValue)
+
+        db.executeQuery("erase_namespace(testNamespace)")
+        val erasedNamespace = db.namespaces.find { it.name == "testNamespace" }
+        assertNull(erasedNamespace)
     }
 }
