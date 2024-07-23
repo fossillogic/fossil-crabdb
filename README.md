@@ -1,7 +1,3 @@
-Here is the updated documentation with mentions of Kotlin and Gradle removed:
-
----
-
 # ***Blue CrabDB Database System by Fossil Logic***
 
 Blue CrabDB is a comprehensive, platform-independent database system designed to streamline the management and storage of key-value pairs within namespaces. Written in C and C++, Blue CrabDB is built to offer high performance and reliability across various operating systems. The C and C++ components are built using the Meson build system, ensuring efficient development and deployment processes.
