@@ -257,7 +257,31 @@ static fossil_crabdb_error_t parse_and_execute(fossil_crabdb_t *db, char *comman
         if (token_count == 2) {
             return fossil_crabdb_delete(db, tokens[0], tokens[1]);
         }
+    } else if (strcmp(command, "serialize") == 0) {
+        if (token_count == 1) {
+            return fossil_crabdb_serialize(db, tokens[0]);
+        }
+    } else if (strcmp(command, "deserialize") == 0) {
+        if (token_count == 1) {
+            fossil_crabdb_t *new_db = fossil_crabdb_deserialize(tokens[0]);
+            if (new_db) {
+                fossil_crabdb_erase(db);
+                db = new_db;
+                return CRABDB_OK;
+            } else {
+                return CRABDB_ERR_DESERIALIZE_FAILED;
+            }
+        }
+    } else if (strcmp(command, "backup") == 0) {
+        if (token_count == 1) {
+            return fossil_crabdb_backup(db, tokens[0]);
+        }
+    } else if (strcmp(command, "restore") == 0) {
+        if (token_count == 1) {
+            return fossil_crabdb_restore(db, tokens[0]);
+        }
     }
+    
     return CRABDB_ERR_INVALID_QUERY;
 } // end of fun
 
@@ -368,4 +392,56 @@ fossil_crabdb_t* fossil_crabdb_deserialize(const char *filename) {
 
     fclose(file);
     return db;
+}
+
+/**
+ * @brief Backup the database to a file.
+ * 
+ * @param db Pointer to the fossil_crabdb_t database.
+ * @param backup_filename Name of the backup file.
+ * @return Error code indicating the result of the operation.
+ */
+fossil_crabdb_error_t fossil_crabdb_backup(fossil_crabdb_t *db, const char *backup_filename) {
+    if (db == NULL || backup_filename == NULL) {
+        return CRABDB_ERR_INVALID_ARG;
+    }
+
+    // Use the serialize function to back up the database to the file
+    fossil_crabdb_error_t result = fossil_crabdb_serialize(db, backup_filename);
+    
+    if (result != CRABDB_OK) {
+        return CRABDB_ERR_BACKUP_FAILED;
+    }
+
+    return CRABDB_OK;
+}
+
+/**
+ * @brief Restore the database from a backup file.
+ * 
+ * @param db Pointer to the fossil_crabdb_t database.
+ * @param backup_filename Name of the backup file.
+ * @return Error code indicating the result of the operation.
+ */
+fossil_crabdb_error_t fossil_crabdb_restore(fossil_crabdb_t *db, const char *backup_filename) {
+    if (db == NULL || backup_filename == NULL) {
+        return CRABDB_ERR_INVALID_ARG;
+    }
+
+    // Erase the current contents of the database
+    fossil_crabdb_erase(db);
+
+    // Deserialize the backup file to restore the database
+    fossil_crabdb_t *restored_db = fossil_crabdb_deserialize(backup_filename);
+    if (restored_db == NULL) {
+        return CRABDB_ERR_RESTORE_FAILED;
+    }
+
+    // Copy the restored database contents back to the original database
+    *db = *restored_db;
+
+    // Clean up the temporary restored_db object
+    fossil_crabdb_erase(restored_db);
+
+    return CRABDB_OK;
 }

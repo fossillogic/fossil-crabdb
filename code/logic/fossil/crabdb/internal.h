@@ -32,7 +32,11 @@ typedef enum {
     CRABDB_ERR_NS_NOT_FOUND, /**< Namespace not found */
     CRABDB_ERR_NS_EXISTS, /**< Namespace already exists */
     CRABDB_ERR_SUB_NS_NOT_FOUND, /**< Sub-namespace not found */
+    CRABDB_ERR_INVALID_ARG, /**< Invalid argument */
     CRABDB_ERR_SUB_NS_EXISTS, /**< Sub-namespace already exists */
+    CRABDB_ERR_BACKUP_FAILED, /**< Backup failed */
+    CRABDB_ERR_RESTORE_FAILED, /**< Restore failed */
+    CRABDB_ERR_DESERIALIZE_FAILED, /**< Deserialization failed */
     CRABDB_ERR_KEY_NOT_FOUND, /**< Key not found */
     CRABDB_ERR_INVALID_QUERY, /**< Invalid query */
     CRABDB_ERR_INVALID_KEY, /**< Invalid key */
