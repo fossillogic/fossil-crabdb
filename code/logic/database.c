@@ -311,3 +311,61 @@ fossil_crabdb_error_t fossil_crabdb_execute_query(fossil_crabdb_t *db, const cha
     fossil_crabdb_free(query_copy);
     return result;
 } // end of fun
+
+fossil_crabdb_error_t fossil_crabdb_serialize(fossil_crabdb_t *db, const char *filename) {
+    if (!db || !filename) return CRABDB_ERR_MEM;
+
+    FILE *file = fopen(filename, "w");
+    if (!file) return CRABDB_ERR_IO;
+
+    fossil_crabdb_namespace_t *current = db->namespaces;
+    while (current) {
+        fprintf(file, "namespace:%s\n", current->name);
+        fossil_crabdb_keyvalue_t *kv = current->data;
+        while (kv) {
+            fprintf(file, "key:%s,value:%s\n", kv->key, kv->value);
+            kv = kv->next;
+        }
+        current = current->next;
+    }
+
+    fclose(file);
+    return CRABDB_OK;
+}
+
+fossil_crabdb_t* fossil_crabdb_deserialize(const char *filename) {
+    if (!filename) return NULL;
+
+    FILE *file = fopen(filename, "r");
+    if (!file) return NULL;
+
+    fossil_crabdb_t *db = fossil_crabdb_create();
+    if (!db) {
+        fclose(file);
+        return NULL;
+    }
+
+    char line[256];
+    fossil_crabdb_namespace_t *current_namespace = NULL;
+
+    while (fgets(line, sizeof(line), file)) {
+        if (strncmp(line, "namespace:", 10) == 0) {
+            char *namespace_name = strtok(line + 10, "\n");
+            if (namespace_name) {
+                current_namespace = fossil_crabdb_alloc(sizeof(fossil_crabdb_namespace_t));
+                current_namespace->name = fossil_crabdb_strdup(namespace_name);
+                current_namespace->next = db->namespaces;
+                db->namespaces = current_namespace;
+            }
+        } else if (strncmp(line, "key:", 4) == 0 && current_namespace) {
+            char *key = strtok(line + 4, ",");
+            char *value = strtok(NULL, "\n");
+            if (key && value && strncmp(value, "value:", 6) == 0) {
+                fossil_crabdb_insert(db, current_namespace->name, key + 6, value + 6);
+            }
+        }
+    }
+
+    fclose(file);
+    return db;
+}

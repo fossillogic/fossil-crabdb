@@ -86,6 +86,42 @@ fossil_crabdb_error_t fossil_crabdb_delete(fossil_crabdb_t *db, const char *name
  */
 fossil_crabdb_error_t fossil_crabdb_execute_query(fossil_crabdb_t *db, const char *query);
 
+/**
+ * @brief Serialize the database to a file.
+ * 
+ * @param db Pointer to the fossil_crabdb_t database.
+ * @param filename Name of the file to serialize to.
+ * @return Error code indicating the result of the operation.
+ */
+fossil_crabdb_error_t fossil_crabdb_serialize(fossil_crabdb_t *db, const char *filename);
+
+/**
+ * @brief Deserialize the database from a file.
+ * 
+ * @param filename Name of the file to deserialize from.
+ * @return Pointer to the deserialized fossil_crabdb_t database.
+ */
+fossil_crabdb_t* fossil_crabdb_deserialize(const char *filename);
+
+/**
+ * @brief Backup the database to a file.
+ * 
+ * @param db Pointer to the fossil_crabdb_t database.
+ * @param backup_filename Name of the backup file.
+ * @return Error code indicating the result of the operation.
+ */
+fossil_crabdb_error_t fossil_crabdb_backup(fossil_crabdb_t *db, const char *backup_filename);
+
+/**
+ * @brief Restore the database from a backup file.
+ * 
+ * @param db Pointer to the fossil_crabdb_t database.
+ * @param backup_filename Name of the backup file.
+ * @return Error code indicating the result of the operation.
+ */
+fossil_crabdb_error_t fossil_crabdb_restore(fossil_crabdb_t *db, const char *backup_filename);
+
+
 #ifdef __cplusplus
 }
 #endif
