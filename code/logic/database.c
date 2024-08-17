@@ -344,10 +344,17 @@ fossil_crabdb_error_t fossil_crabdb_serialize(fossil_crabdb_t *db, const char *f
 
     fossil_crabdb_namespace_t *current = db->namespaces;
     while (current) {
-        fprintf(file, "namespace:%s\n", current->name);
+        if (fprintf(file, "namespace:%s\n", current->name) < 0) {
+            fclose(file);
+            return CRABDB_ERR_IO;  // Handle write error
+        }
+
         fossil_crabdb_keyvalue_t *kv = current->data;
         while (kv) {
-            fprintf(file, "key:%s,value:%s\n", kv->key, kv->value);
+            if (fprintf(file, "key:%s,value:%s\n", kv->key, kv->value) < 0) {
+                fclose(file);
+                return CRABDB_ERR_IO;  // Handle write error
+            }
             kv = kv->next;
         }
         current = current->next;
@@ -377,7 +384,13 @@ fossil_crabdb_t* fossil_crabdb_deserialize(const char *filename) {
             char *namespace_name = strtok(line + 10, "\n");
             if (namespace_name) {
                 current_namespace = fossil_crabdb_alloc(sizeof(fossil_crabdb_namespace_t));
+                if (!current_namespace) {
+                    fclose(file);
+                    fossil_crabdb_erase(db);
+                    return NULL;  // Handle memory allocation failure
+                }
                 current_namespace->name = fossil_crabdb_strdup(namespace_name);
+                current_namespace->data = NULL;
                 current_namespace->next = db->namespaces;
                 db->namespaces = current_namespace;
             }
@@ -385,7 +398,7 @@ fossil_crabdb_t* fossil_crabdb_deserialize(const char *filename) {
             char *key = strtok(line + 4, ",");
             char *value = strtok(NULL, "\n");
             if (key && value && strncmp(value, "value:", 6) == 0) {
-                fossil_crabdb_insert(db, current_namespace->name, key + 6, value + 6);
+                fossil_crabdb_insert(db, current_namespace->name, key, value + 6);
             }
         }
     }
@@ -394,26 +407,12 @@ fossil_crabdb_t* fossil_crabdb_deserialize(const char *filename) {
     return db;
 }
 
-/**
- * @brief Backup the database to a file.
- * 
- * @param db Pointer to the fossil_crabdb_t database.
- * @param backup_filename Name of the backup file.
- * @return Error code indicating the result of the operation.
- */
 fossil_crabdb_error_t fossil_crabdb_backup(fossil_crabdb_t *db, const char *backup_filename) {
-    if (db == NULL || backup_filename == NULL) {
-        return CRABDB_ERR_INVALID_ARG;
-    }
+    if (!db || !backup_filename) return CRABDB_ERR_INVALID_ARG;
 
-    // Use the serialize function to back up the database to the file
     fossil_crabdb_error_t result = fossil_crabdb_serialize(db, backup_filename);
     
-    if (result != CRABDB_OK) {
-        return CRABDB_ERR_BACKUP_FAILED;
-    }
-
-    return CRABDB_OK;
+    return (result == CRABDB_OK) ? CRABDB_OK : CRABDB_ERR_BACKUP_FAILED;
 }
 
 /**
