@@ -33,6 +33,7 @@ typedef enum {
     CRABDB_ERR_NS_EXISTS, /**< Namespace already exists */
     CRABDB_ERR_SUB_NS_NOT_FOUND, /**< Sub-namespace not found */
     CRABDB_ERR_INVALID_ARG, /**< Invalid argument */
+    CRABDB_ERR_COPY_FAILED, /**< Copy failed */
     CRABDB_ERR_SUB_NS_EXISTS, /**< Sub-namespace already exists */
     CRABDB_ERR_BACKUP_FAILED, /**< Backup failed */
     CRABDB_ERR_RESTORE_FAILED, /**< Restore failed */

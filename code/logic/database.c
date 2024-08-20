@@ -20,6 +20,32 @@
 #include <stdio.h>
 #include <ctype.h>
 
+// static fossil_crabdb_error_t write_namespace(FILE *file, fossil_crabdb_namespace_t *ns) {
+//     size_t name_len = strlen(ns->name) + 1;
+//     if (fwrite(&name_len, sizeof(size_t), 1, file) != 1) return CRABDB_ERR_IO;
+//     if (fwrite(ns->name, sizeof(char), name_len, file) != name_len) return CRABDB_ERR_IO;
+    
+//     if (fwrite(&ns->sub_namespace_count, sizeof(size_t), 1, file) != 1) return CRABDB_ERR_IO;
+//     for (size_t i = 0; i < ns->sub_namespace_count; ++i) {
+//         if (write_namespace(file, &ns->sub_namespaces[i]) != CRABDB_OK) return CRABDB_ERR_IO;
+//     }
+
+//     fossil_crabdb_keyvalue_t *kv = ns->data;
+//     while (kv) {
+//         size_t key_len = strlen(kv->key) + 1;
+//         size_t value_len = strlen(kv->value) + 1;
+//         if (fwrite(&key_len, sizeof(size_t), 1, file) != 1) return CRABDB_ERR_IO;
+//         if (fwrite(kv->key, sizeof(char), key_len, file) != key_len) return CRABDB_ERR_IO;
+//         if (fwrite(&value_len, sizeof(size_t), 1, file) != 1) return CRABDB_ERR_IO;
+//         if (fwrite(kv->value, sizeof(char), value_len, file) != value_len) return CRABDB_ERR_IO;
+//         kv = kv->next;
+//     }
+
+//     size_t end_marker = 0;
+//     if (fwrite(&end_marker, sizeof(size_t), 1, file) != 1) return CRABDB_ERR_IO;
+//     return CRABDB_OK;
+// }
+
 /**
  * @brief Create a new namespace.
  * 
@@ -257,29 +283,6 @@ static fossil_crabdb_error_t parse_and_execute(fossil_crabdb_t *db, char *comman
         if (token_count == 2) {
             return fossil_crabdb_delete(db, tokens[0], tokens[1]);
         }
-    } else if (strcmp(command, "serialize") == 0) {
-        if (token_count == 1) {
-            return fossil_crabdb_serialize(db, tokens[0]);
-        }
-    } else if (strcmp(command, "deserialize") == 0) {
-        if (token_count == 1) {
-            fossil_crabdb_t *new_db = fossil_crabdb_deserialize(tokens[0]);
-            if (new_db) {
-                fossil_crabdb_erase(db);
-                db = new_db;
-                return CRABDB_OK;
-            } else {
-                return CRABDB_ERR_DESERIALIZE_FAILED;
-            }
-        }
-    } else if (strcmp(command, "backup") == 0) {
-        if (token_count == 1) {
-            return fossil_crabdb_backup(db, tokens[0]);
-        }
-    } else if (strcmp(command, "restore") == 0) {
-        if (token_count == 1) {
-            return fossil_crabdb_restore(db, tokens[0]);
-        }
     }
     
     return CRABDB_ERR_INVALID_QUERY;
@@ -335,112 +338,3 @@ fossil_crabdb_error_t fossil_crabdb_execute_query(fossil_crabdb_t *db, const cha
     fossil_crabdb_free(query_copy);
     return result;
 } // end of fun
-
-fossil_crabdb_error_t fossil_crabdb_serialize(fossil_crabdb_t *db, const char *filename) {
-    if (!db || !filename) return CRABDB_ERR_MEM;
-
-    FILE *file = fopen(filename, "w");
-    if (!file) return CRABDB_ERR_IO;
-
-    fossil_crabdb_namespace_t *current = db->namespaces;
-    while (current) {
-        if (fprintf(file, "namespace:%s\n", current->name) < 0) {
-            fclose(file);
-            return CRABDB_ERR_IO;  // Handle write error
-        }
-
-        fossil_crabdb_keyvalue_t *kv = current->data;
-        while (kv) {
-            if (fprintf(file, "key:%s,value:%s\n", kv->key, kv->value) < 0) {
-                fclose(file);
-                return CRABDB_ERR_IO;  // Handle write error
-            }
-            kv = kv->next;
-        }
-        current = current->next;
-    }
-
-    fclose(file);
-    return CRABDB_OK;
-}
-
-fossil_crabdb_t* fossil_crabdb_deserialize(const char *filename) {
-    if (!filename) return NULL;
-
-    FILE *file = fopen(filename, "r");
-    if (!file) return NULL;
-
-    fossil_crabdb_t *db = fossil_crabdb_create();
-    if (!db) {
-        fclose(file);
-        return NULL;
-    }
-
-    char line[256];
-    fossil_crabdb_namespace_t *current_namespace = NULL;
-
-    while (fgets(line, sizeof(line), file)) {
-        if (strncmp(line, "namespace:", 10) == 0) {
-            char *namespace_name = strtok(line + 10, "\n");
-            if (namespace_name) {
-                current_namespace = fossil_crabdb_alloc(sizeof(fossil_crabdb_namespace_t));
-                if (!current_namespace) {
-                    fclose(file);
-                    fossil_crabdb_erase(db);
-                    return NULL;  // Handle memory allocation failure
-                }
-                current_namespace->name = fossil_crabdb_strdup(namespace_name);
-                current_namespace->data = NULL;
-                current_namespace->next = db->namespaces;
-                db->namespaces = current_namespace;
-            }
-        } else if (strncmp(line, "key:", 4) == 0 && current_namespace) {
-            char *key = strtok(line + 4, ",");
-            char *value = strtok(NULL, "\n");
-            if (key && value && strncmp(value, "value:", 6) == 0) {
-                fossil_crabdb_insert(db, current_namespace->name, key, value + 6);
-            }
-        }
-    }
-
-    fclose(file);
-    return db;
-}
-
-fossil_crabdb_error_t fossil_crabdb_backup(fossil_crabdb_t *db, const char *backup_filename) {
-    if (!db || !backup_filename) return CRABDB_ERR_INVALID_ARG;
-
-    fossil_crabdb_error_t result = fossil_crabdb_serialize(db, backup_filename);
-    
-    return (result == CRABDB_OK) ? CRABDB_OK : CRABDB_ERR_BACKUP_FAILED;
-}
-
-/**
- * @brief Restore the database from a backup file.
- * 
- * @param db Pointer to the fossil_crabdb_t database.
- * @param backup_filename Name of the backup file.
- * @return Error code indicating the result of the operation.
- */
-fossil_crabdb_error_t fossil_crabdb_restore(fossil_crabdb_t *db, const char *backup_filename) {
-    if (db == NULL || backup_filename == NULL) {
-        return CRABDB_ERR_INVALID_ARG;
-    }
-
-    // Erase the current contents of the database
-    fossil_crabdb_erase(db);
-
-    // Deserialize the backup file to restore the database
-    fossil_crabdb_t *restored_db = fossil_crabdb_deserialize(backup_filename);
-    if (restored_db == NULL) {
-        return CRABDB_ERR_RESTORE_FAILED;
-    }
-
-    // Copy the restored database contents back to the original database
-    *db = *restored_db;
-
-    // Clean up the temporary restored_db object
-    fossil_crabdb_erase(restored_db);
-
-    return CRABDB_OK;
-}
