@@ -23,17 +23,26 @@ extern "C" {
 #endif
 
 /**
- * @brief Error codes for the crabdb framework.
+ * @brief Error codes for the fossil_crabdb framework.
  */
 typedef enum {
     CRABDB_OK = 0, /**< Operation completed successfully */
     CRABDB_ERR_MEM, /**< Memory allocation error */
+    CRABDB_ERR_IO,            // Input/output error (e.g., file handling)
     CRABDB_ERR_NS_NOT_FOUND, /**< Namespace not found */
     CRABDB_ERR_NS_EXISTS, /**< Namespace already exists */
     CRABDB_ERR_SUB_NS_NOT_FOUND, /**< Sub-namespace not found */
+    CRABDB_ERR_INVALID_ARG, /**< Invalid argument */
+    CRABDB_ERR_COPY_FAILED, /**< Copy failed */
     CRABDB_ERR_SUB_NS_EXISTS, /**< Sub-namespace already exists */
+    CRABDB_ERR_BACKUP_FAILED, /**< Backup failed */
+    CRABDB_ERR_RESTORE_FAILED, /**< Restore failed */
+    CRABDB_ERR_DESERIALIZE_FAILED, /**< Deserialization failed */
     CRABDB_ERR_KEY_NOT_FOUND, /**< Key not found */
-    CRABDB_ERR_INVALID_QUERY /**< Invalid query */
+    CRABDB_ERR_INVALID_QUERY, /**< Invalid query */
+    CRABDB_ERR_INVALID_KEY, /**< Invalid key */
+    CRABDB_ERR_INVALID_VALUE, /**< Invalid value */
+    CRABDB_ERR_CONCURRENT_ACCESS /**< Concurrent access error */
 } fossil_crabdb_error_t;
 
 /**

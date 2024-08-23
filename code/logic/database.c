@@ -20,6 +20,32 @@
 #include <stdio.h>
 #include <ctype.h>
 
+// static fossil_crabdb_error_t write_namespace(FILE *file, fossil_crabdb_namespace_t *ns) {
+//     size_t name_len = strlen(ns->name) + 1;
+//     if (fwrite(&name_len, sizeof(size_t), 1, file) != 1) return CRABDB_ERR_IO;
+//     if (fwrite(ns->name, sizeof(char), name_len, file) != name_len) return CRABDB_ERR_IO;
+    
+//     if (fwrite(&ns->sub_namespace_count, sizeof(size_t), 1, file) != 1) return CRABDB_ERR_IO;
+//     for (size_t i = 0; i < ns->sub_namespace_count; ++i) {
+//         if (write_namespace(file, &ns->sub_namespaces[i]) != CRABDB_OK) return CRABDB_ERR_IO;
+//     }
+
+//     fossil_crabdb_keyvalue_t *kv = ns->data;
+//     while (kv) {
+//         size_t key_len = strlen(kv->key) + 1;
+//         size_t value_len = strlen(kv->value) + 1;
+//         if (fwrite(&key_len, sizeof(size_t), 1, file) != 1) return CRABDB_ERR_IO;
+//         if (fwrite(kv->key, sizeof(char), key_len, file) != key_len) return CRABDB_ERR_IO;
+//         if (fwrite(&value_len, sizeof(size_t), 1, file) != 1) return CRABDB_ERR_IO;
+//         if (fwrite(kv->value, sizeof(char), value_len, file) != value_len) return CRABDB_ERR_IO;
+//         kv = kv->next;
+//     }
+
+//     size_t end_marker = 0;
+//     if (fwrite(&end_marker, sizeof(size_t), 1, file) != 1) return CRABDB_ERR_IO;
+//     return CRABDB_OK;
+// }
+
 /**
  * @brief Create a new namespace.
  * 
@@ -258,6 +284,7 @@ static fossil_crabdb_error_t parse_and_execute(fossil_crabdb_t *db, char *comman
             return fossil_crabdb_delete(db, tokens[0], tokens[1]);
         }
     }
+    
     return CRABDB_ERR_INVALID_QUERY;
 } // end of fun
 
