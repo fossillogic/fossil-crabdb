@@ -864,8 +864,8 @@ static fossil_crabdb_error_t parse_and_execute(fossil_crabdb_t *db, char *comman
             fossil_crabdb_error_t err = fossil_crabdb_get_namespace_stats(db, tokens[0], &key_count, &sub_namespace_count);
             if (err == CRABDB_OK) {
                 #ifdef _WIN32
-                    printf("Key Count: %Iu\n", key_count);
-                    printf("Sub-Namespace Count: %Iu\n", sub_namespace_count);
+                    printf("Key Count: %llu\n", key_count);
+                    printf("Sub-Namespace Count: %llu\n", sub_namespace_count);
                 #else
                     printf("Key Count: %lu\n", key_count);
                     printf("Sub-Namespace Count: %lu\n", sub_namespace_count);
