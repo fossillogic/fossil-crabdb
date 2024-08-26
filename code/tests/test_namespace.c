@@ -17,6 +17,7 @@
 
 #include "fossil/crabdb/framework.h"
 
+
 FOSSIL_FIXTURE(core_crabdb_namespace_fixture);
 fossil_crabdb_t *db_namespace = NULL;
 
@@ -29,24 +30,23 @@ FOSSIL_TEARDOWN(core_crabdb_namespace_fixture) {
 }
 
 // * * * * * * * * * * * * * * * * * * * * * * * *
-// * Fossil Logic Test Blue CrabDB Namespace
+// * Fossil Logic Test Blue CrabDB Database
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
-FOSSIL_TEST(test_create_sub_namespace) {
+FOSSIL_TEST(test_create_sub_namespace_success) {
     ASSUME_NOT_CNULL(db_namespace);
 
     fossil_crabdb_create_namespace(db_namespace, "namespace1");
 
     fossil_crabdb_error_t result = fossil_crabdb_create_sub_namespace(db_namespace, "namespace1", "sub_namespace1");
     ASSUME_ITS_EQUAL_I32(CRABDB_OK, result);
-    printf("result: %d\n", result);
 
+    // Trying to create the same sub-namespace again
     result = fossil_crabdb_create_sub_namespace(db_namespace, "namespace1", "sub_namespace1");
     ASSUME_ITS_EQUAL_I32(CRABDB_ERR_SUB_NS_EXISTS, result);
-    printf("result: %d\n", result);
 }
 
-FOSSIL_TEST(test_erase_namespace) {
+FOSSIL_TEST(test_erase_namespace_success) {
     ASSUME_NOT_CNULL(db_namespace);
 
     fossil_crabdb_create_namespace(db_namespace, "namespace1");
@@ -54,11 +54,12 @@ FOSSIL_TEST(test_erase_namespace) {
     fossil_crabdb_error_t result = fossil_crabdb_erase_namespace(db_namespace, "namespace1");
     ASSUME_ITS_EQUAL_I32(CRABDB_OK, result);
 
+    // Trying to erase the same namespace again
     result = fossil_crabdb_erase_namespace(db_namespace, "namespace1");
     ASSUME_ITS_EQUAL_I32(CRABDB_ERR_NS_NOT_FOUND, result);
 }
 
-FOSSIL_TEST(test_erase_sub_namespace) {
+FOSSIL_TEST(test_erase_sub_namespace_success) {
     ASSUME_NOT_CNULL(db_namespace);
 
     fossil_crabdb_create_namespace(db_namespace, "namespace1");
@@ -67,6 +68,7 @@ FOSSIL_TEST(test_erase_sub_namespace) {
     fossil_crabdb_error_t result = fossil_crabdb_erase_sub_namespace(db_namespace, "namespace1", "sub_namespace1");
     ASSUME_ITS_EQUAL_I32(CRABDB_OK, result);
 
+    // Trying to erase the same sub-namespace again
     result = fossil_crabdb_erase_sub_namespace(db_namespace, "namespace1", "sub_namespace1");
     ASSUME_ITS_EQUAL_I32(CRABDB_ERR_SUB_NS_NOT_FOUND, result);
 }
@@ -76,7 +78,7 @@ FOSSIL_TEST(test_erase_sub_namespace) {
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
 FOSSIL_TEST_GROUP(c_crabdb_namespace_tests) {    
-    ADD_TESTF(test_create_sub_namespace, core_crabdb_namespace_fixture);
-    ADD_TESTF(test_erase_namespace, core_crabdb_namespace_fixture);
-    ADD_TESTF(test_erase_sub_namespace, core_crabdb_namespace_fixture);
+    ADD_TESTF(test_create_sub_namespace_success, core_crabdb_namespace_fixture);
+    ADD_TESTF(test_erase_namespace_success, core_crabdb_namespace_fixture);
+    ADD_TESTF(test_erase_sub_namespace_success, core_crabdb_namespace_fixture);
 } // end of tests
