@@ -867,8 +867,8 @@ static fossil_crabdb_error_t parse_and_execute(fossil_crabdb_t *db, char *comman
                     printf("Key Count: %llu\n", key_count);
                     printf("Sub-Namespace Count: %llu\n", sub_namespace_count);
                 #else
-                    printf("Key Count: %lu\n", key_count);
-                    printf("Sub-Namespace Count: %lu\n", sub_namespace_count);
+                    printf("Key Count: %u\n", key_count);
+                    printf("Sub-Namespace Count: %u\n", sub_namespace_count);
                 #endif
             }
             return err;
