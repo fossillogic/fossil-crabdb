@@ -19,8 +19,6 @@ namespace fossil {
 #endif
 
 #include "database.h"
-#include "namespace.h"
-#include "datastore.h"
 
 /**
  * @brief Blue fossil_crabdb_t Database Library
