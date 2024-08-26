@@ -36,6 +36,7 @@ typedef enum {
     CRABDB_ERR_SUB_NS_NOT_FOUND, /**< Sub-namespace not found */
     CRABDB_ERR_INVALID_ARG, /**< Invalid argument */
     CRABDB_ERR_COPY_FAILED, /**< Copy failed */
+    CRABDB_ERR_KEY_ALREADY_EXISTS, /**< Key already exists */
     CRABDB_ERR_SUB_NS_EXISTS, /**< Sub-namespace already exists */
     CRABDB_ERR_BACKUP_FAILED, /**< Backup failed */
     CRABDB_ERR_RESTORE_FAILED, /**< Restore failed */
@@ -134,15 +135,6 @@ fossil_crabdb_error_t fossil_crabdb_update(fossil_crabdb_t *db, const char *name
  * @return Error code indicating the result of the operation.
  */
 fossil_crabdb_error_t fossil_crabdb_delete(fossil_crabdb_t *db, const char *namespace_name, const char *key);
-
-/**
- * @brief Execute a custom query.
- * 
- * @param db Pointer to the fossil_crabdb_t database.
- * @param query Custom query to execute.
- * @return Error code indicating the result of the operation.
- */
-fossil_crabdb_error_t fossil_crabdb_execute_query(fossil_crabdb_t *db, const char *query);
 
 //
 // DATA STORAGE
@@ -245,7 +237,7 @@ fossil_crabdb_error_t fossil_crabdb_list_namespaces(fossil_crabdb_t *db, char **
  * @param count Pointer to store the number of keys.
  * @return Error code indicating the result of the operation.
  */
-fossil_crabdb_error_t fossil_crabdb_list_keys(fossil_crabdb_t *db, const char *namespace_name, char ***keys, size_t *count);
+fossil_crabdb_error_t fossil_crabdb_list_namespaces_keys(fossil_crabdb_t *db, const char *namespace_name, char ***keys, size_t *count);
 
 /**
  * @brief Get statistics for a namespace.
@@ -276,6 +268,18 @@ fossil_crabdb_namespace_t* fossil_crabdb_copy_namespace(const fossil_crabdb_name
  */
 fossil_crabdb_error_t fossil_crabdb_rename_namespace(fossil_crabdb_t *db, const char *old_namespace_name, const char *new_namespace_name);
 
+//
+// DATABASE QUERIES
+//
+
+/**
+ * @brief Execute a custom query.
+ * 
+ * @param db Pointer to the fossil_crabdb_t database.
+ * @param query Custom query to execute.
+ * @return Error code indicating the result of the operation.
+ */
+fossil_crabdb_error_t fossil_crabdb_execute_query(fossil_crabdb_t *db, const char *query);
 
 #ifdef __cplusplus
 }

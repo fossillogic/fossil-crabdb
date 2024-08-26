@@ -19,32 +19,6 @@
 #include <stdio.h>
 #include <ctype.h>
 
-// static fossil_crabdb_error_t write_namespace(FILE *file, fossil_crabdb_namespace_t *ns) {
-//     size_t name_len = strlen(ns->name) + 1;
-//     if (fwrite(&name_len, sizeof(size_t), 1, file) != 1) return CRABDB_ERR_IO;
-//     if (fwrite(ns->name, sizeof(char), name_len, file) != name_len) return CRABDB_ERR_IO;
-    
-//     if (fwrite(&ns->sub_namespace_count, sizeof(size_t), 1, file) != 1) return CRABDB_ERR_IO;
-//     for (size_t i = 0; i < ns->sub_namespace_count; ++i) {
-//         if (write_namespace(file, &ns->sub_namespaces[i]) != CRABDB_OK) return CRABDB_ERR_IO;
-//     }
-
-//     fossil_crabdb_keyvalue_t *kv = ns->data;
-//     while (kv) {
-//         size_t key_len = strlen(kv->key) + 1;
-//         size_t value_len = strlen(kv->value) + 1;
-//         if (fwrite(&key_len, sizeof(size_t), 1, file) != 1) return CRABDB_ERR_IO;
-//         if (fwrite(kv->key, sizeof(char), key_len, file) != key_len) return CRABDB_ERR_IO;
-//         if (fwrite(&value_len, sizeof(size_t), 1, file) != 1) return CRABDB_ERR_IO;
-//         if (fwrite(kv->value, sizeof(char), value_len, file) != value_len) return CRABDB_ERR_IO;
-//         kv = kv->next;
-//     }
-
-//     size_t end_marker = 0;
-//     if (fwrite(&end_marker, sizeof(size_t), 1, file) != 1) return CRABDB_ERR_IO;
-//     return CRABDB_OK;
-// }
-
 /**
  * @brief Create a new namespace.
  * 
@@ -113,7 +87,7 @@ fossil_crabdb_error_t fossil_crabdb_insert(fossil_crabdb_t *db, const char *name
             fossil_crabdb_keyvalue_t *kv = current->data;
             while (kv) {
                 if (strcmp(kv->key, key) == 0) {
-                    return CRABDB_ERR_KEY_NOT_FOUND; // Key already exists
+                    return CRABDB_ERR_KEY_ALREADY_EXISTS; // Key already exists
                 }
                 kv = kv->next;
             }
@@ -122,7 +96,18 @@ fossil_crabdb_error_t fossil_crabdb_insert(fossil_crabdb_t *db, const char *name
             if (!new_kv) return CRABDB_ERR_MEM;
 
             new_kv->key = fossil_crabdb_strdup(key);
+            if (!new_kv->key) {
+                fossil_crabdb_free(new_kv); // Free allocated memory on failure
+                return CRABDB_ERR_MEM;
+            }
+
             new_kv->value = fossil_crabdb_strdup(value);
+            if (!new_kv->value) {
+                fossil_crabdb_free(new_kv->key); // Free allocated key if value allocation fails
+                fossil_crabdb_free(new_kv); // Free the new key-value structure
+                return CRABDB_ERR_MEM;
+            }
+
             new_kv->next = current->data;
             current->data = new_kv;
 
@@ -153,6 +138,7 @@ fossil_crabdb_error_t fossil_crabdb_get(fossil_crabdb_t *db, const char *namespa
             while (kv) {
                 if (strcmp(kv->key, key) == 0) {
                     *value = fossil_crabdb_strdup(kv->value);
+                    if (!*value) return CRABDB_ERR_MEM; // Check if strdup succeeded
                     return CRABDB_OK;
                 }
                 kv = kv->next;
@@ -183,8 +169,12 @@ fossil_crabdb_error_t fossil_crabdb_update(fossil_crabdb_t *db, const char *name
             fossil_crabdb_keyvalue_t *kv = current->data;
             while (kv) {
                 if (strcmp(kv->key, key) == 0) {
+                    // Free the old value
                     fossil_crabdb_free(kv->value);
+                    // Duplicate the new value
                     kv->value = fossil_crabdb_strdup(value);
+                    // Check if strdup succeeded
+                    if (!kv->value) return CRABDB_ERR_MEM;
                     return CRABDB_OK;
                 }
                 kv = kv->next;
@@ -234,108 +224,6 @@ fossil_crabdb_error_t fossil_crabdb_delete(fossil_crabdb_t *db, const char *name
     }
 
     return CRABDB_ERR_NS_NOT_FOUND;
-} // end of fun
-
-/**
- * @brief Create a new namespace.
- * 
- * @param db Pointer to the fossil_crabdb_t database.
- * @param namespace_name Name of the new namespace.
- * @return Error code indicating the result of the operation.
- */
-static fossil_crabdb_error_t parse_and_execute(fossil_crabdb_t *db, char *command, char **tokens, int token_count) {
-    if (strcmp(command, "create_namespace") == 0) {
-        if (token_count == 1) {
-            return fossil_crabdb_create_namespace(db, tokens[0]);
-        }
-    } else if (strcmp(command, "create_sub_namespace") == 0) {
-        if (token_count == 2) {
-            return fossil_crabdb_create_sub_namespace(db, tokens[0], tokens[1]);
-        }
-    } else if (strcmp(command, "erase_namespace") == 0) {
-        if (token_count == 1) {
-            return fossil_crabdb_erase_namespace(db, tokens[0]);
-        }
-    } else if (strcmp(command, "erase_sub_namespace") == 0) {
-        if (token_count == 2) {
-            return fossil_crabdb_erase_sub_namespace(db, tokens[0], tokens[1]);
-        }
-    } else if (strcmp(command, "insert") == 0) {
-        if (token_count == 3) {
-            return fossil_crabdb_insert(db, tokens[0], tokens[1], tokens[2]);
-        }
-    } else if (strcmp(command, "get") == 0) {
-        if (token_count == 2) {
-            char *value;
-            fossil_crabdb_error_t err = fossil_crabdb_get(db, tokens[0], tokens[1], &value);
-            if (err == CRABDB_OK) {
-                printf("Value: %s\n", value);
-                fossil_crabdb_free(value);
-            }
-            return err;
-        }
-    } else if (strcmp(command, "update") == 0) {
-        if (token_count == 3) {
-            return fossil_crabdb_update(db, tokens[0], tokens[1], tokens[2]);
-        }
-    } else if (strcmp(command, "delete") == 0) {
-        if (token_count == 2) {
-            return fossil_crabdb_delete(db, tokens[0], tokens[1]);
-        }
-    }
-    
-    return CRABDB_ERR_INVALID_QUERY;
-} // end of fun
-
-/**
- * @brief Execute a query.
- * 
- * @param db Pointer to the fossil_crabdb_t database.
- * @param query Query to execute.
- * @return Error code indicating the result of the operation.
- */
-fossil_crabdb_error_t fossil_crabdb_execute_query(fossil_crabdb_t *db, const char *query) {
-    if (!db || !query) return CRABDB_ERR_INVALID_QUERY;
-
-    char *query_copy = fossil_crabdb_strdup(query);
-    if (!query_copy) return CRABDB_ERR_MEM;
-
-    char *command = strtok(query_copy, "(");
-    if (!command) {
-        fossil_crabdb_free(query_copy);
-        return CRABDB_ERR_INVALID_QUERY;
-    }
-
-    char *args = strtok(NULL, ")");
-    if (!args) {
-        fossil_crabdb_free(query_copy);
-        return CRABDB_ERR_INVALID_QUERY;
-    }
-
-    // Trim spaces from the command
-    while (isspace((unsigned char)*command)) command++;
-    char *end = command + strlen(command) - 1;
-    while (end > command && isspace((unsigned char)*end)) end--;
-    end[1] = '\0';
-
-    // Tokenize the arguments
-    char *token;
-    char *tokens[10]; // Assuming a max of 10 arguments
-    int token_count = 0;
-    token = strtok(args, ",");
-    while (token) {
-        while (isspace((unsigned char)*token)) token++;
-        char *end = token + strlen(token) - 1;
-        while (end > token && isspace((unsigned char)*end)) end--;
-        end[1] = '\0';
-        tokens[token_count++] = token;
-        token = strtok(NULL, ",");
-    }
-
-    fossil_crabdb_error_t result = parse_and_execute(db, command, tokens, token_count);
-
-    fossil_crabdb_free(query_copy);
-    return result;
 } // end of fun
 
 //
@@ -800,7 +688,7 @@ fossil_crabdb_error_t fossil_crabdb_list_namespaces(fossil_crabdb_t *db, char **
  * @param count Pointer to store the number of keys.
  * @return Error code indicating the result of the operation.
  */
-fossil_crabdb_error_t fossil_crabdb_list_keys(fossil_crabdb_t *db, const char *namespace_name, char ***keys, size_t *count) {
+fossil_crabdb_error_t fossil_crabdb_list_namespaces_keys(fossil_crabdb_t *db, const char *namespace_name, char ***keys, size_t *count) {
     if (!db || !namespace_name || !keys || !count) return CRABDB_ERR_MEM;
 
     fossil_crabdb_namespace_t *current = db->namespaces;
@@ -891,3 +779,151 @@ fossil_crabdb_error_t fossil_crabdb_rename_namespace(fossil_crabdb_t *db, const 
 
     return CRABDB_ERR_NS_NOT_FOUND;
 }
+
+//
+// DATABASE QUERRY LANGUAGE
+//
+
+/**
+ * @brief Create a new namespace.
+ * 
+ * @param db Pointer to the fossil_crabdb_t database.
+ * @param namespace_name Name of the new namespace.
+ * @return Error code indicating the result of the operation.
+ */
+static fossil_crabdb_error_t parse_and_execute(fossil_crabdb_t *db, char *command, char **tokens, int token_count) {
+    if (strcmp(command, "create_namespace") == 0) {
+        if (token_count == 1) {
+            return fossil_crabdb_create_namespace(db, tokens[0]);
+        }
+    } else if (strcmp(command, "create_sub_namespace") == 0) {
+        if (token_count == 2) {
+            return fossil_crabdb_create_sub_namespace(db, tokens[0], tokens[1]);
+        }
+    } else if (strcmp(command, "erase_namespace") == 0) {
+        if (token_count == 1) {
+            return fossil_crabdb_erase_namespace(db, tokens[0]);
+        }
+    } else if (strcmp(command, "erase_sub_namespace") == 0) {
+        if (token_count == 2) {
+            return fossil_crabdb_erase_sub_namespace(db, tokens[0], tokens[1]);
+        }
+    } else if (strcmp(command, "insert") == 0) {
+        if (token_count == 3) {
+            return fossil_crabdb_insert(db, tokens[0], tokens[1], tokens[2]);
+        }
+    } else if (strcmp(command, "get") == 0) {
+        if (token_count == 2) {
+            char *value;
+            fossil_crabdb_error_t err = fossil_crabdb_get(db, tokens[0], tokens[1], &value);
+            if (err == CRABDB_OK) {
+                printf("Value: %s\n", value);
+                fossil_crabdb_free(value);
+            }
+            return err;
+        }
+    } else if (strcmp(command, "update") == 0) {
+        if (token_count == 3) {
+            return fossil_crabdb_update(db, tokens[0], tokens[1], tokens[2]);
+        }
+    } else if (strcmp(command, "delete") == 0) {
+        if (token_count == 2) {
+            return fossil_crabdb_delete(db, tokens[0], tokens[1]);
+        }
+    } else if (strcmp(command, "list_namespaces") == 0) {
+        if (token_count == 0) {
+            char **namespaces;
+            size_t count;
+            fossil_crabdb_error_t err = fossil_crabdb_list_namespaces(db, &namespaces, &count);
+            if (err == CRABDB_OK) {
+                for (size_t i = 0; i < count; i++) {
+                    printf("Namespace: %s\n", namespaces[i]);
+                    fossil_crabdb_free(namespaces[i]);
+                }
+                fossil_crabdb_free(namespaces);
+            }
+            return err;
+        }
+    } else if (strcmp(command, "list_namespaces_keys") == 0) {
+        if (token_count == 1) {
+            char **keys;
+            size_t count;
+            fossil_crabdb_error_t err = fossil_crabdb_list_namespaces_keys(db, tokens[0], &keys, &count);
+            if (err == CRABDB_OK) {
+                for (size_t i = 0; i < count; i++) {
+                    printf("Key: %s\n", keys[i]);
+                    fossil_crabdb_free(keys[i]);
+                }
+                fossil_crabdb_free(keys);
+            }
+            return err;
+        }
+    } else if (strcmp(command, "get_namespace_stats") == 0) {
+        if (token_count == 1) {
+            size_t key_count, sub_namespace_count;
+            fossil_crabdb_error_t err = fossil_crabdb_get_namespace_stats(db, tokens[0], &key_count, &sub_namespace_count);
+            if (err == CRABDB_OK) {
+                printf("Key Count: %zu\n", key_count);
+                printf("Sub-Namespace Count: %zu\n", sub_namespace_count);
+            }
+            return err;
+        }
+    } else if (strcmp(command, "rename_namespace") == 0) {
+        if (token_count == 2) {
+            return fossil_crabdb_rename_namespace(db, tokens[0], tokens[1]);
+        }
+    }
+
+    return CRABDB_ERR_INVALID_QUERY;
+} // end of fun
+
+/**
+ * @brief Execute a query.
+ * 
+ * @param db Pointer to the fossil_crabdb_t database.
+ * @param query Query to execute.
+ * @return Error code indicating the result of the operation.
+ */
+fossil_crabdb_error_t fossil_crabdb_execute_query(fossil_crabdb_t *db, const char *query) {
+    if (!db || !query) return CRABDB_ERR_INVALID_QUERY;
+
+    char *query_copy = fossil_crabdb_strdup(query);
+    if (!query_copy) return CRABDB_ERR_MEM;
+
+    char *command = strtok(query_copy, "(");
+    if (!command) {
+        fossil_crabdb_free(query_copy);
+        return CRABDB_ERR_INVALID_QUERY;
+    }
+
+    char *args = strtok(NULL, ")");
+    if (!args) {
+        fossil_crabdb_free(query_copy);
+        return CRABDB_ERR_INVALID_QUERY;
+    }
+
+    // Trim spaces from the command
+    while (isspace((unsigned char)*command)) command++;
+    char *end = command + strlen(command) - 1;
+    while (end > command && isspace((unsigned char)*end)) end--;
+    end[1] = '\0';
+
+    // Tokenize the arguments
+    char *token;
+    char *tokens[10]; // Assuming a max of 10 arguments
+    int token_count = 0;
+    token = strtok(args, ",");
+    while (token) {
+        while (isspace((unsigned char)*token)) token++;
+        end = token + strlen(token) - 1;
+        while (end > token && isspace((unsigned char)*end)) end--;
+        end[1] = '\0';
+        tokens[token_count++] = token;
+        token = strtok(NULL, ",");
+    }
+
+    fossil_crabdb_error_t result = parse_and_execute(db, command, tokens, token_count);
+
+    fossil_crabdb_free(query_copy);
+    return result;
+} // end of fun
