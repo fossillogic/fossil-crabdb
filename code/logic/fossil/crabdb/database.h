@@ -24,387 +24,175 @@ extern "C" {
 // DATABASE TYPES
 //
 
-/**
- * @brief Error codes for the fossil_crabdb framework.
- */
 typedef enum {
-    CRABDB_OK = 0, /**< Operation completed successfully */
-    CRABDB_ERR_MEM, /**< Memory allocation error */
-    CRABDB_ERR_IO,            // Input/output error (e.g., file handling)
-    CRABDB_ERR_NS_NOT_FOUND, /**< Namespace not found */
-    CRABDB_ERR_NS_EXISTS, /**< Namespace already exists */
-    CRABDB_ERR_SUB_NS_NOT_FOUND, /**< Sub-namespace not found */
-    CRABDB_ERR_INVALID_ARG, /**< Invalid argument */
-    CRABDB_ERR_COPY_FAILED, /**< Copy failed */
-    CRABDB_ERR_KEY_ALREADY_EXISTS, /**< Key already exists */
-    CRABDB_ERR_SUB_NS_EXISTS, /**< Sub-namespace already exists */
-    CRABDB_ERR_BACKUP_FAILED, /**< Backup failed */
-    CRABDB_ERR_RESTORE_FAILED, /**< Restore failed */
-    CRABDB_ERR_DESERIALIZE_FAILED, /**< Deserialization failed */
-    CRABDB_ERR_KEY_NOT_FOUND, /**< Key not found */
-    CRABDB_ERR_INVALID_QUERY, /**< Invalid query */
-    CRABDB_ERR_INVALID_KEY, /**< Invalid key */
-    CRABDB_ERR_INVALID_VALUE, /**< Invalid value */
-    CRABDB_ERR_CONCURRENT_ACCESS /**< Concurrent access error */
-} fossil_crabdb_error_t;
+    CRABDB_OK = 0,
+    MAX_KEY_LENGTH = 256,
+    MAX_VALUE_LENGTH = 1024,
+    MAX_LINE_LENGTH = 2048,
+    MAX_ARG_LENGTH = 256
+};
 
 /**
- * @brief Key-value pair structure.
+ * @brief Error codes for the CrabDB database.
  */
 typedef struct fossil_crabdb_keyvalue_t {
-    char *key; /**< Key of the key-value pair */
-    char *value; /**< Value of the key-value pair */
-    struct fossil_crabdb_keyvalue_t *next; /**< Pointer to the next key-value pair */
+    char key[MAX_KEY_LENGTH];
+    char value[MAX_VALUE_LENGTH];
+    struct fossil_crabdb_keyvalue_t *prev;
+    struct fossil_crabdb_keyvalue_t *next;
 } fossil_crabdb_keyvalue_t;
 
-/**
- * @brief Namespace structure.
- */
 typedef struct fossil_crabdb_namespace_t {
-    char *name; /**< Name of the namespace */
-    struct fossil_crabdb_namespace_t *sub_namespaces; /**< Pointer to the sub-namespaces */
-    size_t sub_namespace_count; /**< Number of sub-namespaces */
-    struct fossil_crabdb_namespace_t *next; /**< Pointer to the next namespace */
-    fossil_crabdb_keyvalue_t *data; /**< Linked list of key-value pairs */
+    char name[MAX_KEY_LENGTH];
+    fossil_crabdb_keyvalue_t *keyValueHead;
+    struct fossil_crabdb_namespace_t *prev;
+    struct fossil_crabdb_namespace_t *next;
+    struct fossil_crabdb_namespace_t *subNamespacesHead;
 } fossil_crabdb_namespace_t;
 
-/**
- * @brief Database structure.
- */
-typedef struct {
-    fossil_crabdb_namespace_t *namespaces; /**< Pointer to the namespaces */
+typedef struct fossil_crabdb_t {
+    fossil_crabdb_namespace_t *namespaceHead;
+    // Add more fields for caching or other metadata if needed
 } fossil_crabdb_t;
+
+typedef struct fossil_crabdb_cache_entry_t {
+    char key[MAX_KEY_LENGTH];
+    char value[MAX_VALUE_LENGTH];
+    struct fossil_crabdb_cache_entry_t *next;
+} fossil_crabdb_cache_entry_t;
+
+typedef struct fossil_crabdb_cache_t {
+    fossil_crabdb_cache_entry_t *head;
+} fossil_crabdb_cache_t;
 
 //
 // DATABASE OPERATIONS
 //
 
 /**
- * @brief Create a new fossil_crabdb_t database.
- * 
- * @return Pointer to the newly created fossil_crabdb_t database.
+ * @brief Creates a new CrabDB database.
+ * @return A pointer to the newly created database.
  */
 fossil_crabdb_t* fossil_crabdb_create(void);
 
 /**
- * @brief Erase the fossil_crabdb_t database.
- * 
- * @param db Pointer to the fossil_crabdb_t database to erase.
+ * @brief Adds a new namespace to the CrabDB database.
+ * @param db The CrabDB database.
+ * @param name The name of the namespace to add.
+ * @return 0 if successful, -1 otherwise.
  */
-void fossil_crabdb_erase(fossil_crabdb_t *db);
+int fossil_crabdb_add_namespace(fossil_crabdb_t *db, const char *name);
 
 /**
- * @brief Insert data into a namespace.
- * 
- * @param db Pointer to the fossil_crabdb_t database.
- * @param namespace_name Name of the namespace.
- * @param key Key of the data to insert.
- * @param value Value of the data to insert.
- * @return Error code indicating the result of the operation.
+ * @brief Finds a namespace in the CrabDB database.
+ * @param db The CrabDB database.
+ * @param name The name of the namespace to find.
+ * @return A pointer to the found namespace, or NULL if not found.
  */
-fossil_crabdb_error_t fossil_crabdb_insert(fossil_crabdb_t *db, const char *namespace_name, const char *key, const char *value);
+fossil_crabdb_namespace_t* fossil_crabdb_find_namespace(fossil_crabdb_t *db, const char *name);
 
 /**
- * @brief Get data from a namespace.
- * 
- * @param db Pointer to the fossil_crabdb_t database.
- * @param namespace_name Name of the namespace.
- * @param key Key of the data to get.
- * @param value Pointer to store the retrieved value.
- * @return Error code indicating the result of the operation.
+ * @brief Adds a key-value pair to a namespace in the CrabDB database.
+ * @param ns The namespace to add the key-value pair to.
+ * @param key The key of the pair.
+ * @param value The value of the pair.
+ * @return 0 if successful, -1 otherwise.
  */
-fossil_crabdb_error_t fossil_crabdb_get(fossil_crabdb_t *db, const char *namespace_name, const char *key, char **value);
+int fossil_crabdb_add_key_value(fossil_crabdb_namespace_t *ns, const char *key, const char *value);
 
 /**
- * @brief Update data in a namespace.
- * 
- * @param db Pointer to the fossil_crabdb_t database.
- * @param namespace_name Name of the namespace.
- * @param key Key of the data to update.
- * @param value New value for the data.
- * @return Error code indicating the result of the operation.
+ * @brief Gets the value associated with a key in a namespace of the CrabDB database.
+ * @param ns The namespace to search for the key-value pair.
+ * @param key The key to search for.
+ * @return The value associated with the key, or NULL if not found.
  */
-fossil_crabdb_error_t fossil_crabdb_update(fossil_crabdb_t *db, const char *namespace_name, const char *key, const char *value);
+const char* fossil_crabdb_get_value(fossil_crabdb_namespace_t *ns, const char *key);
 
 /**
- * @brief Delete data from a namespace.
- * 
- * @param db Pointer to the fossil_crabdb_t database.
- * @param namespace_name Name of the namespace.
- * @param key Key of the data to delete.
- * @return Error code indicating the result of the operation.
+ * @brief Deletes a key-value pair from a namespace in the CrabDB database.
+ * @param ns The namespace to delete the key-value pair from.
+ * @param key The key of the pair to delete.
+ * @return 0 if successful, -1 otherwise.
  */
-fossil_crabdb_error_t fossil_crabdb_delete(fossil_crabdb_t *db, const char *namespace_name, const char *key);
+int fossil_crabdb_delete_key_value(fossil_crabdb_namespace_t *ns, const char *key);
+
+/**
+ * @brief Deletes a namespace from the CrabDB database.
+ * @param db The CrabDB database.
+ * @param name The name of the namespace to delete.
+ * @return 0 if successful, -1 otherwise.
+ */
+int fossil_crabdb_delete_namespace(fossil_crabdb_t *db, const char *name);
 
 //
-// DATA STORAGE
+// DATABASE CACHE
 //
 
 /**
- * @brief Serializes the database to a file.
- *
- * @param db The database to serialize.
- * @param filename The name of the file to serialize to.
- * @return CRABDB_OK on success, or an error code on failure.
+ * @brief Creates a new CrabDB cache.
+ * @return A pointer to the newly created cache.
  */
-fossil_crabdb_error_t fossil_crabdb_serialize_to_file(fossil_crabdb_t *db, const char *filename);
+fossil_crabdb_cache_t* fossil_crabdb_create_cache(void);
 
 /**
- * @brief Deserializes the database from a file.
- *
- * @param db The database to deserialize into.
- * @param filename The name of the file to deserialize from.
- * @return CRABDB_OK on success, or an error code on failure.
+ * @brief Adds a key-value pair to the CrabDB cache.
+ * @param cache The CrabDB cache.
+ * @param key The key of the pair.
+ * @param value The value of the pair.
  */
-fossil_crabdb_error_t fossil_crabdb_deserialize_from_file(fossil_crabdb_t *db, const char *filename);
+void fossil_crabdb_cache_add(fossil_crabdb_cache_t *cache, const char *key, const char *value);
 
 /**
- * @brief Saves the database to a file.
- *
- * @param db The database to save.
+ * @brief Gets the value associated with a key in the CrabDB cache.
+ * @param cache The CrabDB cache.
+ * @param key The key to search for.
+ * @return The value associated with the key, or NULL if not found.
+ */
+const char* fossil_crabdb_cache_get(fossil_crabdb_cache_t *cache, const char *key);
+
+/**
+ * @brief Frees the memory used by a CrabDB cache.
+ * @param cache The CrabDB cache to free.
+ */
+void fossil_crabdb_cache_free(fossil_crabdb_cache_t *cache);
+
+//
+// DATABASE QUERY AND SCRIPTING
+//
+
+/**
+ * @brief Saves the CrabDB database to a file.
+ * @param db The CrabDB database.
  * @param filename The name of the file to save to.
- * @return CRABDB_OK on success, or an error code on failure.
+ * @return 0 if successful, -1 otherwise.
  */
-int fossil_crabdb_save_to_file(fossil_crabdb_t *db, const char *filename);
+int fossil_crabdb_save(fossil_crabdb_t *db, const char *filename);
 
 /**
- * @brief Loads the database from a file.
- *
- * @param db The database to load into.
+ * @brief Loads a CrabDB database from a file.
+ * @param db The CrabDB database.
  * @param filename The name of the file to load from.
- * @return CRABDB_OK on success, or an error code on failure.
+ * @return 0 if successful, -1 otherwise.
  */
-int fossil_crabdb_load_from_file(fossil_crabdb_t *db, const char *filename);
-
-//
-// DATABASE NAMESPACES
-//
+int fossil_crabdb_load(fossil_crabdb_t *db, const char *filename);
 
 /**
- * @brief Create a new namespace.
- * 
- * @param db Pointer to the fossil_crabdb_t database.
- * @param namespace_name Name of the new namespace.
- * @return Error code indicating the result of the operation.
+ * @brief Executes a query on the CrabDB database.
+ * @param db The CrabDB database.
+ * @param query The query to execute.
+ * @return 0 if successful, -1 otherwise.
  */
-fossil_crabdb_error_t fossil_crabdb_create_namespace(fossil_crabdb_t *db, const char *namespace_name);
+int fossil_crabdb_execute_query(fossil_crabdb_t *db, const char *query);
 
 /**
- * @brief Create a new sub-namespace.
- * 
- * @param db Pointer to the fossil_crabdb_t database.
- * @param namespace_name Name of the parent namespace.
- * @param sub_namespace_name Name of the new sub-namespace.
- * @return Error code indicating the result of the operation.
+ * @brief Executes a script on the CrabDB database.
+ * @param db The CrabDB database.
+ * @param script The script to execute.
+ * @return 0 if successful, -1 otherwise.
  */
-fossil_crabdb_error_t fossil_crabdb_create_sub_namespace(fossil_crabdb_t *db, const char *namespace_name, const char *sub_namespace_name);
-
-/**
- * @brief Erase a namespace.
- * 
- * @param db Pointer to the fossil_crabdb_t database.
- * @param namespace_name Name of the namespace to erase.
- * @return Error code indicating the result of the operation.
- */
-fossil_crabdb_error_t fossil_crabdb_erase_namespace(fossil_crabdb_t *db, const char *namespace_name);
-
-/**
- * @brief Erase a sub-namespace.
- * 
- * @param db Pointer to the fossil_crabdb_t database.
- * @param namespace_name Name of the parent namespace.
- * @param sub_namespace_name Name of the sub-namespace to erase.
- * @return Error code indicating the result of the operation.
- */
-fossil_crabdb_error_t fossil_crabdb_erase_sub_namespace(fossil_crabdb_t *db, const char *namespace_name, const char *sub_namespace_name);
-
-/**
- * @brief List all namespaces.
- * 
- * @param db Pointer to the fossil_crabdb_t database.
- * @param namespaces Pointer to store the list of namespace names.
- * @param count Pointer to store the number of namespaces.
- * @return Error code indicating the result of the operation.
- */
-fossil_crabdb_error_t fossil_crabdb_list_namespaces(fossil_crabdb_t *db, char ***namespaces, size_t *count);
-
-/**
- * @brief List all keys in a namespace.
- * 
- * @param db Pointer to the fossil_crabdb_t database.
- * @param namespace_name Name of the namespace.
- * @param keys Pointer to store the list of keys.
- * @param count Pointer to store the number of keys.
- * @return Error code indicating the result of the operation.
- */
-fossil_crabdb_error_t fossil_crabdb_list_namespaces_keys(fossil_crabdb_t *db, const char *namespace_name, char ***keys, size_t *count);
-
-/**
- * @brief Get statistics for a namespace.
- * 
- * @param db Pointer to the fossil_crabdb_t database.
- * @param namespace_name Name of the namespace to get statistics for.
- * @param key_count Pointer to store the number of keys.
- * @param sub_namespace_count Pointer to store the number of sub-namespaces.
- * @return Error code indicating the result of the operation.
- */
-fossil_crabdb_error_t fossil_crabdb_get_namespace_stats(fossil_crabdb_t *db, const char *namespace_name, size_t *key_count, size_t *sub_namespace_count);
-
-/**
- * @brief Create a deep copy of a namespace.
- * 
- * @param original Pointer to the original namespace to copy.
- * @return Pointer to the copied namespace.
- */
-fossil_crabdb_namespace_t* fossil_crabdb_copy_namespace(const fossil_crabdb_namespace_t *original);
-
-/**
- * @brief Rename a namespace.
- * 
- * @param db Pointer to the fossil_crabdb_t database.
- * @param old_namespace_name Current name of the namespace.
- * @param new_namespace_name New name for the namespace.
- * @return Error code indicating the result of the operation.
- */
-fossil_crabdb_error_t fossil_crabdb_rename_namespace(fossil_crabdb_t *db, const char *old_namespace_name, const char *new_namespace_name);
-
-//
-// DATABASE QUERIES
-//
-
-/**
- * @brief Execute a custom query.
- * 
- * @param db Pointer to the fossil_crabdb_t database.
- * @param query Custom query to execute.
- * @return Error code indicating the result of the operation.
- */
-fossil_crabdb_error_t fossil_crabdb_execute_query(fossil_crabdb_t *db, const char *query);
+int fossil_crabdb_execute_script(fossil_crabdb_t *db, const char *script);
 
 #ifdef __cplusplus
-}
-#endif
-
-#ifdef __cplusplus
-#include <string>
-#include <vector>
-
-namespace fossil {
-
-    /**
-     * @brief Wrapper function to create a new database.
-     * 
-     * @return Pointer to the newly created fossil_crabdb_t database.
-     */
-    fossil_crabdb_t* crabdb_create_database(void) {
-        return fossil_crabdb_create();
-    }
-
-    /**
-     * @brief Wrapper function to erase a database.
-     * 
-     * @param db Pointer to the fossil_crabdb_t database to erase.
-     */
-    void crabdb_erase_database(fossil_crabdb_t *db) {
-        fossil_crabdb_erase(db);
-    }
-
-    /**
-     * @brief Wrapper function to insert data into a namespace.
-     * 
-     * @param db Pointer to the fossil_crabdb_t database.
-     * @param namespace_name Name of the namespace.
-     * @param key Key of the data to insert.
-     * @param value Value of the data to insert.
-     * @return Error code indicating the result of the operation.
-     */
-    fossil_crabdb_error_t crabdb_insert_data(fossil_crabdb_t *db, const std::string& namespace_name, const std::string& key, const std::string& value) {
-        return fossil_crabdb_insert(db, namespace_name.c_str(), key.c_str(), value.c_str());
-    }
-
-    /**
-     * @brief Wrapper function to get data from a namespace.
-     * 
-     * @param db Pointer to the fossil_crabdb_t database.
-     * @param namespace_name Name of the namespace.
-     * @param key Key of the data to get.
-     * @param value Pointer to store the retrieved value.
-     * @return Error code indicating the result of the operation.
-     */
-    fossil_crabdb_error_t crabdb_get_data(fossil_crabdb_t *db, const std::string& namespace_name, const std::string& key, std::string& value) {
-        char* retrieved_value;
-        fossil_crabdb_error_t result = fossil_crabdb_get(db, namespace_name.c_str(), key.c_str(), &retrieved_value);
-        if (result == FOSSIL_CRABDB_SUCCESS) {
-            value = retrieved_value;
-        }
-        return result;
-    }
-
-    /**
-     * @brief Wrapper function to update data in a namespace.
-     * 
-     * @param db Pointer to the fossil_crabdb_t database.
-     * @param namespace_name Name of the namespace.
-     * @param key Key of the data to update.
-     * @param value New value for the data.
-     * @return Error code indicating the result of the operation.
-     */
-    fossil_crabdb_error_t crabdb_update_data(fossil_crabdb_t *db, const std::string& namespace_name, const std::string& key, const std::string& value) {
-        return fossil_crabdb_update(db, namespace_name.c_str(), key.c_str(), value.c_str());
-    }
-
-    /**
-     * @brief Wrapper function to delete data from a namespace.
-     * 
-     * @param db Pointer to the fossil_crabdb_t database.
-     * @param namespace_name Name of the namespace.
-     * @param key Key of the data to delete.
-     * @return Error code indicating the result of the operation.
-     */
-    fossil_crabdb_error_t crabdb_delete_data(fossil_crabdb_t *db, const std::string& namespace_name, const std::string& key) {
-        return fossil_crabdb_delete(db, namespace_name.c_str(), key.c_str());
-    }
-
-    /**
-     * @brief Wrapper function to execute a custom query.
-     * 
-     * @param db Pointer to the fossil_crabdb_t database.
-     * @param query Custom query to execute.
-     * @return Error code indicating the result of the operation.
-     */
-    fossil_crabdb_error_t crabdb_execute_query(fossil_crabdb_t *db, const std::string& query) {
-        return fossil_crabdb_execute_query(db, query.c_str());
-    }
-
-    class CrabDB {
-    public:
-        CrabDB() {
-            db = crabdb_create_database();
-        }
-
-        ~CrabDB() {
-            crabdb_erase_database(db);
-        }
-
-        fossil_crabdb_error_t insertData(const std::string& namespace_name, const std::string& key, const std::string& value) {
-            return crabdb_insert_data(db, namespace_name, key, value);
-        }
-
-        fossil_crabdb_error_t getData(const std::string& namespace_name, const std::string& key, std::string& value) {
-            return crabdb_get_data(db, namespace_name, key, value);
-        }
-
-        fossil_crabdb_error_t updateData(const std::string& namespace_name, const std::string& key, const std::string& value) {
-            return crabdb_update_data(db, namespace_name, key, value);
-        }
-
-        fossil_crabdb_error_t deleteData(const std::string& namespace_name, const std::string& key) {
-            return crabdb_delete_data(db, namespace_name, key);
-        }
-
-        fossil_crabdb_error_t executeQuery(const std::string& query) {
-            return crabdb_execute_query(db, query);
-        }
 }
 #endif
 
