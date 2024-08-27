@@ -47,7 +47,7 @@ FOSSIL_TEST(test_fossil_crabdb_find_namespace) {
     fossil_crabdb_t *db = fossil_crabdb_create();
     fossil_crabdb_add_namespace(db, "test_namespace");
     fossil_crabdb_namespace_t *ns = fossil_crabdb_find_namespace(db, "test_namespace");
-    ASSUME_ITS_CNULL(ns);
+    ASSUME_NOT_CNULL(ns);
     ASSUME_ITS_EQUAL_CSTR(ns->name, "test_namespace");
     // Test for non-existent namespace
     fossil_crabdb_namespace_t *nonexistent_ns = fossil_crabdb_find_namespace(db, "nonexistent");
