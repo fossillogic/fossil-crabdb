@@ -3,7 +3,7 @@ if get_option('with_test').enabled()
 
     test_src = ['unit_runner.c']
     test_cubes = [
-        'database', 'datastore', 'namespace',
+        'operations', 'query', 'catch',
     ]
 
     foreach cube : test_cubes
