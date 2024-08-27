@@ -89,17 +89,25 @@ FOSSIL_TEST(test_delete_value) {
     ASSUME_ITS_EQUAL_I32(CRABDB_ERR_KEY_NOT_FOUND, result);
 }
 
+FOSSIL_TEST(test_crabql_create_namespace) {
+    ASSUME_NOT_CNULL(db);
+
+    const char *query = "create_namespace('namespace1');";
+    fossil_crabdb_error_t result = fossil_crabdb_execute_query(db, query);
+    ASSUME_ITS_EQUAL_I32(CRABDB_OK, result);
+}
+
 FOSSIL_TEST(test_crabql_create_sub_namespace) {
     ASSUME_NOT_CNULL(db);
 
     // Create the parent namespace
     const char *create_parent = "create_namespace('namespace1');";
-    fossil_crabdb_error_t result = crabql_execute_query(db, create_parent);
+    fossil_crabdb_error_t result = fossil_crabdb_execute_query(db, create_parent);
     ASSUME_ITS_EQUAL_I32(CRABDB_OK, result);
 
     // Create the sub-namespace
     const char *create_sub = "create_sub_namespace('namespace1', 'subnamespace1');";
-    result = crabql_execute_query(db, create_sub);
+    result = fossil_crabdb_execute_query(db, create_sub);
     ASSUME_ITS_EQUAL_I32(CRABDB_OK, result);
 }
 
@@ -108,12 +116,12 @@ FOSSIL_TEST(test_crabql_erase_namespace) {
 
     // Create a namespace
     const char *create_ns = "create_namespace('namespace1');";
-    fossil_crabdb_error_t result = crabql_execute_query(db, create_ns);
+    fossil_crabdb_error_t result = fossil_crabdb_execute_query(db, create_ns);
     ASSUME_ITS_EQUAL_I32(CRABDB_OK, result);
 
     // Erase the namespace
     const char *erase_ns = "erase_namespace('namespace1');";
-    result = crabql_execute_query(db, erase_ns);
+    result = fossil_crabdb_execute_query(db, erase_ns);
     ASSUME_ITS_EQUAL_I32(CRABDB_OK, result);
 
     // Verify the namespace is removed
@@ -135,13 +143,13 @@ FOSSIL_TEST(test_crabql_erase_sub_namespace) {
     // Create the parent namespace and a sub-namespace
     const char *create_parent = "create_namespace('namespace1');";
     const char *create_sub = "create_sub_namespace('namespace1', 'subnamespace1');";
-    fossil_crabdb_error_t result = crabql_execute_query(db, create_parent);
-    result = crabql_execute_query(db, create_sub);
+    fossil_crabdb_error_t result = fossil_crabdb_execute_query(db, create_parent);
+    result = fossil_crabdb_execute_query(db, create_sub);
     ASSUME_ITS_EQUAL_I32(CRABDB_OK, result);
 
     // Erase the sub-namespace
     const char *erase_sub = "erase_sub_namespace('namespace1', 'subnamespace1');";
-    result = crabql_execute_query(db, erase_sub);
+    result = fossil_crabdb_execute_query(db, erase_sub);
     ASSUME_ITS_EQUAL_I32(CRABDB_OK, result);
 
     // Verify the sub-namespace is removed
@@ -168,7 +176,7 @@ FOSSIL_TEST(test_crabql_list_namespaces) {
     };
 
     for (size_t i = 0; i < sizeof(commands)/sizeof(commands[0]); ++i) {
-        fossil_crabdb_error_t result = crabql_execute_query(db, commands[i]);
+        fossil_crabdb_error_t result = fossil_crabdb_execute_query(db, commands[i]);
         ASSUME_ITS_EQUAL_I32(CRABDB_OK, result);
     }
 
@@ -195,12 +203,12 @@ FOSSIL_TEST(test_crabql_rename_namespace) {
 
     // Create a namespace
     const char *create_ns = "create_namespace('namespace1');";
-    fossil_crabdb_error_t result = crabql_execute_query(db, create_ns);
+    fossil_crabdb_error_t result = fossil_crabdb_execute_query(db, create_ns);
     ASSUME_ITS_EQUAL_I32(CRABDB_OK, result);
 
     // Rename the namespace
     const char *rename_ns = "rename_namespace('namespace1', 'namespace2');";
-    result = crabql_execute_query(db, rename_ns);
+    result = fossil_crabdb_execute_query(db, rename_ns);
     ASSUME_ITS_EQUAL_I32(CRABDB_OK, result);
 
     // Verify the rename operation
@@ -226,6 +234,7 @@ FOSSIL_TEST_GROUP(c_crabdb_tests) {
     ADD_TESTF(test_insert_and_get_value, core_crabdb_fixture);
     ADD_TESTF(test_update_value, core_crabdb_fixture);
     ADD_TESTF(test_delete_value, core_crabdb_fixture);
+    ADD_TESTF(test_crabql_create_namespace, core_crabdb_fixture);
     ADD_TESTF(test_crabql_create_sub_namespace, core_crabdb_fixture);
     ADD_TESTF(test_crabql_erase_namespace, core_crabdb_fixture);
     ADD_TESTF(test_crabql_erase_sub_namespace, core_crabdb_fixture);
