@@ -24,7 +24,7 @@ extern "C" {
 // DATABASE TYPES
 //
 
-typedef enum {
+enum {
     CRABDB_OK = 0,
     MAX_KEY_LENGTH = 256,
     MAX_VALUE_LENGTH = 1024,

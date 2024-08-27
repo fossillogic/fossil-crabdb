@@ -389,7 +389,6 @@ int fossil_crabdb_execute_script(fossil_crabdb_t *db, const char *filename) {
     kwargs_t kwargs[10]; // Adjust the size as needed
     size_t num_kwargs = 0;
     int in_condition = 0; // 0: not inside any condition, 1: inside if, 2: inside else
-    int condition_result = 0; // Result of the last condition check
 
     while (fgets(line, sizeof(line), file)) {
         trim_whitespace(line);
@@ -397,7 +396,6 @@ int fossil_crabdb_execute_script(fossil_crabdb_t *db, const char *filename) {
 
         if (strstr(line, "if") == line) {
             in_condition = 1;
-            condition_result = 0; // Reset condition result
             continue;
         } else if (strstr(line, "elseif") == line) {
             if (in_condition == 1) {
