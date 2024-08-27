@@ -830,20 +830,6 @@ static fossil_crabdb_error_t parse_and_execute(fossil_crabdb_t *db, char *comman
         if (token_count == 2) {
             return fossil_crabdb_delete(db, tokens[0], tokens[1]);
         }
-    } else if (strcmp(command, "list_namespaces") == 0) {
-        if (token_count == 0) {
-            char **namespaces;
-            size_t count;
-            fossil_crabdb_error_t err = fossil_crabdb_list_namespaces(db, &namespaces, &count);
-            if (err == CRABDB_OK) {
-                for (size_t i = 0; i < count; i++) {
-                    printf("Namespace: %s\n", namespaces[i]);
-                    fossil_crabdb_free(namespaces[i]);
-                }
-                fossil_crabdb_free(namespaces);
-            }
-            return err;
-        }
     } else if (strcmp(command, "list_namespaces_keys") == 0) {
         if (token_count == 1) {
             char **keys;
@@ -872,10 +858,6 @@ static fossil_crabdb_error_t parse_and_execute(fossil_crabdb_t *db, char *comman
                 #endif
             }
             return err;
-        }
-    } else if (strcmp(command, "rename_namespace") == 0) {
-        if (token_count == 2) {
-            return fossil_crabdb_rename_namespace(db, tokens[0], tokens[1]);
         }
     }
 

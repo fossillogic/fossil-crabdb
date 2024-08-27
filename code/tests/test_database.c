@@ -163,66 +163,6 @@ FOSSIL_TEST(test_crabql_erase_sub_namespace) {
     free(sub_namespaces);
 }
 
-FOSSIL_TEST(test_crabql_list_namespaces) {
-    ASSUME_NOT_CNULL(db);
-
-    // Create some namespaces
-    const char *commands[] = {
-        "create_namespace('namespace1')",
-        "create_namespace('namespace2')",
-        "create_namespace('namespace3')"
-    };
-
-    for (size_t i = 0; i < sizeof(commands)/sizeof(commands[0]); ++i) {
-        fossil_crabdb_error_t result = fossil_crabdb_execute_query(db, commands[i]);
-        ASSUME_ITS_EQUAL_I32(CRABDB_OK, result);
-    }
-
-    // List all namespaces
-    char **namespaces = NULL;
-    size_t count = 0;
-    fossil_crabdb_error_t result = fossil_crabdb_list_namespaces(db, &namespaces, &count);
-    ASSUME_ITS_EQUAL_I32(CRABDB_OK, result);
-    ASSUME_ITS_EQUAL_SIZE(3, count);
-    
-    // Verify namespace names
-    ASSUME_ITS_EQUAL_CSTR("namespace1", namespaces[0]);
-    ASSUME_ITS_EQUAL_CSTR("namespace2", namespaces[1]);
-    ASSUME_ITS_EQUAL_CSTR("namespace3", namespaces[2]);
-    
-    for (size_t i = 0; i < count; ++i) {
-        free(namespaces[i]);
-    }
-    free(namespaces);
-}
-
-FOSSIL_TEST(test_crabql_rename_namespace) {
-    ASSUME_NOT_CNULL(db);
-
-    // Create a namespace
-    const char *create_ns = "create_namespace('namespace1');";
-    fossil_crabdb_error_t result = fossil_crabdb_execute_query(db, create_ns);
-    ASSUME_ITS_EQUAL_I32(CRABDB_OK, result);
-
-    // Rename the namespace
-    const char *rename_ns = "rename_namespace('namespace1', 'namespace2');";
-    result = fossil_crabdb_execute_query(db, rename_ns);
-    ASSUME_ITS_EQUAL_I32(CRABDB_OK, result);
-
-    // Verify the rename operation
-    char **namespaces = NULL;
-    size_t count = 0;
-    result = fossil_crabdb_list_namespaces(db, &namespaces, &count);
-    ASSUME_ITS_EQUAL_I32(CRABDB_OK, result);
-    ASSUME_ITS_EQUAL_SIZE(1, count);
-    ASSUME_ITS_EQUAL_CSTR("namespace2", namespaces[0]);
-
-    for (size_t i = 0; i < count; ++i) {
-        free(namespaces[i]);
-    }
-    free(namespaces);
-}
-
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
@@ -236,6 +176,4 @@ FOSSIL_TEST_GROUP(c_crabdb_tests) {
     ADD_TESTF(test_crabql_create_sub_namespace, core_crabdb_fixture);
     ADD_TESTF(test_crabql_erase_namespace, core_crabdb_fixture);
     ADD_TESTF(test_crabql_erase_sub_namespace, core_crabdb_fixture);
-    ADD_TESTF(test_crabql_list_namespaces, core_crabdb_fixture);
-    ADD_TESTF(test_crabql_rename_namespace, core_crabdb_fixture);
 } // end of tests
