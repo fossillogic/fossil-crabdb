@@ -229,29 +229,35 @@ int fossil_crabdb_load(fossil_crabdb_t *db, const char *filename) {
 // Query Language
 //
 
+// Function to execute a query from a file
 int fossil_crabdb_execute_query(fossil_crabdb_t *db, const char *filename) {
     FILE *file = fopen(filename, "r");
-    if (!file) return -1;
+    if (!file) return -1; // Error opening file
 
     char line[1024];
     while (fgets(line, sizeof(line), file)) {
-        if (strncmp(line, "CREATE NAMESPACE", 17) == 0) {
-            char *name = line + 18;
+        // Trim whitespace from the line
+        char *trimmed_line = line;
+        while (isspace(*trimmed_line)) trimmed_line++;
+        if (*trimmed_line == '\0' || *trimmed_line == '#') continue; // Skip empty lines and comments
+
+        if (strncmp(trimmed_line, "CREATE NAMESPACE", 17) == 0) {
+            char *name = trimmed_line + 18;
             name[strcspn(name, "\n")] = '\0'; // Remove newline character
             fossil_crabdb_add_namespace(db, name);
-        } else if (strncmp(line, "DELETE NAMESPACE", 17) == 0) {
-            char *name = line + 18;
+        } else if (strncmp(trimmed_line, "DELETE NAMESPACE", 17) == 0) {
+            char *name = trimmed_line + 18;
             name[strcspn(name, "\n")] = '\0'; // Remove newline character
             fossil_crabdb_delete_namespace(db, name);
-        } else if (strncmp(line, "SET", 3) == 0) {
+        } else if (strncmp(trimmed_line, "SET", 3) == 0) {
             char key[MAX_KEY_LENGTH];
             char value[MAX_VALUE_LENGTH];
-            sscanf(line + 4, "%s %s", key, value);
+            sscanf(trimmed_line + 4, "%s %s", key, value);
             fossil_crabdb_namespace_t *ns = db->namespaceHead; // Assuming the namespace is the default one
             fossil_crabdb_add_key_value(ns, key, value);
-        } else if (strncmp(line, "GET", 3) == 0) {
+        } else if (strncmp(trimmed_line, "GET", 3) == 0) {
             char key[MAX_KEY_LENGTH];
-            sscanf(line + 4, "%s", key);
+            sscanf(trimmed_line + 4, "%s", key);
             fossil_crabdb_namespace_t *ns = db->namespaceHead; // Assuming the namespace is the default one
             const char *value = fossil_crabdb_get_value(ns, key);
             if (value) {
@@ -259,6 +265,10 @@ int fossil_crabdb_execute_query(fossil_crabdb_t *db, const char *filename) {
             } else {
                 printf("Not found\n");
             }
+        } else if (strncmp(trimmed_line, "PRINT", 5) == 0) {
+            char *message = trimmed_line + 6;
+            message[strcspn(message, "\n")] = '\0'; // Remove newline character
+            printf("%s\n", message);
         }
     }
 
@@ -266,6 +276,7 @@ int fossil_crabdb_execute_query(fossil_crabdb_t *db, const char *filename) {
     return 0; // Success
 }
 
+// Utility function to trim leading and trailing whitespace from a string
 static void trim_whitespace(char *str) {
     char *end;
     while (isspace(*str)) str++;
@@ -275,6 +286,7 @@ static void trim_whitespace(char *str) {
     *(end + 1) = '\0';
 }
 
+// Parse key-value arguments from a line of text
 static int parse_kwargs(const char *line, kwargs_t *kwargs, size_t *num_kwargs) {
     const char *p = line;
     size_t count = 0;
@@ -300,6 +312,7 @@ static int parse_kwargs(const char *line, kwargs_t *kwargs, size_t *num_kwargs) 
     return 0;
 }
 
+// Execute a command with arguments parsed from the script
 static int execute_command(fossil_crabdb_t *db, const char *command, kwargs_t *kwargs, size_t num_kwargs) {
     if (strcmp(command, "CREATE_NAMESPACE") == 0) {
         for (size_t i = 0; i < num_kwargs; i++) {
@@ -354,6 +367,14 @@ static int execute_command(fossil_crabdb_t *db, const char *command, kwargs_t *k
             return 0;
         }
         return -1; // Arguments missing or namespace not found
+    } else if (strcmp(command, "PRINT") == 0) {
+        for (size_t i = 0; i < num_kwargs; i++) {
+            if (strcmp(kwargs[i].key, "message") == 0) {
+                printf("%s\n", kwargs[i].value);
+                return 0;
+            }
+        }
+        return -1; // Required argument missing
     }
     return -1; // Unsupported command
 }
