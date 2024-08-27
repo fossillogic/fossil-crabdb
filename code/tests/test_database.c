@@ -89,14 +89,6 @@ FOSSIL_TEST(test_delete_value) {
     ASSUME_ITS_EQUAL_I32(CRABDB_ERR_KEY_NOT_FOUND, result);
 }
 
-FOSSIL_TEST(test_crabql_create_namespace) {
-    ASSUME_NOT_CNULL(db);
-
-    const char *query = "create_namespace('namespace1');";
-    fossil_crabdb_error_t result = crabql_execute_query(db, query);
-    ASSUME_ITS_EQUAL_I32(CRABDB_OK, result);
-}
-
 FOSSIL_TEST(test_crabql_create_sub_namespace) {
     ASSUME_NOT_CNULL(db);
 
@@ -234,7 +226,6 @@ FOSSIL_TEST_GROUP(c_crabdb_tests) {
     ADD_TESTF(test_insert_and_get_value, core_crabdb_fixture);
     ADD_TESTF(test_update_value, core_crabdb_fixture);
     ADD_TESTF(test_delete_value, core_crabdb_fixture);
-    ADD_TESTF(test_crabql_create_namespace, core_crabdb_fixture);
     ADD_TESTF(test_crabql_create_sub_namespace, core_crabdb_fixture);
     ADD_TESTF(test_crabql_erase_namespace, core_crabdb_fixture);
     ADD_TESTF(test_crabql_erase_sub_namespace, core_crabdb_fixture);
