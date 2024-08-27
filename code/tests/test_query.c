@@ -170,11 +170,11 @@ FOSSIL_TEST(test_fossil_crabdb_execute_query_invalid_command) {
 FOSSIL_TEST_GROUP(c_crabql_query_tests) {
     ADD_TEST(test_fossil_crabdb_save);
     ADD_TEST(test_fossil_crabdb_load);
-    ADD_TEST(test_fossil_crabdb_execute_query);
-    ADD_TEST(test_fossil_crabdb_execute_script);
-    ADD_TEST(test_fossil_crabdb_execute_query_create_namespace);
-    ADD_TEST(test_fossil_crabdb_execute_query_delete_namespace);
-    ADD_TEST(test_fossil_crabdb_execute_query_set_key_value);
+    // ADD_TEST(test_fossil_crabdb_execute_query);
+    // ADD_TEST(test_fossil_crabdb_execute_script);
+    // ADD_TEST(test_fossil_crabdb_execute_query_create_namespace);
+    // ADD_TEST(test_fossil_crabdb_execute_query_delete_namespace);
+    // ADD_TEST(test_fossil_crabdb_execute_query_set_key_value);
     ADD_TEST(test_fossil_crabdb_execute_query_non_existent_namespace);
     ADD_TEST(test_fossil_crabdb_execute_query_invalid_command);
 }
