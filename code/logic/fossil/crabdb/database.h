@@ -20,6 +20,65 @@
 extern "C" {
 #endif
 
+//
+// DATABASE TYPES
+//
+
+/**
+ * @brief Error codes for the fossil_crabdb framework.
+ */
+typedef enum {
+    CRABDB_OK = 0, /**< Operation completed successfully */
+    CRABDB_ERR_MEM, /**< Memory allocation error */
+    CRABDB_ERR_IO,            // Input/output error (e.g., file handling)
+    CRABDB_ERR_NS_NOT_FOUND, /**< Namespace not found */
+    CRABDB_ERR_NS_EXISTS, /**< Namespace already exists */
+    CRABDB_ERR_SUB_NS_NOT_FOUND, /**< Sub-namespace not found */
+    CRABDB_ERR_INVALID_ARG, /**< Invalid argument */
+    CRABDB_ERR_COPY_FAILED, /**< Copy failed */
+    CRABDB_ERR_KEY_ALREADY_EXISTS, /**< Key already exists */
+    CRABDB_ERR_SUB_NS_EXISTS, /**< Sub-namespace already exists */
+    CRABDB_ERR_BACKUP_FAILED, /**< Backup failed */
+    CRABDB_ERR_RESTORE_FAILED, /**< Restore failed */
+    CRABDB_ERR_DESERIALIZE_FAILED, /**< Deserialization failed */
+    CRABDB_ERR_KEY_NOT_FOUND, /**< Key not found */
+    CRABDB_ERR_INVALID_QUERY, /**< Invalid query */
+    CRABDB_ERR_INVALID_KEY, /**< Invalid key */
+    CRABDB_ERR_INVALID_VALUE, /**< Invalid value */
+    CRABDB_ERR_CONCURRENT_ACCESS /**< Concurrent access error */
+} fossil_crabdb_error_t;
+
+/**
+ * @brief Key-value pair structure.
+ */
+typedef struct fossil_crabdb_keyvalue_t {
+    char *key; /**< Key of the key-value pair */
+    char *value; /**< Value of the key-value pair */
+    struct fossil_crabdb_keyvalue_t *next; /**< Pointer to the next key-value pair */
+} fossil_crabdb_keyvalue_t;
+
+/**
+ * @brief Namespace structure.
+ */
+typedef struct fossil_crabdb_namespace_t {
+    char *name; /**< Name of the namespace */
+    struct fossil_crabdb_namespace_t *sub_namespaces; /**< Pointer to the sub-namespaces */
+    size_t sub_namespace_count; /**< Number of sub-namespaces */
+    struct fossil_crabdb_namespace_t *next; /**< Pointer to the next namespace */
+    fossil_crabdb_keyvalue_t *data; /**< Linked list of key-value pairs */
+} fossil_crabdb_namespace_t;
+
+/**
+ * @brief Database structure.
+ */
+typedef struct {
+    fossil_crabdb_namespace_t *namespaces; /**< Pointer to the namespaces */
+} fossil_crabdb_t;
+
+//
+// DATABASE OPERATIONS
+//
+
 /**
  * @brief Create a new fossil_crabdb_t database.
  * 
@@ -76,6 +135,142 @@ fossil_crabdb_error_t fossil_crabdb_update(fossil_crabdb_t *db, const char *name
  * @return Error code indicating the result of the operation.
  */
 fossil_crabdb_error_t fossil_crabdb_delete(fossil_crabdb_t *db, const char *namespace_name, const char *key);
+
+//
+// DATA STORAGE
+//
+
+/**
+ * @brief Serializes the database to a file.
+ *
+ * @param db The database to serialize.
+ * @param filename The name of the file to serialize to.
+ * @return CRABDB_OK on success, or an error code on failure.
+ */
+fossil_crabdb_error_t fossil_crabdb_serialize_to_file(fossil_crabdb_t *db, const char *filename);
+
+/**
+ * @brief Deserializes the database from a file.
+ *
+ * @param db The database to deserialize into.
+ * @param filename The name of the file to deserialize from.
+ * @return CRABDB_OK on success, or an error code on failure.
+ */
+fossil_crabdb_error_t fossil_crabdb_deserialize_from_file(fossil_crabdb_t *db, const char *filename);
+
+/**
+ * @brief Saves the database to a file.
+ *
+ * @param db The database to save.
+ * @param filename The name of the file to save to.
+ * @return CRABDB_OK on success, or an error code on failure.
+ */
+int fossil_crabdb_save_to_file(fossil_crabdb_t *db, const char *filename);
+
+/**
+ * @brief Loads the database from a file.
+ *
+ * @param db The database to load into.
+ * @param filename The name of the file to load from.
+ * @return CRABDB_OK on success, or an error code on failure.
+ */
+int fossil_crabdb_load_from_file(fossil_crabdb_t *db, const char *filename);
+
+//
+// DATABASE NAMESPACES
+//
+
+/**
+ * @brief Create a new namespace.
+ * 
+ * @param db Pointer to the fossil_crabdb_t database.
+ * @param namespace_name Name of the new namespace.
+ * @return Error code indicating the result of the operation.
+ */
+fossil_crabdb_error_t fossil_crabdb_create_namespace(fossil_crabdb_t *db, const char *namespace_name);
+
+/**
+ * @brief Create a new sub-namespace.
+ * 
+ * @param db Pointer to the fossil_crabdb_t database.
+ * @param namespace_name Name of the parent namespace.
+ * @param sub_namespace_name Name of the new sub-namespace.
+ * @return Error code indicating the result of the operation.
+ */
+fossil_crabdb_error_t fossil_crabdb_create_sub_namespace(fossil_crabdb_t *db, const char *namespace_name, const char *sub_namespace_name);
+
+/**
+ * @brief Erase a namespace.
+ * 
+ * @param db Pointer to the fossil_crabdb_t database.
+ * @param namespace_name Name of the namespace to erase.
+ * @return Error code indicating the result of the operation.
+ */
+fossil_crabdb_error_t fossil_crabdb_erase_namespace(fossil_crabdb_t *db, const char *namespace_name);
+
+/**
+ * @brief Erase a sub-namespace.
+ * 
+ * @param db Pointer to the fossil_crabdb_t database.
+ * @param namespace_name Name of the parent namespace.
+ * @param sub_namespace_name Name of the sub-namespace to erase.
+ * @return Error code indicating the result of the operation.
+ */
+fossil_crabdb_error_t fossil_crabdb_erase_sub_namespace(fossil_crabdb_t *db, const char *namespace_name, const char *sub_namespace_name);
+
+/**
+ * @brief List all namespaces.
+ * 
+ * @param db Pointer to the fossil_crabdb_t database.
+ * @param namespaces Pointer to store the list of namespace names.
+ * @param count Pointer to store the number of namespaces.
+ * @return Error code indicating the result of the operation.
+ */
+fossil_crabdb_error_t fossil_crabdb_list_namespaces(fossil_crabdb_t *db, char ***namespaces, size_t *count);
+
+/**
+ * @brief List all keys in a namespace.
+ * 
+ * @param db Pointer to the fossil_crabdb_t database.
+ * @param namespace_name Name of the namespace.
+ * @param keys Pointer to store the list of keys.
+ * @param count Pointer to store the number of keys.
+ * @return Error code indicating the result of the operation.
+ */
+fossil_crabdb_error_t fossil_crabdb_list_namespaces_keys(fossil_crabdb_t *db, const char *namespace_name, char ***keys, size_t *count);
+
+/**
+ * @brief Get statistics for a namespace.
+ * 
+ * @param db Pointer to the fossil_crabdb_t database.
+ * @param namespace_name Name of the namespace to get statistics for.
+ * @param key_count Pointer to store the number of keys.
+ * @param sub_namespace_count Pointer to store the number of sub-namespaces.
+ * @return Error code indicating the result of the operation.
+ */
+fossil_crabdb_error_t fossil_crabdb_get_namespace_stats(fossil_crabdb_t *db, const char *namespace_name, size_t *key_count, size_t *sub_namespace_count);
+
+/**
+ * @brief Create a deep copy of a namespace.
+ * 
+ * @param original Pointer to the original namespace to copy.
+ * @return Pointer to the copied namespace.
+ */
+fossil_crabdb_namespace_t* fossil_crabdb_copy_namespace(const fossil_crabdb_namespace_t *original);
+
+/**
+ * @brief Rename a namespace.
+ * 
+ * @param db Pointer to the fossil_crabdb_t database.
+ * @param old_namespace_name Current name of the namespace.
+ * @param new_namespace_name New name for the namespace.
+ * @return Error code indicating the result of the operation.
+ */
+fossil_crabdb_error_t fossil_crabdb_rename_namespace(fossil_crabdb_t *db, const char *old_namespace_name, const char *new_namespace_name);
+
+//
+// DATABASE QUERIES
+//
 
 /**
  * @brief Execute a custom query.
