@@ -35,7 +35,7 @@ int fossil_crabdb_add_namespace(fossil_crabdb_t *db, const char *name) {
     if (!ns) return -1;
 
     strncpy(ns->name, name, MAX_KEY_LENGTH);
-    ns->keyValueHead = NULL;
+    ns->key_values = NULL;
     ns->prev = NULL;
     ns->next = db->namespaceHead;
     ns->subNamespacesHead = NULL;
@@ -66,18 +66,18 @@ int fossil_crabdb_add_key_value(fossil_crabdb_namespace_t *ns, const char *key, 
     strncpy(kv->key, key, MAX_KEY_LENGTH);
     strncpy(kv->value, value, MAX_VALUE_LENGTH);
     kv->prev = NULL;
-    kv->next = ns->keyValueHead;
+    kv->next = ns->key_values;
 
-    if (ns->keyValueHead) {
-        ns->keyValueHead->prev = kv;
+    if (ns->key_values) {
+        ns->key_values->prev = kv;
     }
 
-    ns->keyValueHead = kv;
+    ns->key_values = kv;
     return 0;
 }
 
 const char* fossil_crabdb_get_value(fossil_crabdb_namespace_t *ns, const char *key) {
-    fossil_crabdb_keyvalue_t *kv = ns->keyValueHead;
+    fossil_crabdb_keyvalue_t *kv = ns->key_values;
     while (kv) {
         if (strcmp(kv->key, key) == 0) {
             return kv->value;
@@ -88,7 +88,7 @@ const char* fossil_crabdb_get_value(fossil_crabdb_namespace_t *ns, const char *k
 }
 
 int fossil_crabdb_delete_key_value(fossil_crabdb_namespace_t *ns, const char *key) {
-    fossil_crabdb_keyvalue_t *kv = ns->keyValueHead;
+    fossil_crabdb_keyvalue_t *kv = ns->key_values;
     while (kv) {
         if (strcmp(kv->key, key) == 0) {
             if (kv->prev) {
@@ -97,8 +97,8 @@ int fossil_crabdb_delete_key_value(fossil_crabdb_namespace_t *ns, const char *ke
             if (kv->next) {
                 kv->next->prev = kv->prev;
             }
-            if (ns->keyValueHead == kv) {
-                ns->keyValueHead = kv->next;
+            if (ns->key_values == kv) {
+                ns->key_values = kv->next;
             }
             fossil_crabdb_free(kv);
             return 0;
@@ -121,7 +121,7 @@ int fossil_crabdb_delete_namespace(fossil_crabdb_t *db, const char *name) {
             if (db->namespaceHead == ns) {
                 db->namespaceHead = ns->next;
             }
-            fossil_crabdb_keyvalue_t *kv = ns->keyValueHead;
+            fossil_crabdb_keyvalue_t *kv = ns->key_values;
             while (kv) {
                 fossil_crabdb_keyvalue_t *next = kv->next;
                 fossil_crabdb_free(kv);
@@ -139,6 +139,363 @@ int fossil_crabdb_delete_namespace(fossil_crabdb_t *db, const char *name) {
         ns = ns->next;
     }
     return -1;
+}
+
+/**
+ * @brief Renames a namespace in the CrabDB database.
+ * @param db The CrabDB database.
+ * @param old_name The current name of the namespace.
+ * @param new_name The new name of the namespace.
+ * @return 0 if successful, -1 otherwise.
+ */
+int fossil_crabdb_rename_namespace(fossil_crabdb_t *db, const char *old_name, const char *new_name) {
+    if (!db || !old_name || !new_name) {
+        return -1;
+    }
+
+    fossil_crabdb_namespace_t *ns = fossil_crabdb_find_namespace(db, old_name);
+    if (!ns) {
+        return -1;  // Namespace not found
+    }
+
+    // Check if a namespace with the new name already exists
+    if (fossil_crabdb_find_namespace(db, new_name)) {
+        return -1;  // Namespace with new_name already exists
+    }
+
+    // Rename the namespace
+    strncpy(ns->name, new_name, sizeof(ns->name));
+    ns->name[sizeof(ns->name) - 1] = '\0';  // Ensure null-termination
+
+    return 0;
+}
+
+/**
+ * @brief Updates the value associated with a key in a namespace of the CrabDB database.
+ * @param ns The namespace to update the key-value pair in.
+ * @param key The key of the pair to update.
+ * @param new_value The new value to associate with the key.
+ * @return 0 if successful, -1 otherwise.
+ */
+int fossil_crabdb_update_key_value(fossil_crabdb_namespace_t *ns, const char *key, const char *new_value) {
+    fossil_crabdb_keyvalue_t *kv = ns->key_values;
+    
+    while (kv) {
+        if (strcmp(kv->key, key) == 0) {
+            // Check if new_value is empty
+            if (new_value == NULL || strlen(new_value) == 0) {
+                // Handle empty value case
+                return -1; // Or some other error handling
+            }
+            strncpy(kv->value, new_value, MAX_VALUE_LENGTH - 1);
+            kv->value[MAX_VALUE_LENGTH - 1] = '\0'; // Ensure null-termination
+            return 0; // Success
+        }
+        kv = kv->next;
+    }
+
+    return -1; // Key not found
+}
+
+/**
+ * @brief Retrieves all keys in a namespace of the CrabDB database.
+ * @param ns The namespace to retrieve keys from.
+ * @param keys Array to store the retrieved keys.
+ * @param max_keys The maximum number of keys to retrieve.
+ * @return The number of keys retrieved, or -1 if an error occurred.
+ */
+int fossil_crabdb_get_all_keys(fossil_crabdb_namespace_t *ns, char **keys, size_t max_keys) {
+    if (!ns || !keys || max_keys == 0) {
+        return -1;
+    }
+
+    fossil_crabdb_keyvalue_t *kv = ns->key_values;
+    size_t count = 0;
+
+    while (kv && count < max_keys) {
+        keys[count] = kv->key;
+        count++;
+        kv = kv->next;
+    }
+
+    return count;
+}
+
+//
+//
+//
+
+// Helper functions to get type as string
+const char* type_to_string(value_type_t type) {
+    switch (type) {
+        case TYPE_U8: return "u8";
+        case TYPE_U16: return "u16";
+        case TYPE_U32: return "u32";
+        case TYPE_U64: return "u64";
+        case TYPE_I8: return "i8";
+        case TYPE_I16: return "i16";
+        case TYPE_I32: return "i32";
+        case TYPE_I64: return "i64";
+        case TYPE_H8: return "h8";
+        case TYPE_H16: return "h16";
+        case TYPE_H32: return "h32";
+        case TYPE_H64: return "h64";
+        case TYPE_O8: return "o8";
+        case TYPE_O16: return "o16";
+        case TYPE_O32: return "o32";
+        case TYPE_O64: return "o64";
+        case TYPE_F32: return "f32";
+        case TYPE_F64: return "f64";
+        case TYPE_CSTR: return "cstr";
+        case TYPE_BOOL: return "bool";
+        case TYPE_CHAR: return "char";
+        default: return "unknown";
+    }
+}
+
+// Helper functions to parse type from string
+value_type_t string_to_type(const char *str) {
+    if (strcmp(str, "u8") == 0) return TYPE_U8;
+    if (strcmp(str, "u16") == 0) return TYPE_U16;
+    if (strcmp(str, "u32") == 0) return TYPE_U32;
+    if (strcmp(str, "u64") == 0) return TYPE_U64;
+    if (strcmp(str, "i8") == 0) return TYPE_I8;
+    if (strcmp(str, "i16") == 0) return TYPE_I16;
+    if (strcmp(str, "i32") == 0) return TYPE_I32;
+    if (strcmp(str, "i64") == 0) return TYPE_I64;
+    if (strcmp(str, "h8") == 0) return TYPE_H8;
+    if (strcmp(str, "h16") == 0) return TYPE_H16;
+    if (strcmp(str, "h32") == 0) return TYPE_H32;
+    if (strcmp(str, "h64") == 0) return TYPE_H64;
+    if (strcmp(str, "o8") == 0) return TYPE_O8;
+    if (strcmp(str, "o16") == 0) return TYPE_O16;
+    if (strcmp(str, "o32") == 0) return TYPE_O32;
+    if (strcmp(str, "o64") == 0) return TYPE_O64;
+    if (strcmp(str, "f32") == 0) return TYPE_F32;
+    if (strcmp(str, "f64") == 0) return TYPE_F64;
+    if (strcmp(str, "cstr") == 0) return TYPE_CSTR;
+    if (strcmp(str, "bool") == 0) return TYPE_BOOL;
+    if (strcmp(str, "char") == 0) return TYPE_CHAR;
+    return TYPE_UNKNOWN;
+}
+
+// Encoding functions
+void encode_value(value_type_t type, const void *value, char *buffer, size_t buffer_size) {
+    switch (type) {
+        case TYPE_U8:
+            snprintf(buffer, buffer_size, "u8:%u", *(uint8_t *)value);
+            break;
+        case TYPE_U16:
+            snprintf(buffer, buffer_size, "u16:%u", *(uint16_t *)value);
+            break;
+        case TYPE_U32:
+            snprintf(buffer, buffer_size, "u32:%u", *(uint32_t *)value);
+            break;
+        case TYPE_U64:
+            snprintf(buffer, buffer_size, "u64:%llu", *(uint64_t *)value);
+            break;
+        case TYPE_I8:
+            snprintf(buffer, buffer_size, "i8:%d", *(int8_t *)value);
+            break;
+        case TYPE_I16:
+            snprintf(buffer, buffer_size, "i16:%d", *(int16_t *)value);
+            break;
+        case TYPE_I32:
+            snprintf(buffer, buffer_size, "i32:%d", *(int32_t *)value);
+            break;
+        case TYPE_I64:
+            snprintf(buffer, buffer_size, "i64:%lld", *(int64_t *)value);
+            break;
+        case TYPE_H8:
+            snprintf(buffer, buffer_size, "h8:0x%02X", *(uint8_t *)value);
+            break;
+        case TYPE_H16:
+            snprintf(buffer, buffer_size, "h16:0x%04X", *(uint16_t *)value);
+            break;
+        case TYPE_H32:
+            snprintf(buffer, buffer_size, "h32:0x%08X", *(uint32_t *)value);
+            break;
+        case TYPE_H64:
+            snprintf(buffer, buffer_size, "h64:0x%016llX", *(uint64_t *)value);
+            break;
+        case TYPE_O8:
+            snprintf(buffer, buffer_size, "o8:0%o", *(uint8_t *)value);
+            break;
+        case TYPE_O16:
+            snprintf(buffer, buffer_size, "o16:0%o", *(uint16_t *)value);
+            break;
+        case TYPE_O32:
+            snprintf(buffer, buffer_size, "o32:0%o", *(uint32_t *)value);
+            break;
+        case TYPE_O64:
+            snprintf(buffer, buffer_size, "o64:0%llo", *(uint64_t *)value);
+            break;
+        case TYPE_F32:
+            snprintf(buffer, buffer_size, "f32:%f", *(float *)value);
+            break;
+        case TYPE_F64:
+            snprintf(buffer, buffer_size, "f64:%lf", *(double *)value);
+            break;
+        case TYPE_CSTR:
+            snprintf(buffer, buffer_size, "cstr:%s", (char *)value);
+            break;
+        case TYPE_BOOL:
+            snprintf(buffer, buffer_size, "bool:%s", (*(int *)value ? "true" : "false"));
+            break;
+        case TYPE_CHAR:
+            snprintf(buffer, buffer_size, "char:%c", *(char *)value);
+            break;
+        default:
+            snprintf(buffer, buffer_size, "unknown:");
+            break;
+    }
+}
+
+// Decoding functions
+int decode_value(const char *encoded, value_type_t *type, void *value) {
+    char type_str[16];
+    int result = sscanf(encoded, "%15[^:]:%s", type_str, (char *)value);
+    if (result != 2) return -1;
+
+    *type = string_to_type(type_str);
+    switch (*type) {
+        case TYPE_U8:
+            sscanf((char *)value, "%hhu", (uint8_t *)value);
+            break;
+        case TYPE_U16:
+            sscanf((char *)value, "%hu", (uint16_t *)value);
+            break;
+        case TYPE_U32:
+            sscanf((char *)value, "%u", (uint32_t *)value);
+            break;
+        case TYPE_U64:
+            sscanf((char *)value, "%llu", (uint64_t *)value);
+            break;
+        case TYPE_I8:
+            sscanf((char *)value, "%hhd", (int8_t *)value);
+            break;
+        case TYPE_I16:
+            sscanf((char *)value, "%hd", (int16_t *)value);
+            break;
+        case TYPE_I32:
+            sscanf((char *)value, "%d", (int32_t *)value);
+            break;
+        case TYPE_I64:
+            sscanf((char *)value, "%lld", (int64_t *)value);
+            break;
+        case TYPE_H8:
+            sscanf((char *)value, "%hhX", (uint8_t *)value);
+            break;
+        case TYPE_H16:
+            sscanf((char *)value, "%hx", (uint16_t *)value);
+            break;
+        case TYPE_H32:
+            sscanf((char *)value, "%X", (uint32_t *)value);
+            break;
+        case TYPE_H64:
+            sscanf((char *)value, "%llX", (uint64_t *)value);
+            break;
+        case TYPE_O8:
+            sscanf((char *)value, "%hho", (uint8_t *)value);
+            break;
+        case TYPE_O16:
+            sscanf((char *)value, "%ho", (uint16_t *)value);
+            break;
+        case TYPE_O32:
+            sscanf((char *)value, "%o", (uint32_t *)value);
+            break;
+        case TYPE_O64:
+            sscanf((char *)value, "%llo", (uint64_t *)value);
+            break;
+        case TYPE_F32:
+            sscanf((char *)value, "%f", (float *)value);
+            break;
+        case TYPE_F64:
+            sscanf((char *)value, "%lf", (double *)value);
+            break;
+        case TYPE_CSTR:
+            // `value` is already a string, nothing extra to do
+            break;
+        case TYPE_BOOL:
+            *(int *)value = (strcmp((char *)value, "true") == 0);
+            break;
+        case TYPE_CHAR:
+            *(char *)value = ((char *)value)[0];
+            break;
+        default:
+            return -1;
+    }
+
+    return 0;
+}
+
+int fossil_crabdb_export(fossil_crabdb_t *db, const char *filename) {
+    FILE *file = fopen(filename, "w");
+    if (!file) return -1;
+
+    fossil_crabdb_namespace_t *ns = db->namespaceHead;
+    while (ns) {
+        fprintf(file, "[%s]\n", ns->name);
+        fossil_crabdb_keyvalue_t *kv = ns->key_values;
+        while (kv) {
+            char encoded_value[MAX_VALUE_LENGTH];
+            value_type_t type = TYPE_UNKNOWN; // Determine type if necessary
+            // Assume type is embedded or retrieved from elsewhere
+            encode_value(type, kv->value, encoded_value, sizeof(encoded_value));
+            fprintf(file, "%s=%s\n", kv->key, encoded_value);
+            kv = kv->next;
+        }
+        fprintf(file, "\n");
+        ns = ns->next;
+    }
+
+    fclose(file);
+    return 0;
+}
+
+int fossil_crabdb_import(fossil_crabdb_t *db, const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (!file) return -1;
+
+    char line[256];
+    fossil_crabdb_namespace_t *current_ns = NULL;
+
+    while (fgets(line, sizeof(line), file)) {
+        line[strcspn(line, "\n")] = 0; // Remove newline
+
+        if (line[0] == '[') {
+            // Handle namespace
+            current_ns = malloc(sizeof(fossil_crabdb_namespace_t));
+            if (!current_ns) return -1;
+
+            sscanf(line, "[%255[^]]", current_ns->name);
+            current_ns->key_values = NULL;
+            current_ns->next = db->namespaceHead;
+            db->namespaceHead = current_ns;
+        } else if (current_ns && strchr(line, '=')) {
+            // Handle key-value pair
+            fossil_crabdb_keyvalue_t *kv = malloc(sizeof(fossil_crabdb_keyvalue_t));
+            if (!kv) return -1;
+
+            char *equal_sign = strchr(line, '=');
+            *equal_sign = '\0';
+            strncpy(kv->key, line, MAX_KEY_LENGTH - 1);
+            strncpy(kv->value, equal_sign + 1, MAX_VALUE_LENGTH - 1);
+
+            // Decode value
+            value_type_t type;
+            if (decode_value(kv->value, &type, kv->value) != 0) {
+                free(kv);
+                return -1;
+            }
+
+            kv->next = current_ns->key_values;
+            current_ns->key_values = kv;
+        }
+    }
+
+    fclose(file);
+    return 0;
 }
 
 //
@@ -191,7 +548,7 @@ int fossil_crabdb_save(fossil_crabdb_t *db, const char *filename) {
     fossil_crabdb_namespace_t *ns = db->namespaceHead;
     while (ns) {
         fwrite(ns->name, sizeof(ns->name), 1, file);
-        fossil_crabdb_keyvalue_t *kv = ns->keyValueHead;
+        fossil_crabdb_keyvalue_t *kv = ns->key_values;
         while (kv) {
             fwrite(kv->key, sizeof(kv->key), 1, file);
             fwrite(kv->value, sizeof(kv->value), 1, file);
@@ -249,12 +606,22 @@ int fossil_crabdb_execute_query(fossil_crabdb_t *db, const char *filename) {
             char *name = trimmed_line + 18;
             name[strcspn(name, "\n")] = '\0'; // Remove newline character
             fossil_crabdb_delete_namespace(db, name);
+        } else if (strncmp(trimmed_line, "RENAME NAMESPACE", 16) == 0) {
+            char old_name[MAX_KEY_LENGTH], new_name[MAX_KEY_LENGTH];
+            sscanf(trimmed_line + 17, "%s %s", old_name, new_name);
+            fossil_crabdb_rename_namespace(db, old_name, new_name);
         } else if (strncmp(trimmed_line, "SET", 3) == 0) {
             char key[MAX_KEY_LENGTH];
             char value[MAX_VALUE_LENGTH];
             sscanf(trimmed_line + 4, "%s %s", key, value);
             fossil_crabdb_namespace_t *ns = db->namespaceHead; // Assuming the namespace is the default one
             fossil_crabdb_add_key_value(ns, key, value);
+        } else if (strncmp(trimmed_line, "UPDATE", 6) == 0) {
+            char key[MAX_KEY_LENGTH];
+            char new_value[MAX_VALUE_LENGTH];
+            sscanf(trimmed_line + 7, "%s %s", key, new_value);
+            fossil_crabdb_namespace_t *ns = db->namespaceHead; // Assuming the namespace is the default one
+            fossil_crabdb_update_key_value(ns, key, new_value);
         } else if (strncmp(trimmed_line, "GET", 3) == 0) {
             char key[MAX_KEY_LENGTH];
             sscanf(trimmed_line + 4, "%s", key);
@@ -269,6 +636,14 @@ int fossil_crabdb_execute_query(fossil_crabdb_t *db, const char *filename) {
             char *message = trimmed_line + 6;
             message[strcspn(message, "\n")] = '\0'; // Remove newline character
             printf("%s\n", message);
+        } else if (strncmp(trimmed_line, "EXPORT", 6) == 0) {
+            char filename[MAX_PATH_LENGTH];
+            sscanf(trimmed_line + 7, "%s", filename);
+            fossil_crabdb_export(db, filename);
+        } else if (strncmp(trimmed_line, "IMPORT", 6) == 0) {
+            char filename[MAX_PATH_LENGTH];
+            sscanf(trimmed_line + 7, "%s", filename);
+            fossil_crabdb_import(db, filename);
         }
     }
 
@@ -389,32 +764,67 @@ int fossil_crabdb_execute_script(fossil_crabdb_t *db, const char *filename) {
     kwargs_t kwargs[10]; // Adjust the size as needed
     size_t num_kwargs = 0;
     int in_condition = 0; // 0: not inside any condition, 1: inside if, 2: inside else
+    int in_foreach = 0;   // 0: not inside foreach, 1: inside foreach
+    char variable[MAX_ARG_LENGTH] = {0};
+    char **list = NULL;
+    size_t list_index = 0, list_size = 0;
 
     while (fgets(line, sizeof(line), file)) {
         trim_whitespace(line);
         if (line[0] == '\0' || line[0] == '#') continue; // Skip empty lines and comments
 
+        // Convert the entire line to lowercase
+        for (int i = 0; line[i]; i++) {
+            line[i] = tolower(line[i]);
+        }
+
+        // Handle control structures
         if (strstr(line, "if") == line) {
             in_condition = 1;
             continue;
         } else if (strstr(line, "elseif") == line) {
-            if (in_condition == 1) {
-                in_condition = 2;
-            }
+            if (in_condition == 1) in_condition = 2;
             continue;
         } else if (strstr(line, "else") == line) {
-            if (in_condition == 1) {
-                in_condition = 2;
-            } else if (in_condition == 2) {
-                in_condition = 1;
-            }
+            if (in_condition == 1) in_condition = 2;
+            else if (in_condition == 2) in_condition = 1;
             continue;
         } else if (strstr(line, "end") == line) {
             in_condition = 0;
+            in_foreach = 0;
+            list_index = 0;
+            continue;
+        } else if (strstr(line, "foreach") == line) {
+            in_foreach = 1;
+            sscanf(line, "foreach %s in %s", variable, line);
+            // Assume list is a comma-separated string
+            char *token = strtok(line, ",");
+            while (token) {
+                list = realloc(list, (list_size + 1) * sizeof(char *));
+                list[list_size++] = fossil_crabdb_strdup(token);
+                token = strtok(NULL, ",");
+            }
+            list_index = 0;
             continue;
         }
 
-        if (in_condition == 1 || in_condition == 2) {
+        // Handle variable assignment
+        if (strstr(line, "let") == line) {
+            char var_name[MAX_ARG_LENGTH] = {0}, var_value[MAX_ARG_LENGTH] = {0};
+            sscanf(line, "let %s = %s", var_name, var_value);
+            // Store the variable in some context, this example assumes a simple key-value store.
+            // You will need to implement this part based on how you manage variables.
+            continue;
+        }
+
+        // Execution logic based on conditionals and loops
+        if (in_condition == 0 || in_condition == 1) {
+            // Process commands only if not inside else or elseif
+            if (in_foreach && list_index < list_size) {
+                // Assign current value to the loop variable
+                strcpy(variable, list[list_index++]);
+            }
+
             if (strchr(line, '(')) {
                 char *p = strtok(line, "(");
                 char *command_end = strtok(NULL, ")");
@@ -430,6 +840,12 @@ int fossil_crabdb_execute_script(fossil_crabdb_t *db, const char *filename) {
             }
         }
     }
+
+    // Clean up dynamically allocated list
+    for (size_t i = 0; i < list_size; i++) {
+        free(list[i]);
+    }
+    free(list);
 
     fclose(file);
     return 0; // Success

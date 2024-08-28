@@ -29,8 +29,35 @@ enum {
     MAX_KEY_LENGTH = 256,
     MAX_VALUE_LENGTH = 1024,
     MAX_LINE_LENGTH = 2048,
+    MAX_PATH_LENGTH = 1024,
     MAX_ARG_LENGTH = 256
 };
+
+// Type identifiers
+typedef enum {
+    TYPE_UNKNOWN,
+    TYPE_U8,
+    TYPE_U16,
+    TYPE_U32,
+    TYPE_U64,
+    TYPE_I8,
+    TYPE_I16,
+    TYPE_I32,
+    TYPE_I64,
+    TYPE_H8,
+    TYPE_H16,
+    TYPE_H32,
+    TYPE_H64,
+    TYPE_O8,
+    TYPE_O16,
+    TYPE_O32,
+    TYPE_O64,
+    TYPE_F32,
+    TYPE_F64,
+    TYPE_CSTR,
+    TYPE_BOOL,
+    TYPE_CHAR
+} value_type_t;
 
 /**
  * @brief Error codes for the CrabDB database.
@@ -44,7 +71,7 @@ typedef struct fossil_crabdb_keyvalue_t {
 
 typedef struct fossil_crabdb_namespace_t {
     char name[MAX_KEY_LENGTH];
-    fossil_crabdb_keyvalue_t *keyValueHead;
+    fossil_crabdb_keyvalue_t *key_values;
     struct fossil_crabdb_namespace_t *prev;
     struct fossil_crabdb_namespace_t *next;
     struct fossil_crabdb_namespace_t *subNamespacesHead;
@@ -123,6 +150,49 @@ int fossil_crabdb_delete_key_value(fossil_crabdb_namespace_t *ns, const char *ke
  * @return 0 if successful, -1 otherwise.
  */
 int fossil_crabdb_delete_namespace(fossil_crabdb_t *db, const char *name);
+
+/**
+ * @brief Renames a namespace in the CrabDB database.
+ * @param db The CrabDB database.
+ * @param old_name The current name of the namespace.
+ * @param new_name The new name of the namespace.
+ * @return 0 if successful, -1 otherwise.
+ */
+int fossil_crabdb_rename_namespace(fossil_crabdb_t *db, const char *old_name, const char *new_name);
+
+/**
+ * @brief Updates the value associated with a key in a namespace of the CrabDB database.
+ * @param ns The namespace to update the key-value pair in.
+ * @param key The key of the pair to update.
+ * @param new_value The new value to associate with the key.
+ * @return 0 if successful, -1 otherwise.
+ */
+int fossil_crabdb_update_key_value(fossil_crabdb_namespace_t *ns, const char *key, const char *new_value);
+
+/**
+ * @brief Retrieves all keys in a namespace of the CrabDB database.
+ * @param ns The namespace to retrieve keys from.
+ * @param keys Array to store the retrieved keys.
+ * @param max_keys The maximum number of keys to retrieve.
+ * @return The number of keys retrieved, or -1 if an error occurred.
+ */
+int fossil_crabdb_get_all_keys(fossil_crabdb_namespace_t *ns, char **keys, size_t max_keys);
+
+/**
+ * @brief Exports the CrabDB database to a file.
+ * @param db The CrabDB database.
+ * @param filename The name of the file to export to.
+ * @return 0 if successful, -1 otherwise.
+ */
+int fossil_crabdb_export(fossil_crabdb_t *db, const char *filename);
+
+/**
+ * @brief Imports a CrabDB database from a file.
+ * @param db The CrabDB database to import into.
+ * @param filename The name of the file to import from.
+ * @return 0 if successful, -1 otherwise.
+ */
+int fossil_crabdb_import(fossil_crabdb_t *db, const char *filename);
 
 //
 // DATABASE CACHE
