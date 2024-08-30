@@ -222,10 +222,10 @@ int fossil_crabdb_get_all_keys(fossil_crabdb_namespace_t *ns, char **keys, size_
 }
 
 //
-//
+// DATABASE DATA SERIALIZATION
 //
 
-// Helper functions to get type as string
+// Helper functions to get type as a string
 const char* type_to_string(value_type_t type) {
     switch (type) {
         case TYPE_U8: return "u8";
@@ -253,7 +253,7 @@ const char* type_to_string(value_type_t type) {
     }
 }
 
-// Helper functions to parse type from string
+// Helper functions to parse type from a string
 value_type_t string_to_type(const char *str) {
     if (strcmp(str, "u8") == 0) return TYPE_U8;
     if (strcmp(str, "u16") == 0) return TYPE_U16;
@@ -279,7 +279,7 @@ value_type_t string_to_type(const char *str) {
     return TYPE_UNKNOWN;
 }
 
-// Encoding functions
+// Encoding functions for custom .crabdb format
 void encode_value(value_type_t type, const void *value, char *buffer, size_t buffer_size) {
     switch (type) {
         case TYPE_U8:
@@ -351,7 +351,7 @@ void encode_value(value_type_t type, const void *value, char *buffer, size_t buf
     }
 }
 
-// Decoding functions
+// Decoding functions for custom .crabdb format
 int decode_value(const char *encoded, value_type_t *type, void *value) {
     char type_str[16];
     int result = sscanf(encoded, "%15[^:]:%s", type_str, (char *)value);
@@ -425,7 +425,6 @@ int decode_value(const char *encoded, value_type_t *type, void *value) {
         default:
             return -1;
     }
-
     return 0;
 }
 
@@ -598,52 +597,119 @@ int fossil_crabdb_execute_query(fossil_crabdb_t *db, const char *filename) {
         while (isspace(*trimmed_line)) trimmed_line++;
         if (*trimmed_line == '\0' || *trimmed_line == '#') continue; // Skip empty lines and comments
 
-        if (strncmp(trimmed_line, "CREATE NAMESPACE", 17) == 0) {
-            char *name = trimmed_line + 18;
-            name[strcspn(name, "\n")] = '\0'; // Remove newline character
-            fossil_crabdb_add_namespace(db, name);
-        } else if (strncmp(trimmed_line, "DELETE NAMESPACE", 17) == 0) {
-            char *name = trimmed_line + 18;
-            name[strcspn(name, "\n")] = '\0'; // Remove newline character
-            fossil_crabdb_delete_namespace(db, name);
-        } else if (strncmp(trimmed_line, "RENAME NAMESPACE", 16) == 0) {
-            char old_name[MAX_KEY_LENGTH], new_name[MAX_KEY_LENGTH];
-            sscanf(trimmed_line + 17, "%s %s", old_name, new_name);
-            fossil_crabdb_rename_namespace(db, old_name, new_name);
-        } else if (strncmp(trimmed_line, "SET", 3) == 0) {
-            char key[MAX_KEY_LENGTH];
-            char value[MAX_VALUE_LENGTH];
-            sscanf(trimmed_line + 4, "%s %s", key, value);
-            fossil_crabdb_namespace_t *ns = db->namespaceHead; // Assuming the namespace is the default one
-            fossil_crabdb_add_key_value(ns, key, value);
-        } else if (strncmp(trimmed_line, "UPDATE", 6) == 0) {
-            char key[MAX_KEY_LENGTH];
-            char new_value[MAX_VALUE_LENGTH];
-            sscanf(trimmed_line + 7, "%s %s", key, new_value);
-            fossil_crabdb_namespace_t *ns = db->namespaceHead; // Assuming the namespace is the default one
-            fossil_crabdb_update_key_value(ns, key, new_value);
-        } else if (strncmp(trimmed_line, "GET", 3) == 0) {
-            char key[MAX_KEY_LENGTH];
-            sscanf(trimmed_line + 4, "%s", key);
-            fossil_crabdb_namespace_t *ns = db->namespaceHead; // Assuming the namespace is the default one
-            const char *value = fossil_crabdb_get_value(ns, key);
-            if (value) {
-                printf("%s\n", value);
-            } else {
-                printf("Not found\n");
+        // Handle SQL-like commands
+        if (strstr(trimmed_line, ";") != NULL) {
+            if (strncmp(trimmed_line, "CREATE NAMESPACE", 17) == 0) {
+                char *name = trimmed_line + 18;
+                name[strcspn(name, ";\n")] = '\0'; // Remove semicolon and newline
+                fossil_crabdb_add_namespace(db, name);
+            } else if (strncmp(trimmed_line, "DELETE NAMESPACE", 17) == 0) {
+                char *name = trimmed_line + 18;
+                name[strcspn(name, ";\n")] = '\0'; // Remove semicolon and newline
+                fossil_crabdb_delete_namespace(db, name);
+            } else if (strncmp(trimmed_line, "RENAME NAMESPACE", 16) == 0) {
+                char old_name[MAX_KEY_LENGTH], new_name[MAX_KEY_LENGTH];
+                sscanf(trimmed_line + 17, "%s %s", old_name, new_name);
+                old_name[strcspn(old_name, ";\n")] = '\0';
+                new_name[strcspn(new_name, ";\n")] = '\0';
+                fossil_crabdb_rename_namespace(db, old_name, new_name);
+            } else if (strncmp(trimmed_line, "SET", 3) == 0) {
+                char key[MAX_KEY_LENGTH];
+                char value[MAX_VALUE_LENGTH];
+                sscanf(trimmed_line + 4, "%s %s", key, value);
+                key[strcspn(key, ";\n")] = '\0';
+                value[strcspn(value, ";\n")] = '\0';
+                fossil_crabdb_namespace_t *ns = db->namespaceHead; // Assuming the namespace is the default one
+                fossil_crabdb_add_key_value(ns, key, value);
+            } else if (strncmp(trimmed_line, "UPDATE", 6) == 0) {
+                char key[MAX_KEY_LENGTH];
+                char new_value[MAX_VALUE_LENGTH];
+                sscanf(trimmed_line + 7, "%s %s", key, new_value);
+                key[strcspn(key, ";\n")] = '\0';
+                new_value[strcspn(new_value, ";\n")] = '\0';
+                fossil_crabdb_namespace_t *ns = db->namespaceHead; // Assuming the namespace is the default one
+                fossil_crabdb_update_key_value(ns, key, new_value);
+            } else if (strncmp(trimmed_line, "GET", 3) == 0) {
+                char key[MAX_KEY_LENGTH];
+                sscanf(trimmed_line + 4, "%s", key);
+                key[strcspn(key, ";\n")] = '\0';
+                fossil_crabdb_namespace_t *ns = db->namespaceHead; // Assuming the namespace is the default one
+                const char *value = fossil_crabdb_get_value(ns, key);
+                if (value) {
+                    printf("%s\n", value);
+                } else {
+                    printf("Not found\n");
+                }
+            } else if (strncmp(trimmed_line, "PRINT", 5) == 0) {
+                char *message = trimmed_line + 6;
+                message[strcspn(message, ";\n")] = '\0'; // Remove semicolon and newline
+                printf("%s\n", message);
+            } else if (strncmp(trimmed_line, "EXPORT", 6) == 0) {
+                char filename[MAX_PATH_LENGTH];
+                sscanf(trimmed_line + 7, "%s", filename);
+                filename[strcspn(filename, ";\n")] = '\0';
+                fossil_crabdb_export(db, filename);
+            } else if (strncmp(trimmed_line, "IMPORT", 6) == 0) {
+                char filename[MAX_PATH_LENGTH];
+                sscanf(trimmed_line + 7, "%s", filename);
+                filename[strcspn(filename, ";\n")] = '\0';
+                fossil_crabdb_import(db, filename);
             }
-        } else if (strncmp(trimmed_line, "PRINT", 5) == 0) {
-            char *message = trimmed_line + 6;
-            message[strcspn(message, "\n")] = '\0'; // Remove newline character
-            printf("%s\n", message);
-        } else if (strncmp(trimmed_line, "EXPORT", 6) == 0) {
-            char filename[MAX_PATH_LENGTH];
-            sscanf(trimmed_line + 7, "%s", filename);
-            fossil_crabdb_export(db, filename);
-        } else if (strncmp(trimmed_line, "IMPORT", 6) == 0) {
-            char filename[MAX_PATH_LENGTH];
-            sscanf(trimmed_line + 7, "%s", filename);
-            fossil_crabdb_import(db, filename);
+        }
+        // Handle Meson-like commands
+        else {
+            // Convert the entire line to lowercase
+            for (int i = 0; line[i]; i++) {
+                line[i] = tolower(line[i]);
+            }
+
+            if (strstr(trimmed_line, "create_namespace") == trimmed_line) {
+                char name[MAX_KEY_LENGTH];
+                sscanf(trimmed_line, "create_namespace(name: \"%[^\"]\")", name);
+                fossil_crabdb_add_namespace(db, name);
+            } else if (strstr(trimmed_line, "delete_namespace") == trimmed_line) {
+                char name[MAX_KEY_LENGTH];
+                sscanf(trimmed_line, "delete_namespace(name: \"%[^\"]\")", name);
+                fossil_crabdb_delete_namespace(db, name);
+            } else if (strstr(trimmed_line, "rename_namespace") == trimmed_line) {
+                char old_name[MAX_KEY_LENGTH], new_name[MAX_KEY_LENGTH];
+                sscanf(trimmed_line, "rename_namespace(old_name: \"%[^\"]\", new_name: \"%[^\"]\")", old_name, new_name);
+                fossil_crabdb_rename_namespace(db, old_name, new_name);
+            } else if (strstr(trimmed_line, "set") == trimmed_line) {
+                char key[MAX_KEY_LENGTH];
+                char value[MAX_VALUE_LENGTH];
+                sscanf(trimmed_line, "set(key: \"%[^\"]\", value: \"%[^\"]\")", key, value);
+                fossil_crabdb_namespace_t *ns = db->namespaceHead; // Assuming the namespace is the default one
+                fossil_crabdb_add_key_value(ns, key, value);
+            } else if (strstr(trimmed_line, "update") == trimmed_line) {
+                char key[MAX_KEY_LENGTH];
+                char new_value[MAX_VALUE_LENGTH];
+                sscanf(trimmed_line, "update(key: \"%[^\"]\", new_value: \"%[^\"]\")", key, new_value);
+                fossil_crabdb_namespace_t *ns = db->namespaceHead; // Assuming the namespace is the default one
+                fossil_crabdb_update_key_value(ns, key, new_value);
+            } else if (strstr(trimmed_line, "get") == trimmed_line) {
+                char key[MAX_KEY_LENGTH];
+                sscanf(trimmed_line, "get(key: \"%[^\"]\")", key);
+                fossil_crabdb_namespace_t *ns = db->namespaceHead; // Assuming the namespace is the default one
+                const char *value = fossil_crabdb_get_value(ns, key);
+                if (value) {
+                    printf("%s\n", value);
+                } else {
+                    printf("Not found\n");
+                }
+            } else if (strstr(trimmed_line, "print") == trimmed_line) {
+                char message[MAX_VALUE_LENGTH];
+                sscanf(trimmed_line, "print(message: \"%[^\"]\")", message);
+                printf("%s\n", message);
+            } else if (strstr(trimmed_line, "export") == trimmed_line) {
+                char filename[MAX_PATH_LENGTH];
+                sscanf(trimmed_line, "export(filename: \"%[^\"]\")", filename);
+                fossil_crabdb_export(db, filename);
+            } else if (strstr(trimmed_line, "import") == trimmed_line) {
+                char filename[MAX_PATH_LENGTH];
+                sscanf(trimmed_line, "import(filename: \"%[^\"]\")", filename);
+                fossil_crabdb_import(db, filename);
+            }
         }
     }
 
@@ -667,20 +733,33 @@ static int parse_kwargs(const char *line, kwargs_t *kwargs, size_t *num_kwargs) 
     size_t count = 0;
 
     while (*p) {
-        while (*p && isspace(*p)) p++; // Skip whitespace
+        while (*p && isspace(*p)) p++;
         if (*p == '\0') break;
 
-        char key[MAX_ARG_LENGTH] = {0};
-        char value[MAX_ARG_LENGTH] = {0};
+        // Parse key
+        char key[MAX_KEY_LENGTH];
+        const char *key_start = p;
+        while (*p && *p != ':') p++;
+        if (*p != ':') return -1; // Invalid format
+        strncpy(key, key_start, p - key_start);
+        key[p - key_start] = '\0';
+        p++;
 
-        sscanf(p, "%[^=]=%s", key, value);
+        // Skip whitespace
+        while (*p && isspace(*p)) p++;
 
-        strncpy(kwargs[count].key, key, MAX_ARG_LENGTH);
-        strncpy(kwargs[count].value, value, MAX_ARG_LENGTH);
+        // Parse value
+        char value[MAX_VALUE_LENGTH];
+        const char *value_start = p;
+        while (*p && *p != ',' && *p != ')') p++;
+        strncpy(value, value_start, p - value_start);
+        value[p - value_start] = '\0';
+
+        strcpy(kwargs[count].key, key);
+        strcpy(kwargs[count].value, value);
         count++;
 
-        while (*p && *p != '\n') p++;
-        if (*p == '\n') p++;
+        if (*p == ',') p++;
     }
 
     *num_kwargs = count;
@@ -689,21 +768,21 @@ static int parse_kwargs(const char *line, kwargs_t *kwargs, size_t *num_kwargs) 
 
 // Execute a command with arguments parsed from the script
 static int execute_command(fossil_crabdb_t *db, const char *command, kwargs_t *kwargs, size_t num_kwargs) {
-    if (strcmp(command, "CREATE_NAMESPACE") == 0) {
+    if (strcmp(command, "create_namespace") == 0) {
         for (size_t i = 0; i < num_kwargs; i++) {
             if (strcmp(kwargs[i].key, "name") == 0) {
                 return fossil_crabdb_add_namespace(db, kwargs[i].value);
             }
         }
         return -1; // Required argument missing
-    } else if (strcmp(command, "DELETE_NAMESPACE") == 0) {
+    } else if (strcmp(command, "delete_namespace") == 0) {
         for (size_t i = 0; i < num_kwargs; i++) {
             if (strcmp(kwargs[i].key, "name") == 0) {
                 return fossil_crabdb_delete_namespace(db, kwargs[i].value);
             }
         }
         return -1; // Required argument missing
-    } else if (strcmp(command, "SET") == 0) {
+    } else if (strcmp(command, "set") == 0) {
         const char *namespace_name = NULL;
         const char *key = NULL;
         const char *value = NULL;
@@ -721,7 +800,7 @@ static int execute_command(fossil_crabdb_t *db, const char *command, kwargs_t *k
             return fossil_crabdb_add_key_value(ns, key, value);
         }
         return -1; // Arguments missing or namespace not found
-    } else if (strcmp(command, "GET") == 0) {
+    } else if (strcmp(command, "get") == 0) {
         const char *namespace_name = NULL;
         const char *key = NULL;
         for (size_t i = 0; i < num_kwargs; i++) {
@@ -742,7 +821,7 @@ static int execute_command(fossil_crabdb_t *db, const char *command, kwargs_t *k
             return 0;
         }
         return -1; // Arguments missing or namespace not found
-    } else if (strcmp(command, "PRINT") == 0) {
+    } else if (strcmp(command, "print") == 0) {
         for (size_t i = 0; i < num_kwargs; i++) {
             if (strcmp(kwargs[i].key, "message") == 0) {
                 printf("%s\n", kwargs[i].value);
