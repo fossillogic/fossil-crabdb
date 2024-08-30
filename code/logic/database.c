@@ -360,10 +360,10 @@ int decode_value(const char *encoded, value_type_t *type, void *value) {
     *type = string_to_type(type_str);
     switch (*type) {
         case TYPE_U8:
-            sscanf((char *)value, "%hhu", (uint8_t *)value);
+            sscanf((char *)value, "%hhu", (unsigned char *)value);
             break;
         case TYPE_U16:
-            sscanf((char *)value, "%hu", (uint16_t *)value);
+            sscanf((char *)value, "%hu", (unsigned short *)value);
             break;
         case TYPE_U32:
             sscanf((char *)value, "%u", (uint32_t *)value);
@@ -372,10 +372,10 @@ int decode_value(const char *encoded, value_type_t *type, void *value) {
             sscanf((char *)value, "%llu", (uint64_t *)value);
             break;
         case TYPE_I8:
-            sscanf((char *)value, "%hhd", (int8_t *)value);
+            sscanf((char *)value, "%hhd", (signed char *)value);
             break;
         case TYPE_I16:
-            sscanf((char *)value, "%hd", (int16_t *)value);
+            sscanf((char *)value, "%hd", (short *)value);
             break;
         case TYPE_I32:
             sscanf((char *)value, "%d", (int32_t *)value);
@@ -384,10 +384,10 @@ int decode_value(const char *encoded, value_type_t *type, void *value) {
             sscanf((char *)value, "%lld", (int64_t *)value);
             break;
         case TYPE_H8:
-            sscanf((char *)value, "%hhX", (uint8_t *)value);
+            sscanf((char *)value, "%hhX", (unsigned char *)value);
             break;
         case TYPE_H16:
-            sscanf((char *)value, "%hx", (uint16_t *)value);
+            sscanf((char *)value, "%hx", (unsigned short *)value);
             break;
         case TYPE_H32:
             sscanf((char *)value, "%X", (uint32_t *)value);
@@ -396,10 +396,10 @@ int decode_value(const char *encoded, value_type_t *type, void *value) {
             sscanf((char *)value, "%llX", (uint64_t *)value);
             break;
         case TYPE_O8:
-            sscanf((char *)value, "%hho", (uint8_t *)value);
+            sscanf((char *)value, "%hho", (unsigned char *)value);
             break;
         case TYPE_O16:
-            sscanf((char *)value, "%ho", (uint16_t *)value);
+            sscanf((char *)value, "%ho", (unsigned short *)value);
             break;
         case TYPE_O32:
             sscanf((char *)value, "%o", (uint32_t *)value);
