@@ -17,20 +17,33 @@ Blue CrabDB is a comprehensive, platform-independent database system designed to
 This example demonstrates how to use CrabQL commands to interact with the Blue CrabDB database. The commands are similar to SQL and perform basic operations such as creating namespaces, setting key-value pairs, and retrieving values.
 
 ```sql
-# Create a new namespace
-CREATE NAMESPACE name=default_ns;
+-- Create a namespace called "users"
+CREATE NAMESPACE "users";
 
-# Add key-value pairs to the namespace
-SET namespace=default_ns, key=my_key, value=my_value;
+-- Set a key-value pair in the "users" namespace
+SET "users" key1 "value1";
 
-# Retrieve the value for a specific key
-GET namespace=default_ns, key=my_key;
+-- Update a key-value pair in the "users" namespace
+UPDATE "users" key1 "new_value1";
 
-# Delete a key-value pair from the namespace
-DELETE KEY namespace=default_ns, key=my_key;
+-- Get the value of a key from the "users" namespace
+GET "users" key1;
 
-# Delete the namespace
-DELETE NAMESPACE name=default_ns;
+-- Delete a key-value pair from the "users" namespace
+DELETE "users" key1;
+
+-- Delete the "users" namespace
+DELETE NAMESPACE "users";
+
+-- Print a message
+PRINT "This is a test message.";
+
+-- Export the database to a file
+EXPORT "backup.crabdb";
+
+-- Import data from a file
+IMPORT "restore.crabdb";
+
 ```
 
 ### Sample 2: CrabQL Script (Meson-like Syntax)
@@ -71,6 +84,73 @@ end
 - **Scripts (Meson-like)**: Utilize a script-like syntax with comments, conditional statements, and loops. The syntax is designed to be more flexible and readable, resembling Meson build system scripts. Comments start with `#`, and control structures such as `if`, `else`, and `foreach` allow for more dynamic interactions.
 
 These samples illustrate the flexibility of the CrabQL language, providing both SQL-like commands for simple queries and Meson-like scripts for more complex workflows.
+
+### CrabDB presistent data
+
+Got it. It seems like you need a clear format for `.crabdb` files that includes various data types with examples. Here's how you might structure a `.crabdb` file to accommodate the different types:
+
+### Example `.crabdb` File
+
+```ini
+[namespace1]
+key1=u8:42
+key2=i16:-123
+key3=h32:0x1A2B3C
+key4=f64:3.14159
+key5=cstr:Hello, World!
+key6=bool:true
+key7=char:A
+key8=o32:012345
+key9=u64:18446744073709551615
+
+[namespace2]
+another_key=i32:123456789
+some_hex=h64:0x1234567890ABCDEF
+float_key=f32:2.71828
+```
+
+### Data Type Definitions
+
+1. **Unsigned Integers:**
+   - `u8`: 8-bit unsigned integer (0 to 255)
+   - `u16`: 16-bit unsigned integer (0 to 65,535)
+   - `u32`: 32-bit unsigned integer (0 to 4,294,967,295)
+   - `u64`: 64-bit unsigned integer (0 to 18,446,744,073,709,551,615)
+
+2. **Signed Integers:**
+   - `i8`: 8-bit signed integer (-128 to 127)
+   - `i16`: 16-bit signed integer (-32,768 to 32,767)
+   - `i32`: 32-bit signed integer (-2,147,483,648 to 2,147,483,647)
+   - `i64`: 64-bit signed integer (-9,223,372,036,854,775,808 to 9,223,372,036,854,775,807)
+
+3. **Hexadecimal Values:**
+   - `h8`: 8-bit hexadecimal number
+   - `h16`: 16-bit hexadecimal number
+   - `h32`: 32-bit hexadecimal number
+   - `h64`: 64-bit hexadecimal number
+
+4. **Octal Values:**
+   - `o8`: 8-bit octal number
+   - `o16`: 16-bit octal number
+   - `o32`: 32-bit octal number
+   - `o64`: 64-bit octal number
+
+5. **Floating-Point Numbers:**
+   - `f32`: 32-bit floating-point number
+   - `f64`: 64-bit floating-point number
+
+6. **String Values:**
+   - `cstr`: C-style string
+
+7. **Boolean Values:**
+   - `bool`: Boolean (`true` or `false`)
+
+8. **Character Values:**
+   - `char`: Single character
+
+### File Extension
+
+- `.crabdb` is used for database files that store key-value pairs in this format.
 
 ## Prerequisites
 
