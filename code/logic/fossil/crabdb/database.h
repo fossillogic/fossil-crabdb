@@ -79,7 +79,6 @@ typedef struct fossil_crabdb_namespace_t {
 
 typedef struct fossil_crabdb_t {
     fossil_crabdb_namespace_t *namespaceHead;
-    // Add more fields for caching or other metadata if needed
 } fossil_crabdb_t;
 
 typedef struct fossil_crabdb_cache_entry_t {
@@ -264,6 +263,152 @@ int fossil_crabdb_execute_script(fossil_crabdb_t *db, const char *script);
 
 #ifdef __cplusplus
 }
+#endif
+
+#ifdef __cplusplus
+
+#include <string>
+#include <vector>
+
+namespace fossil {
+
+    /**
+     * @brief The CrabDB class provides an interface to interact with the CrabDB database.
+     */
+    class CrabDB {
+    public:
+        /**
+         * @brief Constructs a new CrabDB object.
+         */
+        CrabDB() {
+            db = fossil_crabdb_create();
+        }
+
+        /**
+         * @brief Destroys the CrabDB object and frees the associated resources.
+         */
+        ~CrabDB() {
+            fossil_crabdb_delete(db);
+        }
+
+        /**
+         * @brief Adds a new namespace to the CrabDB database.
+         * @param name The name of the namespace to add.
+         * @return true if the namespace was added successfully, false otherwise.
+         */
+        bool addNamespace(const std::string& name) {
+            return fossil_crabdb_add_namespace(db, name.c_str()) == CRABDB_OK;
+        }
+
+        /**
+         * @brief Deletes a namespace from the CrabDB database.
+         * @param name The name of the namespace to delete.
+         * @return true if the namespace was deleted successfully, false otherwise.
+         */
+        bool deleteNamespace(const std::string& name) {
+            return fossil_crabdb_delete_namespace(db, name.c_str()) == CRABDB_OK;
+        }
+
+        /**
+         * @brief Renames a namespace in the CrabDB database.
+         * @param oldName The current name of the namespace.
+         * @param newName The new name of the namespace.
+         * @return true if the namespace was renamed successfully, false otherwise.
+         */
+        bool renameNamespace(const std::string& oldName, const std::string& newName) {
+            return fossil_crabdb_rename_namespace(db, oldName.c_str(), newName.c_str()) == CRABDB_OK;
+        }
+
+        /**
+         * @brief Adds a key-value pair to a namespace in the CrabDB database.
+         * @param namespaceName The name of the namespace to add the key-value pair to.
+         * @param key The key of the pair.
+         * @param value The value of the pair.
+         * @return true if the key-value pair was added successfully, false otherwise.
+         */
+        bool addKeyValue(const std::string& namespaceName, const std::string& key, const std::string& value) {
+            fossil_crabdb_namespace_t* ns = fossil_crabdb_find_namespace(db, namespaceName.c_str());
+            if (ns == nullptr) {
+                return false;
+            }
+            return fossil_crabdb_add_key_value(ns, key.c_str(), value.c_str()) == CRABDB_OK;
+        }
+
+        /**
+         * @brief Deletes a key-value pair from a namespace in the CrabDB database.
+         * @param namespaceName The name of the namespace to delete the key-value pair from.
+         * @param key The key of the pair to delete.
+         * @return true if the key-value pair was deleted successfully, false otherwise.
+         */
+        bool deleteKeyValue(const std::string& namespaceName, const std::string& key) {
+            fossil_crabdb_namespace_t* ns = fossil_crabdb_find_namespace(db, namespaceName.c_str());
+            if (ns == nullptr) {
+                return false;
+            }
+            return fossil_crabdb_delete_key_value(ns, key.c_str()) == CRABDB_OK;
+        }
+
+        /**
+         * @brief Updates the value associated with a key in a namespace of the CrabDB database.
+         * @param namespaceName The name of the namespace to update the key-value pair in.
+         * @param key The key of the pair to update.
+         * @param newValue The new value to associate with the key.
+         * @return true if the key-value pair was updated successfully, false otherwise.
+         */
+        bool updateKeyValue(const std::string& namespaceName, const std::string& key, const std::string& newValue) {
+            fossil_crabdb_namespace_t* ns = fossil_crabdb_find_namespace(db, namespaceName.c_str());
+            if (ns == nullptr) {
+                return false;
+            }
+            return fossil_crabdb_update_key_value(ns, key.c_str(), newValue.c_str()) == CRABDB_OK;
+        }
+
+        /**
+         * @brief Gets the value associated with a key in a namespace of the CrabDB database.
+         * @param namespaceName The name of the namespace to search for the key-value pair.
+         * @param key The key to search for.
+         * @return The value associated with the key, or an empty string if not found.
+         */
+        std::string getValue(const std::string& namespaceName, const std::string& key) {
+            fossil_crabdb_namespace_t* ns = fossil_crabdb_find_namespace(db, namespaceName.c_str());
+            if (ns == nullptr) {
+                return "";
+            }
+            const char* value = fossil_crabdb_get_value(ns, key.c_str());
+            if (value == nullptr) {
+                return "";
+            }
+            return value;
+        }
+
+        /**
+         * @brief Retrieves all keys in a namespace of the CrabDB database.
+         * @param namespaceName The name of the namespace to retrieve keys from.
+         * @return A vector containing all the keys in the namespace, or an empty vector if an error occurred.
+         */
+        std::vector<std::string> getAllKeys(const std::string& namespaceName) {
+            fossil_crabdb_namespace_t* ns = fossil_crabdb_find_namespace(db, namespaceName.c_str());
+            if (ns == nullptr) {
+                return {};
+            }
+            char** keys = nullptr;
+            int numKeys = fossil_crabdb_get_all_keys(ns, keys, 0);
+            if (numKeys <= 0) {
+                return {};
+            }
+            std::vector<std::string> keyList;
+            keyList.reserve(numKeys);
+            for (int i = 0; i < numKeys; i++) {
+                keyList.push_back(keys[i]);
+            }
+            return keyList;
+        }
+
+    private:
+        fossil_crabdb_t* db;
+    };
+
+} // namespace fossil
 #endif
 
 #endif /* FOSSIL_CRABDB_FRAMEWORK_H */
