@@ -16,83 +16,70 @@
 #include <fossil/xassume.h>
 #include "fossil/crabdb/framework.h"
 
+FOSSIL_FIXTURE(crabdb_query_fixture);
+fossil_crabdb_deque_t *query_test_db;
+
+FOSSIL_SETUP(crabdb_query_fixture) {
+    query_test_db = fossil_crabdb_create();
+}
+
+FOSSIL_TEARDOWN(crabdb_query_fixture) {
+    fossil_crabdb_destroy(query_test_db);
+}
+
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Blue CrabDB Database
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
-FOSSIL_TEST(test_fossil_crabdb_save) {
-    fossil_crabdb_t *db = fossil_crabdb_create();
-    fossil_crabdb_add_namespace(db, "test_namespace");
-    fossil_crabdb_add_key_value(fossil_crabdb_find_namespace(db, "test_namespace"), "key1", "value1");
-    int result = fossil_crabdb_save(db, "test.crabdb");
-    ASSUME_ITS_EQUAL_I32(result, CRABDB_OK);
-    free(db);
+// Test case 1: Valid .crabql file with multiple commands
+FOSSIL_TEST(test_fossil_crabdb_exec_valid_file) {
+    bool result = fossil_crabdb_exec("test_valid.crabql", &query_test_db);
+    ASSUME_ITS_TRUE(result);
+    char value[1024];
+    ASSUME_ITS_TRUE(fossil_crabdb_select(&query_test_db, "key1", value, sizeof(value)));
+    ASSUME_ITS_EQUAL_CSTR("value1", value);
 }
 
-FOSSIL_TEST(test_fossil_crabdb_load) {
-    fossil_crabdb_t *db = fossil_crabdb_create();
-    fossil_crabdb_add_namespace(db, "test_namespace");
-    fossil_crabdb_add_key_value(fossil_crabdb_find_namespace(db, "test_namespace"), "key1", "value1");
-    fossil_crabdb_save(db, "test.crabdb");
-
-    fossil_crabdb_t *loaded_db = fossil_crabdb_create();
-    int result = fossil_crabdb_load(loaded_db, "test.crabdb");
-    ASSUME_ITS_EQUAL_I32(result, CRABDB_OK);
-
-    const char *value = fossil_crabdb_get_value(fossil_crabdb_find_namespace(loaded_db, "test_namespace"), "key1");
-    ASSUME_NOT_CNULL(value);
-    ASSUME_ITS_EQUAL_CSTR(value, "value1");
-
-    free(db);
-    free(loaded_db);
+// Test case 2: File with a condition that is met
+FOSSIL_TEST(test_fossil_crabdb_exec_condition_met) {
+    bool result = fossil_crabdb_exec("test_condition_met.crabql", &query_test_db);
+    ASSUME_ITS_TRUE(result);
+    char value[1024];
+    ASSUME_ITS_TRUE(fossil_crabdb_select(&query_test_db, "key2", value, sizeof(value)));
+    ASSUME_ITS_EQUAL_CSTR("value2", value);
 }
 
-FOSSIL_TEST(test_fossil_crabdb_execute_query_delete_namespace) {
-    FILE *file = fopen("delete_namespace_query.crabql", "w");
-    fprintf(file, "namespace test_namespace\n");
-    fprintf(file, "erase test_namespace\n");
-    fclose(file);
-
-    fossil_crabdb_t *db = fossil_crabdb_create();
-    fossil_crabdb_execute_query(db, "delete_namespace_query.crabql");
-    fossil_crabdb_namespace_t *ns = fossil_crabdb_find_namespace(db, "test_namespace");
-    ASSUME_ITS_CNULL(ns);
-
-    free(db);
+// Test case 3: File with a condition that is not met
+FOSSIL_TEST(test_fossil_crabdb_exec_condition_not_met) {
+    bool result = fossil_crabdb_exec("test_condition_not_met.crabql", &query_test_db);
+    ASSUME_ITS_TRUE(result);
+    char value[1024];
+    ASSUME_NOT_TRUE(fossil_crabdb_select(&query_test_db, "key3", value, sizeof(value)));
 }
 
-FOSSIL_TEST(test_fossil_crabdb_execute_query_non_existent_namespace) {
-    FILE *file = fopen("non_existent_namespace_query.crabql", "w");
-    fprintf(file, "erase non_existent_namespace\n");
-    fclose(file);
-
-    fossil_crabdb_t *db = fossil_crabdb_create();
-    int result = fossil_crabdb_execute_query(db, "non_existent_namespace_query.crabql");
-    ASSUME_ITS_EQUAL_I32(result, CRABDB_OK); // Deletion of a non-existent namespace should not fail
-
-    free(db);
+// Test case 4: File with an unknown command
+FOSSIL_TEST(test_fossil_crabdb_exec_unknown_command) {
+    bool result = fossil_crabdb_exec("test_unknown_command.crabql", &query_test_db);
+    ASSUME_ITS_TRUE(result);
+    char value[1024];
+    ASSUME_ITS_FALSE(fossil_crabdb_select(&query_test_db, "key4", value, sizeof(value)));
 }
 
-FOSSIL_TEST(test_fossil_crabdb_execute_query_invalid_command) {
-    FILE *file = fopen("invalid_command_query.crabql", "w");
-    fprintf(file, "invalid_command\n");
-    fclose(file);
-
-    fossil_crabdb_t *db = fossil_crabdb_create();
-    int result = fossil_crabdb_execute_query(db, "invalid_command_query.crabql");
-    ASSUME_ITS_EQUAL_I32(result, CRABDB_OK); // The function should handle invalid commands gracefully
-
-    free(db);
+// Test case 5: Invalid file extension
+FOSSIL_TEST(test_fossil_crabdb_exec_invalid_extension) {
+    bool result = fossil_crabdb_exec("test_invalid.txt", &query_test_db);
+    ASSUME_NOT_TRUE(result);
 }
+
 
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
 FOSSIL_TEST_GROUP(c_crabql_query_tests) {
-    ADD_TEST(test_fossil_crabdb_save);
-    ADD_TEST(test_fossil_crabdb_load);
-    ADD_TEST(test_fossil_crabdb_execute_query_delete_namespace);
-    ADD_TEST(test_fossil_crabdb_execute_query_non_existent_namespace);
-    ADD_TEST(test_fossil_crabdb_execute_query_invalid_command);
+    ADD_TESTF(test_fossil_crabdb_exec_valid_file, crabdb_query_fixture);
+    ADD_TESTF(test_fossil_crabdb_exec_condition_met, crabdb_query_fixture);
+    ADD_TESTF(test_fossil_crabdb_exec_condition_not_met, crabdb_query_fixture);
+    ADD_TESTF(test_fossil_crabdb_exec_unknown_command, crabdb_query_fixture);
+    ADD_TESTF(test_fossil_crabdb_exec_invalid_extension, crabdb_query_fixture);
 }

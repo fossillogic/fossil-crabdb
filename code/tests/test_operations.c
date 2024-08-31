@@ -17,99 +17,106 @@
 
 #include "fossil/crabdb/framework.h"
 
+FOSSIL_FIXTURE(crabdb_operation_fixture);
+fossil_crabdb_deque_t *operation_test_db;
+
+FOSSIL_SETUP(crabdb_operation_fixture) {
+    operation_test_db = fossil_crabdb_create();
+}
+
+FOSSIL_TEARDOWN(crabdb_operation_fixture) {
+    fossil_crabdb_destroy(operation_test_db);
+}
+
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Blue CrabDB Database
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
-FOSSIL_TEST(test_fossil_crabdb_create) {
-    fossil_crabdb_t *db = fossil_crabdb_create();
-    ASSUME_NOT_CNULL(db);
-    // Additional checks for initial state can be added here.
-    // e.g., Check if namespaceHead is NULL
-    ASSUME_ITS_CNULL(db->namespaceHead);
-    // Cleanup
-    free(db);
+FOSSIL_TEST(test_insert) {
+    bool result = fossil_crabdb_insert(operation_test_db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    ASSUME_ITS_TRUE(result);
+    
+    char value[1024];
+    result = fossil_crabdb_select(operation_test_db, "key1", value, sizeof(value));
+    ASSUME_ITS_TRUE(result);
+    ASSUME_ITS_EQUAL_CSTR("value1", value);
 }
 
-FOSSIL_TEST(test_fossil_crabdb_add_namespace) {
-    fossil_crabdb_t *db = fossil_crabdb_create();
-    int result = fossil_crabdb_add_namespace(db, "test_namespace");
-    ASSUME_ITS_EQUAL_I32(result, CRABDB_OK);
-    fossil_crabdb_namespace_t *ns = fossil_crabdb_find_namespace(db, "test_namespace");
-    ASSUME_NOT_CNULL(ns);
-    ASSUME_ITS_EQUAL_CSTR(ns->name, "test_namespace");
-    // Cleanup
-    free(ns);
-    free(db);
+FOSSIL_TEST(test_update) {
+    fossil_crabdb_insert(operation_test_db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    bool result = fossil_crabdb_update(operation_test_db, "key1", "updatedValue1");
+    ASSUME_ITS_TRUE(result);
+    
+    char value[1024];
+    result = fossil_crabdb_select(operation_test_db, "key1", value, sizeof(value));
+    ASSUME_ITS_TRUE(result);
+    ASSUME_ITS_EQUAL_CSTR("updatedValue1", value);
 }
 
-FOSSIL_TEST(test_fossil_crabdb_find_namespace) {
-    fossil_crabdb_t *db = fossil_crabdb_create();
-    fossil_crabdb_add_namespace(db, "test_namespace");
-    fossil_crabdb_namespace_t *ns = fossil_crabdb_find_namespace(db, "test_namespace");
-    ASSUME_NOT_CNULL(ns);
-    ASSUME_ITS_EQUAL_CSTR(ns->name, "test_namespace");
-    // Test for non-existent namespace
-    fossil_crabdb_namespace_t *nonexistent_ns = fossil_crabdb_find_namespace(db, "nonexistent");
-    ASSUME_ITS_CNULL(nonexistent_ns);
-    // Cleanup
-    free(ns);
-    free(db);
+FOSSIL_TEST(test_delete) {
+    fossil_crabdb_insert(operation_test_db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    bool result = fossil_crabdb_delete(operation_test_db, "key1");
+    ASSUME_ITS_TRUE(result);
+    
+    char value[1024];
+    result = fossil_crabdb_select(operation_test_db, "key1", value, sizeof(value));
+    ASSUME_NOT_TRUE(result); // Should return false as the key is deleted
 }
 
-FOSSIL_TEST(test_fossil_crabdb_add_key_value) {
-    fossil_crabdb_t *db = fossil_crabdb_create();
-    fossil_crabdb_add_namespace(db, "test_namespace");
-    fossil_crabdb_namespace_t *ns = fossil_crabdb_find_namespace(db, "test_namespace");
-    int result = fossil_crabdb_add_key_value(ns, "key1", "value1");
-    ASSUME_ITS_EQUAL_I32(result, CRABDB_OK);
-    const char *value = fossil_crabdb_get_value(ns, "key1");
-    ASSUME_NOT_CNULL(value);
-    ASSUME_ITS_EQUAL_CSTR(value, "value1");
-    // Cleanup
-    free(ns);
-    free(db);
+FOSSIL_TEST(test_list) {
+    fossil_crabdb_insert(operation_test_db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_insert(operation_test_db, "key2", "value2", FOSSIL_CRABDB_TYPE_STRING);
+
+    char list_buffer[2048];
+    bool result = fossil_crabdb_list(operation_test_db, list_buffer, sizeof(list_buffer));
+    ASSUME_ITS_TRUE(result);
+
+    // Check if the list contains the expected entries
+    ASSUME_ITS_TRUE(strstr(list_buffer, "key1: value1") != NULL);
+    ASSUME_ITS_TRUE(strstr(list_buffer, "key2: value2") != NULL);
 }
 
-FOSSIL_TEST(test_fossil_crabdb_get_value) {
-    fossil_crabdb_t *db = fossil_crabdb_create();
-    fossil_crabdb_add_namespace(db, "test_namespace");
-    fossil_crabdb_namespace_t *ns = fossil_crabdb_find_namespace(db, "test_namespace");
-    fossil_crabdb_add_key_value(ns, "key1", "value1");
-    const char *value = fossil_crabdb_get_value(ns, "key1");
-    ASSUME_NOT_CNULL(value);
-    ASSUME_ITS_EQUAL_CSTR(value, "value1");
-    // Test for non-existent key
-    const char *missing_value = fossil_crabdb_get_value(ns, "missing_key");
-    ASSUME_ITS_CNULL(missing_value);
-    // Cleanup
-    free(ns);
-    free(db);
+FOSSIL_TEST(test_clear) {
+    fossil_crabdb_insert(operation_test_db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_insert(operation_test_db, "key2", "value2", FOSSIL_CRABDB_TYPE_STRING);
+
+    bool result = fossil_crabdb_clear(operation_test_db);
+    ASSUME_ITS_TRUE(result);
+
+    char value[1024];
+    result = fossil_crabdb_select(operation_test_db, "key1", value, sizeof(value));
+    ASSUME_NOT_TRUE(result); // Should return false as the deque is cleared
+
+    result = fossil_crabdb_select(operation_test_db, "key2", value, sizeof(value));
+    ASSUME_NOT_TRUE(result); // Should return false as the deque is cleared
 }
 
-FOSSIL_TEST(test_fossil_crabdb_delete_key_value) {
-    fossil_crabdb_t *db = fossil_crabdb_create();
-    fossil_crabdb_add_namespace(db, "test_namespace");
-    fossil_crabdb_namespace_t *ns = fossil_crabdb_find_namespace(db, "test_namespace");
-    fossil_crabdb_add_key_value(ns, "key1", "value1");
-    int result = fossil_crabdb_delete_key_value(ns, "key1");
-    ASSUME_ITS_EQUAL_I32(result, CRABDB_OK);
-    const char *value = fossil_crabdb_get_value(ns, "key1");
-    ASSUME_ITS_CNULL(value);
-    // Cleanup
-    free(ns);
-    free(db);
+FOSSIL_TEST(test_show) {
+    fossil_crabdb_insert(operation_test_db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+
+    bool result = fossil_crabdb_show(operation_test_db);
+    ASSUME_ITS_TRUE(result);
 }
 
-FOSSIL_TEST(test_fossil_crabdb_delete_namespace) {
-    fossil_crabdb_t *db = fossil_crabdb_create();
-    fossil_crabdb_add_namespace(db, "test_namespace");
-    int result = fossil_crabdb_delete_namespace(db, "test_namespace");
-    ASSUME_ITS_EQUAL_I32(result, CRABDB_OK);
-    fossil_crabdb_namespace_t *ns = fossil_crabdb_find_namespace(db, "test_namespace");
-    ASSUME_ITS_CNULL(ns);
-    // Cleanup
-    free(db);
+FOSSIL_TEST(test_drop) {
+    fossil_crabdb_insert(operation_test_db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    
+    bool result = fossil_crabdb_drop(operation_test_db);
+    ASSUME_ITS_TRUE(result);
+
+    char value[1024];
+    result = fossil_crabdb_select(operation_test_db, "key1", value, sizeof(value));
+    ASSUME_NOT_TRUE(result); // Should return false as the deque is dropped
+}
+
+FOSSIL_TEST(test_exist) {
+    fossil_crabdb_insert(operation_test_db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+
+    bool result = fossil_crabdb_exist(operation_test_db, "key1");
+    ASSUME_ITS_TRUE(result);
+
+    result = fossil_crabdb_exist(operation_test_db, "nonExistingKey");
+    ASSUME_NOT_TRUE(result);
 }
 
 // * * * * * * * * * * * * * * * * * * * * * * * *
@@ -117,11 +124,12 @@ FOSSIL_TEST(test_fossil_crabdb_delete_namespace) {
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
 FOSSIL_TEST_GROUP(c_crabdb_operations_tests) {    
-    ADD_TEST(test_fossil_crabdb_create);
-    ADD_TEST(test_fossil_crabdb_add_namespace);
-    ADD_TEST(test_fossil_crabdb_find_namespace);
-    ADD_TEST(test_fossil_crabdb_add_key_value);
-    ADD_TEST(test_fossil_crabdb_get_value);
-    ADD_TEST(test_fossil_crabdb_delete_key_value);
-    ADD_TEST(test_fossil_crabdb_delete_namespace);
+    ADD_TESTF(test_insert, crabdb_operation_fixture);
+    ADD_TESTF(test_update, crabdb_operation_fixture);
+    ADD_TESTF(test_delete, crabdb_operation_fixture);
+    ADD_TESTF(test_list, crabdb_operation_fixture);
+    ADD_TESTF(test_clear, crabdb_operation_fixture);
+    ADD_TESTF(test_show, crabdb_operation_fixture);
+    ADD_TESTF(test_drop, crabdb_operation_fixture);
+    ADD_TESTF(test_exist, crabdb_operation_fixture);
 } // end of tests
