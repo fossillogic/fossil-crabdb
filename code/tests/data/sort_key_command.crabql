@@ -1,0 +1,4 @@
+# Insert, sort by key, and then search by key
+insert ('myKey2', 'myValue2');
+insert ('myKey1', 'myValue1');
+sort_by_key();
