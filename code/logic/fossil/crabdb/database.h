@@ -24,244 +24,252 @@ extern "C" {
 // DATABASE TYPES
 //
 
-enum {
-    CRABDB_OK = 0,
-    MAX_KEY_LENGTH = 256,
-    MAX_VALUE_LENGTH = 1024,
-    MAX_LINE_LENGTH = 2048,
-    MAX_VARIABLES = 256,
-    MAX_COMMAND_LENGTH = 1024,
-    MAX_PATH_LENGTH = 1024,
-    MAX_ARG_LENGTH = 256
-};
+#define MAX_KEY_SIZE 256
+#define MAX_VALUE_SIZE 1024
 
-// Type identifiers
 typedef enum {
-    TYPE_UNKNOWN,
-    TYPE_U8,
-    TYPE_U16,
-    TYPE_U32,
-    TYPE_U64,
-    TYPE_I8,
-    TYPE_I16,
-    TYPE_I32,
-    TYPE_I64,
-    TYPE_H8,
-    TYPE_H16,
-    TYPE_H32,
-    TYPE_H64,
-    TYPE_O8,
-    TYPE_O16,
-    TYPE_O32,
-    TYPE_O64,
-    TYPE_F32,
-    TYPE_F64,
-    TYPE_CSTR,
-    TYPE_BOOL,
-    TYPE_CHAR
-} value_type_t;
+    FOSSIL_CRABDB_TYPE_INT8,
+    FOSSIL_CRABDB_TYPE_INT16,
+    FOSSIL_CRABDB_TYPE_INT32,
+    FOSSIL_CRABDB_TYPE_INT64,
+    FOSSIL_CRABDB_TYPE_UINT8,
+    FOSSIL_CRABDB_TYPE_UINT16,
+    FOSSIL_CRABDB_TYPE_UINT32,
+    FOSSIL_CRABDB_TYPE_UINT64,
+    FOSSIL_CRABDB_TYPE_OCTAL8,
+    FOSSIL_CRABDB_TYPE_OCTAL16,
+    FOSSIL_CRABDB_TYPE_OCTAL32,
+    FOSSIL_CRABDB_TYPE_OCTAL64,
+    FOSSIL_CRABDB_TYPE_HEX8,
+    FOSSIL_CRABDB_TYPE_HEX16,
+    FOSSIL_CRABDB_TYPE_HEX32,
+    FOSSIL_CRABDB_TYPE_HEX64,
+    FOSSIL_CRABDB_TYPE_BIN8,
+    FOSSIL_CRABDB_TYPE_BIN16,
+    FOSSIL_CRABDB_TYPE_BIN32,
+    FOSSIL_CRABDB_TYPE_BIN64,
+    FOSSIL_CRABDB_TYPE_FLOAT,
+    FOSSIL_CRABDB_TYPE_DOUBLE,
+    FOSSIL_CRABDB_TYPE_STRING,
+    FOSSIL_CRABDB_TYPE_BOOL,
+    FOSSIL_CRABDB_TYPE_CHAR,
+    FOSSIL_CRABDB_TYPE_NULL
+} fossil_crabdb_type_t;
+
+typedef struct fossil_crabdb_node {
+    char key[MAX_KEY_SIZE];
+    char value[MAX_VALUE_SIZE];
+    fossil_crabdb_type_t type;
+    struct fossil_crabdb_node* prev;
+    struct fossil_crabdb_node* next;
+} fossil_crabdb_node_t;
+
+typedef struct fossil_crabdb_deque {
+    fossil_crabdb_node_t* head;
+    fossil_crabdb_node_t* tail;
+} fossil_crabdb_deque_t;
+
+//
+// DATABASE MANAGEMENT
+//
 
 /**
- * @brief Error codes for the CrabDB database.
+ * @brief Creates a new CrabDB deque.
+ * @return A pointer to the newly created deque.
  */
-typedef struct fossil_crabdb_keyvalue_t {
-    char key[MAX_KEY_LENGTH];
-    char value[MAX_VALUE_LENGTH];
-    struct fossil_crabdb_keyvalue_t *prev;
-    struct fossil_crabdb_keyvalue_t *next;
-} fossil_crabdb_keyvalue_t;
+fossil_crabdb_deque_t* fossil_crabdb_create(void);
 
-typedef struct fossil_crabdb_namespace_t {
-    char name[MAX_KEY_LENGTH];
-    fossil_crabdb_keyvalue_t *key_values;
-    struct fossil_crabdb_namespace_t *prev;
-    struct fossil_crabdb_namespace_t *next;
-    struct fossil_crabdb_namespace_t *subNamespacesHead;
-} fossil_crabdb_namespace_t;
-
-typedef struct fossil_crabdb_t {
-    fossil_crabdb_namespace_t *namespaceHead;
-} fossil_crabdb_t;
-
-typedef struct fossil_crabdb_cache_entry_t {
-    char key[MAX_KEY_LENGTH];
-    char value[MAX_VALUE_LENGTH];
-    struct fossil_crabdb_cache_entry_t *next;
-} fossil_crabdb_cache_entry_t;
-
-typedef struct fossil_crabdb_cache_t {
-    fossil_crabdb_cache_entry_t *head;
-} fossil_crabdb_cache_t;
+/**
+ * @brief Destroys a CrabDB deque and frees the associated resources.
+ * @param deque A pointer to the deque to destroy.
+ */
+void fossil_crabdb_destroy(fossil_crabdb_deque_t* deque);
 
 //
 // DATABASE OPERATIONS
 //
 
 /**
- * @brief Creates a new CrabDB database.
- * @return A pointer to the newly created database.
- */
-fossil_crabdb_t* fossil_crabdb_create(void);
-
-/**
- * @brief Adds a new namespace to the CrabDB database.
- * @param db The CrabDB database.
- * @param name The name of the namespace to add.
- * @return 0 if successful, -1 otherwise.
- */
-int fossil_crabdb_add_namespace(fossil_crabdb_t *db, const char *name);
-
-/**
- * @brief Finds a namespace in the CrabDB database.
- * @param db The CrabDB database.
- * @param name The name of the namespace to find.
- * @return A pointer to the found namespace, or NULL if not found.
- */
-fossil_crabdb_namespace_t* fossil_crabdb_find_namespace(fossil_crabdb_t *db, const char *name);
-
-/**
- * @brief Adds a key-value pair to a namespace in the CrabDB database.
- * @param ns The namespace to add the key-value pair to.
+ * @brief Inserts a key-value pair into a CrabDB deque.
+ * @param deque A pointer to the deque to insert the pair into.
  * @param key The key of the pair.
  * @param value The value of the pair.
- * @return 0 if successful, -1 otherwise.
+ * @param type The type of the value.
+ * @return true if the pair was inserted successfully, false otherwise.
  */
-int fossil_crabdb_add_key_value(fossil_crabdb_namespace_t *ns, const char *key, const char *value);
+bool fossil_crabdb_insert(fossil_crabdb_deque_t* deque, const char* key, const char* value, fossil_crabdb_type_t type);
 
 /**
- * @brief Gets the value associated with a key in a namespace of the CrabDB database.
- * @param ns The namespace to search for the key-value pair.
- * @param key The key to search for.
- * @return The value associated with the key, or NULL if not found.
- */
-const char* fossil_crabdb_get_value(fossil_crabdb_namespace_t *ns, const char *key);
-
-/**
- * @brief Deletes a key-value pair from a namespace in the CrabDB database.
- * @param ns The namespace to delete the key-value pair from.
- * @param key The key of the pair to delete.
- * @return 0 if successful, -1 otherwise.
- */
-int fossil_crabdb_delete_key_value(fossil_crabdb_namespace_t *ns, const char *key);
-
-/**
- * @brief Deletes a namespace from the CrabDB database.
- * @param db The CrabDB database.
- * @param name The name of the namespace to delete.
- * @return 0 if successful, -1 otherwise.
- */
-int fossil_crabdb_delete_namespace(fossil_crabdb_t *db, const char *name);
-
-/**
- * @brief Renames a namespace in the CrabDB database.
- * @param db The CrabDB database.
- * @param old_name The current name of the namespace.
- * @param new_name The new name of the namespace.
- * @return 0 if successful, -1 otherwise.
- */
-int fossil_crabdb_rename_namespace(fossil_crabdb_t *db, const char *old_name, const char *new_name);
-
-/**
- * @brief Updates the value associated with a key in a namespace of the CrabDB database.
- * @param ns The namespace to update the key-value pair in.
+ * @brief Updates the value associated with a key in a CrabDB deque.
+ * @param deque A pointer to the deque to update the pair in.
  * @param key The key of the pair to update.
- * @param new_value The new value to associate with the key.
- * @return 0 if successful, -1 otherwise.
+ * @param value The new value to associate with the key.
+ * @return true if the pair was updated successfully, false otherwise.
  */
-int fossil_crabdb_update_key_value(fossil_crabdb_namespace_t *ns, const char *key, const char *new_value);
+bool fossil_crabdb_update(fossil_crabdb_deque_t* deque, const char* key, const char* value);
 
 /**
- * @brief Retrieves all keys in a namespace of the CrabDB database.
- * @param ns The namespace to retrieve keys from.
- * @param keys Array to store the retrieved keys.
- * @param max_keys The maximum number of keys to retrieve.
- * @return The number of keys retrieved, or -1 if an error occurred.
+ * @brief Deletes a key-value pair from a CrabDB deque.
+ * @param deque A pointer to the deque to delete the pair from.
+ * @param key The key of the pair to delete.
+ * @return true if the pair was deleted successfully, false otherwise.
  */
-int fossil_crabdb_get_all_keys(fossil_crabdb_namespace_t *ns, char **keys, size_t max_keys);
+bool fossil_crabdb_delete(fossil_crabdb_deque_t* deque, const char* key);
 
 /**
- * @brief Exports the CrabDB database to a file.
- * @param db The CrabDB database.
- * @param filename The name of the file to export to.
- * @return 0 if successful, -1 otherwise.
+ * @brief Selects the value associated with a key in a CrabDB deque.
+ * @param deque A pointer to the deque to select the value from.
+ * @param key The key to select the value for.
+ * @param value The buffer to store the selected value.
+ * @param value_size The size of the value buffer.
+ * @return true if the value was selected successfully, false otherwise.
  */
-int fossil_crabdb_export(fossil_crabdb_t *db, const char *filename);
+bool fossil_crabdb_select(fossil_crabdb_deque_t* deque, const char* key, char* value, size_t value_size);
 
 /**
- * @brief Imports a CrabDB database from a file.
- * @param db The CrabDB database to import into.
- * @param filename The name of the file to import from.
- * @return 0 if successful, -1 otherwise.
+ * @brief Lists all key-value pairs in a CrabDB deque.
+ * @param deque A pointer to the deque to list the pairs from.
+ * @param list_buffer The buffer to store the list of pairs.
+ * @param buffer_size The size of the list buffer.
+ * @return true if the pairs were listed successfully, false otherwise.
  */
-int fossil_crabdb_import(fossil_crabdb_t *db, const char *filename);
+bool fossil_crabdb_list(fossil_crabdb_deque_t* deque, char* list_buffer, size_t buffer_size);
+
+/**
+ * @brief Clears all key-value pairs from a CrabDB deque.
+ * @param deque A pointer to the deque to clear.
+ * @return true if the deque was cleared successfully, false otherwise.
+ */
+bool fossil_crabdb_clear(fossil_crabdb_deque_t* deque);
+/**
+ * @brief Shows the contents of a CrabDB deque.
+ * @param deque A pointer to the deque to show.
+ * @return true if the deque was shown successfully, false otherwise.
+ */
+bool fossil_crabdb_show(fossil_crabdb_deque_t* deque);
+
+/**
+ * @brief Drops a CrabDB deque and clears its contents.
+ * @param deque A pointer to the deque to drop.
+ * @return true if the deque was dropped successfully, false otherwise.
+ */
+bool fossil_crabdb_drop(fossil_crabdb_deque_t* deque);
+
+/**
+ * @brief Checks if a key exists in a CrabDB deque.
+ * @param deque A pointer to the deque to check.
+ * @param key The key to check for existence.
+ * @return true if the key exists in the deque, false otherwise.
+ */
+bool fossil_crabdb_exist(fossil_crabdb_deque_t* deque, const char* key);
 
 //
-// DATABASE CACHE
+// DATABASE ALGORITHMS
 //
 
 /**
- * @brief Creates a new CrabDB cache.
- * @return A pointer to the newly created cache.
- */
-fossil_crabdb_cache_t* fossil_crabdb_create_cache(void);
-
-/**
- * @brief Adds a key-value pair to the CrabDB cache.
- * @param cache The CrabDB cache.
- * @param key The key of the pair.
- * @param value The value of the pair.
- */
-void fossil_crabdb_cache_add(fossil_crabdb_cache_t *cache, const char *key, const char *value);
-
-/**
- * @brief Gets the value associated with a key in the CrabDB cache.
- * @param cache The CrabDB cache.
+ * @brief Searches for a key-value pair in a CrabDB deque by key.
+ * @param deque A pointer to the deque to search in.
  * @param key The key to search for.
- * @return The value associated with the key, or NULL if not found.
+ * @param value The buffer to store the value associated with the key.
+ * @param value_size The size of the value buffer.
+ * @return true if the key-value pair was found, false otherwise.
  */
-const char* fossil_crabdb_cache_get(fossil_crabdb_cache_t *cache, const char *key);
+bool fossil_crabdb_search_by_key(fossil_crabdb_deque_t* deque, const char* key, char* value, size_t value_size);
 
 /**
- * @brief Frees the memory used by a CrabDB cache.
- * @param cache The CrabDB cache to free.
+ * @brief Searches for a key-value pair in a CrabDB deque by value.
+ * @param deque A pointer to the deque to search in.
+ * @param value The value to search for.
+ * @param key_buffer The buffer to store the key associated with the value.
+ * @param key_buffer_size The size of the key buffer.
+ * @return true if the key-value pair was found, false otherwise.
  */
-void fossil_crabdb_cache_free(fossil_crabdb_cache_t *cache);
+bool fossil_crabdb_search_by_value(fossil_crabdb_deque_t* deque, const char* value, char* key_buffer, size_t key_buffer_size);
+
+/**
+ * @brief Sorts the key-value pairs in a CrabDB deque by key.
+ * @param deque A pointer to the deque to sort.
+ * @return true if the deque was sorted successfully, false otherwise.
+ */
+bool fossil_crabdb_sort_by_key(fossil_crabdb_deque_t* deque);
+
+/**
+ * @brief Sorts the key-value pairs in a CrabDB deque by value.
+ * @param deque A pointer to the deque to sort.
+ * @return true if the deque was sorted successfully, false otherwise.
+ */
+bool fossil_crabdb_sort_by_value(fossil_crabdb_deque_t* deque);
 
 //
-// DATABASE QUERY AND SCRIPTING
+// DATABASE SERIALIZATION
 //
 
 /**
- * @brief Saves the CrabDB database to a file.
- * @param db The CrabDB database.
- * @param filename The name of the file to save to.
- * @return 0 if successful, -1 otherwise.
+ * @brief Encodes the contents of a CrabDB deque and saves it to a file.
+ * @param filename The name of the file to save the encoded data to.
+ * @param deque A pointer to the deque to encode.
+ * @return true if the deque was encoded and saved successfully, false otherwise.
  */
-int fossil_crabdb_save(fossil_crabdb_t *db, const char *filename);
+bool fossil_crabdb_encode(const char* filename, fossil_crabdb_deque_t* deque);
 
 /**
- * @brief Loads a CrabDB database from a file.
- * @param db The CrabDB database.
- * @param filename The name of the file to load from.
- * @return 0 if successful, -1 otherwise.
+ * @brief Decodes the contents of a file and loads it into a CrabDB deque.
+ * @param filename The name of the file to load the data from.
+ * @param deque A pointer to the deque to load the decoded data into.
+ * @return true if the file was decoded and the deque was loaded successfully, false otherwise.
  */
-int fossil_crabdb_load(fossil_crabdb_t *db, const char *filename);
+bool fossil_crabdb_decode(const char* filename, fossil_crabdb_deque_t* deque);
 
 /**
- * @brief Executes a query on the CrabDB database.
- * @param db The CrabDB database.
- * @param query The query to execute.
- * @return 0 if successful, -1 otherwise.
+ * @brief Counts the number of key-value pairs in a CrabDB deque.
+ * @param deque A pointer to the deque to count the pairs in.
+ * @return The number of key-value pairs in the deque.
  */
-int fossil_crabdb_execute_query(fossil_crabdb_t *db, const char *query);
+size_t fossil_crabdb_count(fossil_crabdb_deque_t* deque);
 
 /**
- * @brief Executes a script on the CrabDB database.
- * @param db The CrabDB database.
- * @param script The script to execute.
- * @return 0 if successful, -1 otherwise.
+ * @brief Exports the contents of a CrabDB deque to a CSV file.
+ * @param filename The name of the file to save the CSV data to.
+ * @param deque A pointer to the deque to export.
+ * @return true if the data was exported successfully, false otherwise.
  */
-int fossil_crabdb_execute_script(fossil_crabdb_t *db, const char *script);
+bool fossil_crabdb_export_csv(const char* filename, fossil_crabdb_deque_t* deque);
+
+/**
+ * @brief Imports key-value pairs from a CSV file into a CrabDB deque.
+ * @param filename The name of the CSV file to load data from.
+ * @param deque A pointer to the deque to import the data into.
+ * @return true if the data was imported successfully, false otherwise.
+ */
+bool fossil_crabdb_import_csv(const char* filename, fossil_crabdb_deque_t* deque);
+
+//
+// DATABASE QUERY LANGUAGE
+//
+
+/**
+ * @brief Executes a CrabQL query on a CrabDB deque.
+ * @param deque A pointer to the deque to execute the query on.
+ * @param query The CrabQL query to execute.
+ * @return true if the query was executed successfully, false otherwise.
+ */
+bool fossil_crabdb_exec(const char* filename, fossil_crabdb_deque_t* deque);
+
+/**
+ * @brief Executes commands from a CrabQL script file on a CrabDB deque.
+ * @param filename The name of the script file to execute commands from.
+ * @param deque A pointer to the deque to execute commands on.
+ * @return true if the commands were executed successfully, false otherwise.
+ */
+bool fossil_crabdb_script(const char* filename, fossil_crabdb_deque_t* deque);
+
+/**
+ * @brief Executes commands from the command line on a CrabDB deque.
+ * @param deque A pointer to the deque to execute commands on.
+ * @return true if the commands were executed successfully, false otherwise.
+ */
+bool fossil_crabdb_commandline(fossil_crabdb_deque_t* deque);
 
 #ifdef __cplusplus
 }
@@ -274,142 +282,108 @@ int fossil_crabdb_execute_script(fossil_crabdb_t *db, const char *script);
 
 namespace fossil {
 
-    /**
-     * @brief The CrabDB class provides an interface to interact with the CrabDB database.
-     */
     class CrabDB {
     public:
-        /**
-         * @brief Constructs a new CrabDB object.
-         */
         CrabDB() {
-            db = fossil_crabdb_create();
+            deque = fossil_crabdb_create();
         }
 
-        /**
-         * @brief Destroys the CrabDB object and frees the associated resources.
-         */
         ~CrabDB() {
-            fossil_crabdb_delete(db);
+            fossil_crabdb_destroy(deque);
         }
 
-        /**
-         * @brief Adds a new namespace to the CrabDB database.
-         * @param name The name of the namespace to add.
-         * @return true if the namespace was added successfully, false otherwise.
-         */
-        bool addNamespace(const std::string& name) {
-            return fossil_crabdb_add_namespace(db, name.c_str()) == CRABDB_OK;
+        bool insert(const std::string& key, const std::string& value, fossil_crabdb_type_t type) {
+            return fossil_crabdb_insert(deque, key.c_str(), value.c_str(), type);
         }
 
-        /**
-         * @brief Deletes a namespace from the CrabDB database.
-         * @param name The name of the namespace to delete.
-         * @return true if the namespace was deleted successfully, false otherwise.
-         */
-        bool deleteNamespace(const std::string& name) {
-            return fossil_crabdb_delete_namespace(db, name.c_str()) == CRABDB_OK;
+        bool update(const std::string& key, const std::string& value) {
+            return fossil_crabdb_update(deque, key.c_str(), value.c_str());
         }
 
-        /**
-         * @brief Renames a namespace in the CrabDB database.
-         * @param oldName The current name of the namespace.
-         * @param newName The new name of the namespace.
-         * @return true if the namespace was renamed successfully, false otherwise.
-         */
-        bool renameNamespace(const std::string& oldName, const std::string& newName) {
-            return fossil_crabdb_rename_namespace(db, oldName.c_str(), newName.c_str()) == CRABDB_OK;
+        bool remove(const std::string& key) {
+            return fossil_crabdb_delete(deque, key.c_str());
         }
 
-        /**
-         * @brief Adds a key-value pair to a namespace in the CrabDB database.
-         * @param namespaceName The name of the namespace to add the key-value pair to.
-         * @param key The key of the pair.
-         * @param value The value of the pair.
-         * @return true if the key-value pair was added successfully, false otherwise.
-         */
-        bool addKeyValue(const std::string& namespaceName, const std::string& key, const std::string& value) {
-            fossil_crabdb_namespace_t* ns = fossil_crabdb_find_namespace(db, namespaceName.c_str());
-            if (ns == nullptr) {
-                return false;
+        bool select(const std::string& key, std::string& value) {
+            char buffer[MAX_VALUE_SIZE];
+            bool success = fossil_crabdb_select(deque, key.c_str(), buffer, sizeof(buffer));
+            if (success) {
+                value = buffer;
             }
-            return fossil_crabdb_add_key_value(ns, key.c_str(), value.c_str()) == CRABDB_OK;
+            return success;
         }
 
-        /**
-         * @brief Deletes a key-value pair from a namespace in the CrabDB database.
-         * @param namespaceName The name of the namespace to delete the key-value pair from.
-         * @param key The key of the pair to delete.
-         * @return true if the key-value pair was deleted successfully, false otherwise.
-         */
-        bool deleteKeyValue(const std::string& namespaceName, const std::string& key) {
-            fossil_crabdb_namespace_t* ns = fossil_crabdb_find_namespace(db, namespaceName.c_str());
-            if (ns == nullptr) {
-                return false;
+        std::vector<std::pair<std::string, std::string>> list() {
+            std::vector<std::pair<std::string, std::string>> pairs;
+            char buffer[MAX_VALUE_SIZE];
+            bool success = fossil_crabdb_list(deque, buffer, sizeof(buffer));
+            if (success) {
+                std::string listString(buffer);
+                std::istringstream iss(listString);
+                std::string line;
+                while (std::getline(iss, line)) {
+                    size_t pos = line.find('=');
+                    if (pos != std::string::npos) {
+                        std::string key = line.substr(0, pos);
+                        std::string value = line.substr(pos + 1);
+                        pairs.emplace_back(key, value);
+                    }
+                }
             }
-            return fossil_crabdb_delete_key_value(ns, key.c_str()) == CRABDB_OK;
+            return pairs;
         }
 
-        /**
-         * @brief Updates the value associated with a key in a namespace of the CrabDB database.
-         * @param namespaceName The name of the namespace to update the key-value pair in.
-         * @param key The key of the pair to update.
-         * @param newValue The new value to associate with the key.
-         * @return true if the key-value pair was updated successfully, false otherwise.
-         */
-        bool updateKeyValue(const std::string& namespaceName, const std::string& key, const std::string& newValue) {
-            fossil_crabdb_namespace_t* ns = fossil_crabdb_find_namespace(db, namespaceName.c_str());
-            if (ns == nullptr) {
-                return false;
-            }
-            return fossil_crabdb_update_key_value(ns, key.c_str(), newValue.c_str()) == CRABDB_OK;
+        bool clear() {
+            return fossil_crabdb_clear(deque);
         }
 
-        /**
-         * @brief Gets the value associated with a key in a namespace of the CrabDB database.
-         * @param namespaceName The name of the namespace to search for the key-value pair.
-         * @param key The key to search for.
-         * @return The value associated with the key, or an empty string if not found.
-         */
-        std::string getValue(const std::string& namespaceName, const std::string& key) {
-            fossil_crabdb_namespace_t* ns = fossil_crabdb_find_namespace(db, namespaceName.c_str());
-            if (ns == nullptr) {
-                return "";
-            }
-            const char* value = fossil_crabdb_get_value(ns, key.c_str());
-            if (value == nullptr) {
-                return "";
-            }
-            return value;
+        bool show() {
+            return fossil_crabdb_show(deque);
         }
 
-        /**
-         * @brief Retrieves all keys in a namespace of the CrabDB database.
-         * @param namespaceName The name of the namespace to retrieve keys from.
-         * @return A vector containing all the keys in the namespace, or an empty vector if an error occurred.
-         */
-        std::vector<std::string> getAllKeys(const std::string& namespaceName) {
-            fossil_crabdb_namespace_t* ns = fossil_crabdb_find_namespace(db, namespaceName.c_str());
-            if (ns == nullptr) {
-                return {};
-            }
-            char** keys = nullptr;
-            int numKeys = fossil_crabdb_get_all_keys(ns, keys, 0);
-            if (numKeys <= 0) {
-                return {};
-            }
-            std::vector<std::string> keyList;
-            keyList.reserve(numKeys);
-            for (int i = 0; i < numKeys; i++) {
-                keyList.push_back(keys[i]);
-            }
-            return keyList;
+        bool drop() {
+            return fossil_crabdb_drop(deque);
+        }
+
+        bool exist(const std::string& key) {
+            return fossil_crabdb_exist(deque, key.c_str());
+        }
+
+        size_t count() {
+            return fossil_crabdb_count(deque);
+        }
+
+        bool encode(const std::string& filename) {
+            return fossil_crabdb_encode(filename.c_str(), deque);
+        }
+
+        bool decode(const std::string& filename) {
+            return fossil_crabdb_decode(filename.c_str(), deque);
+        }
+
+        bool exportCSV(const std::string& filename) {
+            return fossil_crabdb_export_csv(filename.c_str(), deque);
+        }
+
+        bool importCSV(const std::string& filename) {
+            return fossil_crabdb_import_csv(filename.c_str(), deque);
+        }
+
+        bool exec(const std::string& query) {
+            return fossil_crabdb_exec(query.c_str(), deque);
+        }
+
+        bool script(const std::string& filename) {
+            return fossil_crabdb_script(filename.c_str(), deque);
+        }
+
+        bool commandline() {
+            return fossil_crabdb_commandline(deque);
         }
 
     private:
-        fossil_crabdb_t* db;
+        fossil_crabdb_deque_t* deque;
     };
-
 } // namespace fossil
 #endif
 
