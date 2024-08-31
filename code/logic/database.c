@@ -15,917 +15,852 @@
 
 #include <stdio.h>
 
-typedef struct {
-    char key[MAX_ARG_LENGTH];
-    char value[MAX_ARG_LENGTH];
-} kwargs_t;
-
-//
-// CRUD OPERATIONS
-//
-
-fossil_crabdb_t* fossil_crabdb_create(void) {
-    fossil_crabdb_t *db = (fossil_crabdb_t*)fossil_crabdb_alloc(sizeof(fossil_crabdb_t));
-    db->namespaceHead = NULL;
-    return db;
+// Helper function to create a new node
+static fossil_crabdb_node_t* create_node(const char* key, const char* value, fossil_crabdb_type_t type) {
+    fossil_crabdb_node_t* node = (fossil_crabdb_node_t*)fossil_crabdb_alloc(sizeof(fossil_crabdb_node_t));
+    if (!node) return NULL;
+    strncpy(node->key, key, MAX_KEY_SIZE);
+    strncpy(node->value, value, MAX_VALUE_SIZE);
+    node->type = type;
+    node->prev = NULL;
+    node->next = NULL;
+    return node;
 }
 
-int fossil_crabdb_add_namespace(fossil_crabdb_t *db, const char *name) {
-    fossil_crabdb_namespace_t *ns = (fossil_crabdb_namespace_t*)fossil_crabdb_alloc(sizeof(fossil_crabdb_namespace_t));
-    if (!ns) return -1;
+// Create a new deque
+fossil_crabdb_deque_t* fossil_crabdb_create(void) {
+    fossil_crabdb_deque_t* deque = (fossil_crabdb_deque_t*)fossil_crabdb_alloc(sizeof(fossil_crabdb_deque_t));
+    if (!deque) return NULL;
+    deque->head = NULL;
+    deque->tail = NULL;
+    return deque;
+}
 
-    strncpy(ns->name, name, MAX_KEY_LENGTH);
-    ns->key_values = NULL;
-    ns->prev = NULL;
-    ns->next = db->namespaceHead;
-    ns->subNamespacesHead = NULL;
-
-    if (db->namespaceHead) {
-        db->namespaceHead->prev = ns;
+// Destroy a deque and fossil_crabdb_free its nodes
+void fossil_crabdb_destroy(fossil_crabdb_deque_t* deque) {
+    if (!deque) return;
+    fossil_crabdb_node_t* current = deque->head;
+    while (current) {
+        fossil_crabdb_node_t* next = current->next;
+        fossil_crabdb_free(current);
+        current = next;
     }
-
-    db->namespaceHead = ns;
-    return 0;
+    fossil_crabdb_free(deque);
 }
 
-fossil_crabdb_namespace_t* fossil_crabdb_find_namespace(fossil_crabdb_t *db, const char *name) {
-    fossil_crabdb_namespace_t *ns = db->namespaceHead;
-    while (ns) {
-        if (strcmp(ns->name, name) == 0) {
-            return ns;
+// Insert a key-value pair into the deque
+bool fossil_crabdb_insert(fossil_crabdb_deque_t* deque, const char* key, const char* value, fossil_crabdb_type_t type) {
+    if (!deque || !key || !value) return false;
+    // Check if key already exists and update if needed
+    fossil_crabdb_node_t* current = deque->head;
+    while (current) {
+        if (strcmp(current->key, key) == 0) {
+            strncpy(current->value, value, MAX_VALUE_SIZE);
+            current->type = type;
+            return true;
         }
-        ns = ns->next;
+        current = current->next;
     }
-    return NULL;
+    // Add new node
+    fossil_crabdb_node_t* new_node = create_node(key, value, type);
+    if (!new_node) return false;
+    if (!deque->head) {
+        deque->head = new_node;
+        deque->tail = new_node;
+    } else {
+        deque->tail->next = new_node;
+        new_node->prev = deque->tail;
+        deque->tail = new_node;
+    }
+    return true;
 }
 
-int fossil_crabdb_add_key_value(fossil_crabdb_namespace_t *ns, const char *key, const char *value) {
-    fossil_crabdb_keyvalue_t *kv = (fossil_crabdb_keyvalue_t*)fossil_crabdb_alloc(sizeof(fossil_crabdb_keyvalue_t));
-    if (!kv) return -1;
-
-    strncpy(kv->key, key, MAX_KEY_LENGTH);
-    strncpy(kv->value, value, MAX_VALUE_LENGTH);
-    kv->prev = NULL;
-    kv->next = ns->key_values;
-
-    if (ns->key_values) {
-        ns->key_values->prev = kv;
-    }
-
-    ns->key_values = kv;
-    return 0;
+// Update an existing key-value pair
+bool fossil_crabdb_update(fossil_crabdb_deque_t* deque, const char* key, const char* value) {
+    return fossil_crabdb_insert(deque, key, value, FOSSIL_CRABDB_TYPE_STRING);
 }
 
-const char* fossil_crabdb_get_value(fossil_crabdb_namespace_t *ns, const char *key) {
-    fossil_crabdb_keyvalue_t *kv = ns->key_values;
-    while (kv) {
-        if (strcmp(kv->key, key) == 0) {
-            return kv->value;
+// Delete a key-value pair
+bool fossil_crabdb_delete(fossil_crabdb_deque_t* deque, const char* key) {
+    if (!deque || !key) return false;
+    fossil_crabdb_node_t* current = deque->head;
+    while (current) {
+        if (strcmp(current->key, key) == 0) {
+            if (current->prev) current->prev->next = current->next;
+            if (current->next) current->next->prev = current->prev;
+            if (current == deque->head) deque->head = current->next;
+            if (current == deque->tail) deque->tail = current->prev;
+            fossil_crabdb_free(current);
+            return true;
         }
-        kv = kv->next;
+        current = current->next;
     }
-    return NULL;
+    return false;
 }
 
-int fossil_crabdb_delete_key_value(fossil_crabdb_namespace_t *ns, const char *key) {
-    fossil_crabdb_keyvalue_t *kv = ns->key_values;
-    while (kv) {
-        if (strcmp(kv->key, key) == 0) {
-            if (kv->prev) {
-                kv->prev->next = kv->next;
-            }
-            if (kv->next) {
-                kv->next->prev = kv->prev;
-            }
-            if (ns->key_values == kv) {
-                ns->key_values = kv->next;
-            }
-            fossil_crabdb_free(kv);
-            return 0;
+// Select a value by key
+bool fossil_crabdb_select(fossil_crabdb_deque_t* deque, const char* key, char* value, size_t value_size) {
+    if (!deque || !key || !value) return false;
+    fossil_crabdb_node_t* current = deque->head;
+    while (current) {
+        if (strcmp(current->key, key) == 0) {
+            strncpy(value, current->value, value_size);
+            return true;
         }
-        kv = kv->next;
+        current = current->next;
     }
-    return -1;
+    return false;
 }
 
-int fossil_crabdb_delete_namespace(fossil_crabdb_t *db, const char *name) {
-    fossil_crabdb_namespace_t *ns = db->namespaceHead;
-    while (ns) {
-        if (strcmp(ns->name, name) == 0) {
-            if (ns->prev) {
-                ns->prev->next = ns->next;
-            }
-            if (ns->next) {
-                ns->next->prev = ns->prev;
-            }
-            if (db->namespaceHead == ns) {
-                db->namespaceHead = ns->next;
-            }
-            fossil_crabdb_keyvalue_t *kv = ns->key_values;
-            while (kv) {
-                fossil_crabdb_keyvalue_t *next = kv->next;
-                fossil_crabdb_free(kv);
-                kv = next;
-            }
-            fossil_crabdb_namespace_t *subNs = ns->subNamespacesHead;
-            while (subNs) {
-                fossil_crabdb_namespace_t *next = subNs->next;
-                fossil_crabdb_delete_namespace(db, subNs->name);
-                subNs = next;
-            }
-            fossil_crabdb_free(ns);
-            return 0;
+// List all key-value pairs
+bool fossil_crabdb_list(fossil_crabdb_deque_t* deque, char* list_buffer, size_t buffer_size) {
+    if (!deque || !list_buffer) return false;
+    size_t offset = 0;
+    fossil_crabdb_node_t* current = deque->head;
+    while (current) {
+        int written = snprintf(list_buffer + offset, buffer_size - offset, "%s: %s\n", current->key, current->value);
+        if (written < 0 || (size_t)written >= buffer_size - offset) return false;
+        offset += written;
+        current = current->next;
+    }
+    return true;
+}
+
+// Clear all key-value pairs
+bool fossil_crabdb_clear(fossil_crabdb_deque_t* deque) {
+    if (!deque) return false;
+    fossil_crabdb_node_t* current = deque->head;
+    while (current) {
+        fossil_crabdb_node_t* next = current->next;
+        fossil_crabdb_free(current);
+        current = next;
+    }
+    deque->head = NULL;
+    deque->tail = NULL;
+    return true;
+}
+
+// Show all key-value pairs (similar to LIST but with specific formatting if needed)
+bool fossil_crabdb_show(fossil_crabdb_deque_t* deque) {
+    if (!deque) return false;
+    fossil_crabdb_node_t* current = deque->head;
+    while (current) {
+        printf("%s: %s\n", current->key, current->value);
+        current = current->next;
+    }
+    return true;
+}
+
+// Drop the database (clear all data)
+bool fossil_crabdb_drop(fossil_crabdb_deque_t* deque) {
+    return fossil_crabdb_clear(deque);
+}
+
+// Check if a key exists
+bool fossil_crabdb_exist(fossil_crabdb_deque_t* deque, const char* key) {
+    if (!deque || !key) return false;
+    fossil_crabdb_node_t* current = deque->head;
+    while (current) {
+        if (strcmp(current->key, key) == 0) return true;
+        current = current->next;
+    }
+    return false;
+}
+
+// Search for a node by key
+bool fossil_crabdb_search_by_key(fossil_crabdb_deque_t* deque, const char* key, char* value, size_t value_size) {
+    if (!deque || !key || !value) return false;
+    fossil_crabdb_node_t* current = deque->head;
+    while (current) {
+        if (strcmp(current->key, key) == 0) {
+            strncpy(value, current->value, value_size);
+            return true;
         }
-        ns = ns->next;
+        current = current->next;
     }
-    return -1;
+    return false;
 }
 
-/**
- * @brief Renames a namespace in the CrabDB database.
- * @param db The CrabDB database.
- * @param old_name The current name of the namespace.
- * @param new_name The new name of the namespace.
- * @return 0 if successful, -1 otherwise.
- */
-int fossil_crabdb_rename_namespace(fossil_crabdb_t *db, const char *old_name, const char *new_name) {
-    if (!db || !old_name || !new_name) {
-        return -1;
-    }
-
-    fossil_crabdb_namespace_t *ns = fossil_crabdb_find_namespace(db, old_name);
-    if (!ns) {
-        return -1;  // Namespace not found
-    }
-
-    // Check if a namespace with the new name already exists
-    if (fossil_crabdb_find_namespace(db, new_name)) {
-        return -1;  // Namespace with new_name already exists
-    }
-
-    // Rename the namespace
-    strncpy(ns->name, new_name, sizeof(ns->name));
-    ns->name[sizeof(ns->name) - 1] = '\0';  // Ensure null-termination
-
-    return 0;
-}
-
-/**
- * @brief Updates the value associated with a key in a namespace of the CrabDB database.
- * @param ns The namespace to update the key-value pair in.
- * @param key The key of the pair to update.
- * @param new_value The new value to associate with the key.
- * @return 0 if successful, -1 otherwise.
- */
-int fossil_crabdb_update_key_value(fossil_crabdb_namespace_t *ns, const char *key, const char *new_value) {
-    fossil_crabdb_keyvalue_t *kv = ns->key_values;
-    
-    while (kv) {
-        if (strcmp(kv->key, key) == 0) {
-            // Check if new_value is empty
-            if (new_value == NULL || strlen(new_value) == 0) {
-                // Handle empty value case
-                return -1; // Or some other error handling
-            }
-            strncpy(kv->value, new_value, MAX_VALUE_LENGTH - 1);
-            kv->value[MAX_VALUE_LENGTH - 1] = '\0'; // Ensure null-termination
-            return 0; // Success
+// Search for a node by value
+bool fossil_crabdb_search_by_value(fossil_crabdb_deque_t* deque, const char* value, char* key_buffer, size_t key_buffer_size) {
+    if (!deque || !value || !key_buffer) return false;
+    fossil_crabdb_node_t* current = deque->head;
+    while (current) {
+        if (strcmp(current->value, value) == 0) {
+            strncpy(key_buffer, current->key, key_buffer_size);
+            return true;
         }
-        kv = kv->next;
+        current = current->next;
     }
-
-    return -1; // Key not found
+    return false;
 }
 
-/**
- * @brief Retrieves all keys in a namespace of the CrabDB database.
- * @param ns The namespace to retrieve keys from.
- * @param keys Array to store the retrieved keys.
- * @param max_keys The maximum number of keys to retrieve.
- * @return The number of keys retrieved, or -1 if an error occurred.
- */
-int fossil_crabdb_get_all_keys(fossil_crabdb_namespace_t *ns, char **keys, size_t max_keys) {
-    if (!ns || !keys || max_keys == 0) {
-        return -1;
-    }
+// Compare nodes by key
+static int compare_by_key(const void* a, const void* b) {
+    return strcmp(((fossil_crabdb_node_t*)a)->key, ((fossil_crabdb_node_t*)b)->key);
+}
 
-    fossil_crabdb_keyvalue_t *kv = ns->key_values;
+// Compare nodes by value
+static int compare_by_value(const void* a, const void* b) {
+    return strcmp(((fossil_crabdb_node_t*)a)->value, ((fossil_crabdb_node_t*)b)->value);
+}
+
+// Sort nodes by key
+bool fossil_crabdb_sort_by_key(fossil_crabdb_deque_t* deque) {
+    if (!deque) return false;
+    // Count nodes
     size_t count = 0;
-
-    while (kv && count < max_keys) {
-        keys[count] = kv->key;
+    fossil_crabdb_node_t* current = deque->head;
+    while (current) {
         count++;
-        kv = kv->next;
+        current = current->next;
+    }
+
+    // Create an array of nodes
+    fossil_crabdb_node_t** nodes = (fossil_crabdb_node_t**)fossil_crabdb_alloc(count * sizeof(fossil_crabdb_node_t*));
+    if (!nodes) return false;
+
+    // Fill the array
+    size_t index = 0;
+    current = deque->head;
+    while (current) {
+        nodes[index++] = current;
+        current = current->next;
+    }
+
+    // Sort the array
+    qsort(nodes, count, sizeof(fossil_crabdb_node_t*), compare_by_key);
+
+    // Rebuild the deque
+    deque->head = nodes[0];
+    deque->tail = nodes[count - 1];
+    deque->head->prev = NULL;
+    deque->tail->next = NULL;
+    for (size_t i = 0; i < count - 1; i++) {
+        nodes[i]->next = nodes[i + 1];
+        nodes[i + 1]->prev = nodes[i];
+    }
+
+    fossil_crabdb_free(nodes);
+    return true;
+}
+
+// Sort nodes by value
+bool fossil_crabdb_sort_by_value(fossil_crabdb_deque_t* deque) {
+    if (!deque) return false;
+    // Count nodes
+    size_t count = 0;
+    fossil_crabdb_node_t* current = deque->head;
+    while (current) {
+        count++;
+        current = current->next;
+    }
+
+    // Create an array of nodes
+    fossil_crabdb_node_t** nodes = (fossil_crabdb_node_t**)fossil_crabdb_alloc(count * sizeof(fossil_crabdb_node_t*));
+    if (!nodes) return false;
+
+    // Fill the array
+    size_t index = 0;
+    current = deque->head;
+    while (current) {
+        nodes[index++] = current;
+        current = current->next;
+    }
+
+    // Sort the array
+    qsort(nodes, count, sizeof(fossil_crabdb_node_t*), compare_by_value);
+
+    // Rebuild the deque
+    deque->head = nodes[0];
+    deque->tail = nodes[count - 1];
+    deque->head->prev = NULL;
+    deque->tail->next = NULL;
+    for (size_t i = 0; i < count - 1; i++) {
+        nodes[i]->next = nodes[i + 1];
+        nodes[i + 1]->prev = nodes[i];
+    }
+
+    fossil_crabdb_free(nodes);
+    return true;
+}
+
+// Function to encode the contents of a CrabDB deque and save it to a file
+bool fossil_crabdb_encode(const char* filename, fossil_crabdb_deque_t* deque) {
+    if (!filename || !deque) return false;
+
+    // Check if filename ends with .crabdb
+    size_t len = strlen(filename);
+    if (len < 8 || strcmp(filename + len - 8, ".crabdb") != 0) return false;
+
+    FILE* file = fopen(filename, "w");
+    if (!file) return false;
+
+    fossil_crabdb_node_t* current = deque->head;
+    while (current) {
+        fprintf(file, "%s:%s:%s\n", current->type, current->key, current->value);
+        current = current->next;
+    }
+
+    fclose(file);
+    return true;
+}
+
+// Function to decode the contents of a file and load it into a CrabDB deque
+bool fossil_crabdb_decode(const char* filename, fossil_crabdb_deque_t* deque) {
+    if (!filename || !deque) return false;
+
+    // Check if filename ends with .crabdb
+    size_t len = strlen(filename);
+    if (len < 8 || strcmp(filename + len - 8, ".crabdb") != 0) return false;
+
+    FILE* file = fopen(filename, "r");
+    if (!file) return false;
+
+    char line[1024];
+    while (fgets(line, sizeof(line), file)) {
+        line[strcspn(line, "\n")] = '\0';
+
+        char* type_delim = strchr(line, ':');
+        if (!type_delim) continue;
+
+        *type_delim = '\0';
+        char* type = line;
+        char* key_value = type_delim + 1;
+
+        char* key_delim = strchr(key_value, ':');
+        if (!key_delim) continue;
+
+        *key_delim = '\0';
+        char* key = key_value;
+        char* value = key_delim + 1;
+
+        fossil_crabdb_insert(deque, key, value, type);
+    }
+
+    fclose(file);
+    return true;
+}
+
+// Function to count the number of key-value pairs in a CrabDB deque
+size_t fossil_crabdb_count(fossil_crabdb_deque_t* deque) {
+    if (!deque) return 0;
+
+    size_t count = 0;
+    fossil_crabdb_node_t* current = deque->head;
+    while (current) {
+        count++;
+        current = current->next;
     }
 
     return count;
 }
 
-//
-// DATABASE DATA SERIALIZATION
-//
+bool fossil_crabdb_export_csv(const char* filename, fossil_crabdb_deque_t* deque) {
+    if (!filename || !deque) return false;
 
-// Helper functions to get type as a string
-const char* type_to_string(value_type_t type) {
-    switch (type) {
-        case TYPE_U8: return "u8";
-        case TYPE_U16: return "u16";
-        case TYPE_U32: return "u32";
-        case TYPE_U64: return "u64";
-        case TYPE_I8: return "i8";
-        case TYPE_I16: return "i16";
-        case TYPE_I32: return "i32";
-        case TYPE_I64: return "i64";
-        case TYPE_H8: return "h8";
-        case TYPE_H16: return "h16";
-        case TYPE_H32: return "h32";
-        case TYPE_H64: return "h64";
-        case TYPE_O8: return "o8";
-        case TYPE_O16: return "o16";
-        case TYPE_O32: return "o32";
-        case TYPE_O64: return "o64";
-        case TYPE_F32: return "f32";
-        case TYPE_F64: return "f64";
-        case TYPE_CSTR: return "cstr";
-        case TYPE_BOOL: return "bool";
-        case TYPE_CHAR: return "char";
-        default: return "unknown";
-    }
-}
+    // Check if filename ends with .csv
+    size_t len = strlen(filename);
+    if (len < 4 || strcmp(filename + len - 4, ".csv") != 0) return false;
 
-// Helper functions to parse type from a string
-value_type_t string_to_type(const char *str) {
-    if (strcmp(str, "u8") == 0) return TYPE_U8;
-    if (strcmp(str, "u16") == 0) return TYPE_U16;
-    if (strcmp(str, "u32") == 0) return TYPE_U32;
-    if (strcmp(str, "u64") == 0) return TYPE_U64;
-    if (strcmp(str, "i8") == 0) return TYPE_I8;
-    if (strcmp(str, "i16") == 0) return TYPE_I16;
-    if (strcmp(str, "i32") == 0) return TYPE_I32;
-    if (strcmp(str, "i64") == 0) return TYPE_I64;
-    if (strcmp(str, "h8") == 0) return TYPE_H8;
-    if (strcmp(str, "h16") == 0) return TYPE_H16;
-    if (strcmp(str, "h32") == 0) return TYPE_H32;
-    if (strcmp(str, "h64") == 0) return TYPE_H64;
-    if (strcmp(str, "o8") == 0) return TYPE_O8;
-    if (strcmp(str, "o16") == 0) return TYPE_O16;
-    if (strcmp(str, "o32") == 0) return TYPE_O32;
-    if (strcmp(str, "o64") == 0) return TYPE_O64;
-    if (strcmp(str, "f32") == 0) return TYPE_F32;
-    if (strcmp(str, "f64") == 0) return TYPE_F64;
-    if (strcmp(str, "cstr") == 0) return TYPE_CSTR;
-    if (strcmp(str, "bool") == 0) return TYPE_BOOL;
-    if (strcmp(str, "char") == 0) return TYPE_CHAR;
-    return TYPE_UNKNOWN;
-}
+    FILE* file = fopen(filename, "w");
+    if (!file) return false;
 
-// Encoding functions for custom .crabdb format
-void encode_value(value_type_t type, const void *value, char *buffer, size_t buffer_size) {
-    switch (type) {
-        case TYPE_U8:
-            snprintf(buffer, buffer_size, "u8:%u", *(uint8_t *)value);
-            break;
-        case TYPE_U16:
-            snprintf(buffer, buffer_size, "u16:%u", *(uint16_t *)value);
-            break;
-        case TYPE_U32:
-            snprintf(buffer, buffer_size, "u32:%u", *(uint32_t *)value);
-            break;
-        case TYPE_U64:
-            snprintf(buffer, buffer_size, "u64:%llu", *(uint64_t *)value);
-            break;
-        case TYPE_I8:
-            snprintf(buffer, buffer_size, "i8:%d", *(int8_t *)value);
-            break;
-        case TYPE_I16:
-            snprintf(buffer, buffer_size, "i16:%d", *(int16_t *)value);
-            break;
-        case TYPE_I32:
-            snprintf(buffer, buffer_size, "i32:%d", *(int32_t *)value);
-            break;
-        case TYPE_I64:
-            snprintf(buffer, buffer_size, "i64:%lld", *(int64_t *)value);
-            break;
-        case TYPE_H8:
-            snprintf(buffer, buffer_size, "h8:0x%02X", *(uint8_t *)value);
-            break;
-        case TYPE_H16:
-            snprintf(buffer, buffer_size, "h16:0x%04X", *(uint16_t *)value);
-            break;
-        case TYPE_H32:
-            snprintf(buffer, buffer_size, "h32:0x%08X", *(uint32_t *)value);
-            break;
-        case TYPE_H64:
-            snprintf(buffer, buffer_size, "h64:0x%016llX", *(uint64_t *)value);
-            break;
-        case TYPE_O8:
-            snprintf(buffer, buffer_size, "o8:0%o", *(uint8_t *)value);
-            break;
-        case TYPE_O16:
-            snprintf(buffer, buffer_size, "o16:0%o", *(uint16_t *)value);
-            break;
-        case TYPE_O32:
-            snprintf(buffer, buffer_size, "o32:0%o", *(uint32_t *)value);
-            break;
-        case TYPE_O64:
-            snprintf(buffer, buffer_size, "o64:0%llo", *(uint64_t *)value);
-            break;
-        case TYPE_F32:
-            snprintf(buffer, buffer_size, "f32:%f", *(float *)value);
-            break;
-        case TYPE_F64:
-            snprintf(buffer, buffer_size, "f64:%lf", *(double *)value);
-            break;
-        case TYPE_CSTR:
-            snprintf(buffer, buffer_size, "cstr:%s", (char *)value);
-            break;
-        case TYPE_BOOL:
-            snprintf(buffer, buffer_size, "bool:%s", (*(int *)value ? "true" : "false"));
-            break;
-        case TYPE_CHAR:
-            snprintf(buffer, buffer_size, "char:%c", *(char *)value);
-            break;
-        default:
-            snprintf(buffer, buffer_size, "unknown:");
-            break;
-    }
-}
-
-// Decoding functions for custom .crabdb format
-int decode_value(const char *encoded, value_type_t *type, void *value) {
-    char type_str[16];
-    int result = sscanf(encoded, "%15[^:]:%s", type_str, (char *)value);
-    if (result != 2) return -1;
-
-    *type = string_to_type(type_str);
-    switch (*type) {
-        case TYPE_U8:
-            sscanf((char *)value, "%hhu", (unsigned char *)value);
-            break;
-        case TYPE_U16:
-            sscanf((char *)value, "%hu", (unsigned short *)value);
-            break;
-        case TYPE_U32:
-            sscanf((char *)value, "%u", (uint32_t *)value);
-            break;
-        case TYPE_U64:
-            sscanf((char *)value, "%llu", (uint64_t *)value);
-            break;
-        case TYPE_I8:
-            sscanf((char *)value, "%hhd", (signed char *)value);
-            break;
-        case TYPE_I16:
-            sscanf((char *)value, "%hd", (short *)value);
-            break;
-        case TYPE_I32:
-            sscanf((char *)value, "%d", (int32_t *)value);
-            break;
-        case TYPE_I64:
-            sscanf((char *)value, "%lld", (int64_t *)value);
-            break;
-        case TYPE_H8:
-            sscanf((char *)value, "%hhX", (unsigned char *)value);
-            break;
-        case TYPE_H16:
-            sscanf((char *)value, "%hx", (unsigned short *)value);
-            break;
-        case TYPE_H32:
-            sscanf((char *)value, "%X", (uint32_t *)value);
-            break;
-        case TYPE_H64:
-            sscanf((char *)value, "%llX", (uint64_t *)value);
-            break;
-        case TYPE_O8:
-            sscanf((char *)value, "%hho", (unsigned char *)value);
-            break;
-        case TYPE_O16:
-            sscanf((char *)value, "%ho", (unsigned short *)value);
-            break;
-        case TYPE_O32:
-            sscanf((char *)value, "%o", (uint32_t *)value);
-            break;
-        case TYPE_O64:
-            sscanf((char *)value, "%llo", (uint64_t *)value);
-            break;
-        case TYPE_F32:
-            sscanf((char *)value, "%f", (float *)value);
-            break;
-        case TYPE_F64:
-            sscanf((char *)value, "%lf", (double *)value);
-            break;
-        case TYPE_CSTR:
-            // `value` is already a string, nothing extra to do
-            break;
-        case TYPE_BOOL:
-            *(int *)value = (strcmp((char *)value, "true") == 0);
-            break;
-        case TYPE_CHAR:
-            *(char *)value = ((char *)value)[0];
-            break;
-        default:
-            return -1;
-    }
-    return 0;
-}
-
-int fossil_crabdb_export(fossil_crabdb_t *db, const char *filename) {
-    FILE *file = fopen(filename, "w");
-    if (!file) return -1;
-
-    fossil_crabdb_namespace_t *ns = db->namespaceHead;
-    while (ns) {
-        fprintf(file, "[%s]\n", ns->name);
-        fossil_crabdb_keyvalue_t *kv = ns->key_values;
-        while (kv) {
-            char encoded_value[MAX_VALUE_LENGTH];
-            value_type_t type = TYPE_UNKNOWN; // Determine type if necessary
-            // Assume type is embedded or retrieved from elsewhere
-            encode_value(type, kv->value, encoded_value, sizeof(encoded_value));
-            fprintf(file, "%s=%s\n", kv->key, encoded_value);
-            kv = kv->next;
-        }
-        fprintf(file, "\n");
-        ns = ns->next;
+    fossil_crabdb_node_t* current = deque->head;
+    while (current) {
+        fprintf(file, "\"%s\",\"%s\",\"%s\"\n", current->type, current->key, current->value);
+        current = current->next;
     }
 
     fclose(file);
-    return 0;
+    return true;
 }
 
-int fossil_crabdb_import(fossil_crabdb_t *db, const char *filename) {
-    FILE *file = fopen(filename, "r");
-    if (!file) return -1;
+bool fossil_crabdb_import_csv(const char* filename, fossil_crabdb_deque_t* deque) {
+    if (!filename || !deque) return false;
 
-    char line[256];
-    fossil_crabdb_namespace_t *current_ns = NULL;
+    // Check if filename ends with .csv
+    size_t len = strlen(filename);
+    if (len < 4 || strcmp(filename + len - 4, ".csv") != 0) return false;
 
-    while (fgets(line, sizeof(line), file)) {
-        line[strcspn(line, "\n")] = 0; // Remove newline
-
-        if (line[0] == '[') {
-            // Handle namespace
-            current_ns = malloc(sizeof(fossil_crabdb_namespace_t));
-            if (!current_ns) return -1;
-
-            sscanf(line, "[%255[^]]", current_ns->name);
-            current_ns->key_values = NULL;
-            current_ns->next = db->namespaceHead;
-            db->namespaceHead = current_ns;
-        } else if (current_ns && strchr(line, '=')) {
-            // Handle key-value pair
-            fossil_crabdb_keyvalue_t *kv = malloc(sizeof(fossil_crabdb_keyvalue_t));
-            if (!kv) return -1;
-
-            char *equal_sign = strchr(line, '=');
-            *equal_sign = '\0';
-            strncpy(kv->key, line, MAX_KEY_LENGTH - 1);
-            strncpy(kv->value, equal_sign + 1, MAX_VALUE_LENGTH - 1);
-
-            // Decode value
-            value_type_t type;
-            if (decode_value(kv->value, &type, kv->value) != 0) {
-                free(kv);
-                return -1;
-            }
-
-            kv->next = current_ns->key_values;
-            current_ns->key_values = kv;
-        }
-    }
-
-    fclose(file);
-    return 0;
-}
-
-//
-// Memory Catch
-//
-
-fossil_crabdb_cache_t* fossil_crabdb_create_cache(void) {
-    fossil_crabdb_cache_t *cache = (fossil_crabdb_cache_t*)fossil_crabdb_alloc(sizeof(fossil_crabdb_cache_t));
-    cache->head = NULL;
-    return cache;
-}
-
-void fossil_crabdb_cache_add(fossil_crabdb_cache_t *cache, const char *key, const char *value) {
-    fossil_crabdb_cache_entry_t *entry = (fossil_crabdb_cache_entry_t*)fossil_crabdb_alloc(sizeof(fossil_crabdb_cache_entry_t));
-    strncpy(entry->key, key, MAX_KEY_LENGTH);
-    strncpy(entry->value, value, MAX_VALUE_LENGTH);
-    entry->next = cache->head;
-    cache->head = entry;
-}
-
-const char* fossil_crabdb_cache_get(fossil_crabdb_cache_t *cache, const char *key) {
-    fossil_crabdb_cache_entry_t *entry = cache->head;
-    while (entry) {
-        if (strcmp(entry->key, key) == 0) {
-            return entry->value;
-        }
-        entry = entry->next;
-    }
-    return NULL;
-}
-
-void fossil_crabdb_cache_free(fossil_crabdb_cache_t *cache) {
-    fossil_crabdb_cache_entry_t *entry = cache->head;
-    while (entry) {
-        fossil_crabdb_cache_entry_t *next = entry->next;
-        fossil_crabdb_free(entry);
-        entry = next;
-    }
-    fossil_crabdb_free(cache);
-}
-
-//
-// Persistence
-//
-
-int fossil_crabdb_save(fossil_crabdb_t *db, const char *filename) {
-    FILE *file = fopen(filename, "wb");
-    if (!file) return -1;
-
-    fossil_crabdb_namespace_t *ns = db->namespaceHead;
-    while (ns) {
-        fwrite(ns->name, sizeof(ns->name), 1, file);
-        fossil_crabdb_keyvalue_t *kv = ns->key_values;
-        while (kv) {
-            fwrite(kv->key, sizeof(kv->key), 1, file);
-            fwrite(kv->value, sizeof(kv->value), 1, file);
-            kv = kv->next;
-        }
-        ns = ns->next;
-    }
-
-    fclose(file);
-    return 0;
-}
-
-int fossil_crabdb_load(fossil_crabdb_t *db, const char *filename) {
-    FILE *file = fopen(filename, "rb");
-    if (!file) return -1;
-
-    char namespaceName[MAX_KEY_LENGTH];
-    while (fread(namespaceName, sizeof(namespaceName), 1, file)) {
-        fossil_crabdb_add_namespace(db, namespaceName);
-        fossil_crabdb_namespace_t *ns = fossil_crabdb_find_namespace(db, namespaceName);
-
-        char key[MAX_KEY_LENGTH];
-        while (fread(key, sizeof(key), 1, file)) {
-            char value[MAX_VALUE_LENGTH];
-            fread(value, sizeof(value), 1, file);
-            fossil_crabdb_add_key_value(ns, key, value);
-        }
-    }
-
-    fclose(file);
-    return 0;
-}
-
-//
-// Query Language
-//
-
-// Function to execute a query from a file
-int fossil_crabdb_execute_query(fossil_crabdb_t *db, const char *filename) {
-    FILE *file = fopen(filename, "r");
-    if (!file) return -1; // Error opening file
+    FILE* file = fopen(filename, "r");
+    if (!file) return false;
 
     char line[1024];
     while (fgets(line, sizeof(line), file)) {
-        // Trim whitespace from the line
-        char *trimmed_line = line;
-        while (isspace(*trimmed_line)) trimmed_line++;
-        if (*trimmed_line == '\0' || *trimmed_line == '#') continue; // Skip empty lines and comments
+        line[strcspn(line, "\n")] = '\0';
 
-        // Handle SQL-like commands
-        if (strstr(trimmed_line, ";") != NULL) {
-            if (strncmp(trimmed_line, "CREATE NAMESPACE", 17) == 0) {
-                char *name = trimmed_line + 18;
-                name[strcspn(name, ";\n")] = '\0'; // Remove semicolon and newline
-                fossil_crabdb_add_namespace(db, name);
-            } else if (strncmp(trimmed_line, "DELETE NAMESPACE", 17) == 0) {
-                char *name = trimmed_line + 18;
-                name[strcspn(name, ";\n")] = '\0'; // Remove semicolon and newline
-                fossil_crabdb_delete_namespace(db, name);
-            } else if (strncmp(trimmed_line, "RENAME NAMESPACE", 16) == 0) {
-                char old_name[MAX_KEY_LENGTH], new_name[MAX_KEY_LENGTH];
-                sscanf(trimmed_line + 17, "%s %s", old_name, new_name);
-                old_name[strcspn(old_name, ";\n")] = '\0';
-                new_name[strcspn(new_name, ";\n")] = '\0';
-                fossil_crabdb_rename_namespace(db, old_name, new_name);
-            } else if (strncmp(trimmed_line, "SET", 3) == 0) {
-                char key[MAX_KEY_LENGTH];
-                char value[MAX_VALUE_LENGTH];
-                sscanf(trimmed_line + 4, "%s %s", key, value);
-                key[strcspn(key, ";\n")] = '\0';
-                value[strcspn(value, ";\n")] = '\0';
-                fossil_crabdb_namespace_t *ns = db->namespaceHead; // Assuming the namespace is the default one
-                fossil_crabdb_add_key_value(ns, key, value);
-            } else if (strncmp(trimmed_line, "UPDATE", 6) == 0) {
-                char key[MAX_KEY_LENGTH];
-                char new_value[MAX_VALUE_LENGTH];
-                sscanf(trimmed_line + 7, "%s %s", key, new_value);
-                key[strcspn(key, ";\n")] = '\0';
-                new_value[strcspn(new_value, ";\n")] = '\0';
-                fossil_crabdb_namespace_t *ns = db->namespaceHead; // Assuming the namespace is the default one
-                fossil_crabdb_update_key_value(ns, key, new_value);
-            } else if (strncmp(trimmed_line, "GET", 3) == 0) {
-                char key[MAX_KEY_LENGTH];
-                sscanf(trimmed_line + 4, "%s", key);
-                key[strcspn(key, ";\n")] = '\0';
-                fossil_crabdb_namespace_t *ns = db->namespaceHead; // Assuming the namespace is the default one
-                const char *value = fossil_crabdb_get_value(ns, key);
-                if (value) {
-                    printf("%s\n", value);
-                } else {
-                    printf("Not found\n");
-                }
-            } else if (strncmp(trimmed_line, "PRINT", 5) == 0) {
-                char *message = trimmed_line + 6;
-                message[strcspn(message, ";\n")] = '\0'; // Remove semicolon and newline
-                printf("%s\n", message);
-            } else if (strncmp(trimmed_line, "EXPORT", 6) == 0) {
-                char filename[MAX_PATH_LENGTH];
-                sscanf(trimmed_line + 7, "%s", filename);
-                filename[strcspn(filename, ";\n")] = '\0';
-                fossil_crabdb_export(db, filename);
-            } else if (strncmp(trimmed_line, "IMPORT", 6) == 0) {
-                char filename[MAX_PATH_LENGTH];
-                sscanf(trimmed_line + 7, "%s", filename);
-                filename[strcspn(filename, ";\n")] = '\0';
-                fossil_crabdb_import(db, filename);
-            }
-        }
-        // Handle Meson-like commands
-        else {
-            // Convert the entire line to lowercase
-            for (int i = 0; line[i]; i++) {
-                line[i] = tolower(line[i]);
-            }
+        char* type_start = strchr(line, '"') + 1;
+        char* type_end = strchr(type_start, '"');
+        if (!type_start || !type_end) continue;
+        *type_end = '\0';
 
-            if (strstr(trimmed_line, "create_namespace") == trimmed_line) {
-                char name[MAX_KEY_LENGTH];
-                sscanf(trimmed_line, "create_namespace(name: \"%[^\"]\")", name);
-                fossil_crabdb_add_namespace(db, name);
-            } else if (strstr(trimmed_line, "delete_namespace") == trimmed_line) {
-                char name[MAX_KEY_LENGTH];
-                sscanf(trimmed_line, "delete_namespace(name: \"%[^\"]\")", name);
-                fossil_crabdb_delete_namespace(db, name);
-            } else if (strstr(trimmed_line, "rename_namespace") == trimmed_line) {
-                char old_name[MAX_KEY_LENGTH], new_name[MAX_KEY_LENGTH];
-                sscanf(trimmed_line, "rename_namespace(old_name: \"%[^\"]\", new_name: \"%[^\"]\")", old_name, new_name);
-                fossil_crabdb_rename_namespace(db, old_name, new_name);
-            } else if (strstr(trimmed_line, "set") == trimmed_line) {
-                char key[MAX_KEY_LENGTH];
-                char value[MAX_VALUE_LENGTH];
-                sscanf(trimmed_line, "set(key: \"%[^\"]\", value: \"%[^\"]\")", key, value);
-                fossil_crabdb_namespace_t *ns = db->namespaceHead; // Assuming the namespace is the default one
-                fossil_crabdb_add_key_value(ns, key, value);
-            } else if (strstr(trimmed_line, "update") == trimmed_line) {
-                char key[MAX_KEY_LENGTH];
-                char new_value[MAX_VALUE_LENGTH];
-                sscanf(trimmed_line, "update(key: \"%[^\"]\", new_value: \"%[^\"]\")", key, new_value);
-                fossil_crabdb_namespace_t *ns = db->namespaceHead; // Assuming the namespace is the default one
-                fossil_crabdb_update_key_value(ns, key, new_value);
-            } else if (strstr(trimmed_line, "get") == trimmed_line) {
-                char key[MAX_KEY_LENGTH];
-                sscanf(trimmed_line, "get(key: \"%[^\"]\")", key);
-                fossil_crabdb_namespace_t *ns = db->namespaceHead; // Assuming the namespace is the default one
-                const char *value = fossil_crabdb_get_value(ns, key);
-                if (value) {
-                    printf("%s\n", value);
-                } else {
-                    printf("Not found\n");
-                }
-            } else if (strstr(trimmed_line, "print") == trimmed_line) {
-                char message[MAX_VALUE_LENGTH];
-                sscanf(trimmed_line, "print(message: \"%[^\"]\")", message);
-                printf("%s\n", message);
-            } else if (strstr(trimmed_line, "export") == trimmed_line) {
-                char filename[MAX_PATH_LENGTH];
-                sscanf(trimmed_line, "export(filename: \"%[^\"]\")", filename);
-                fossil_crabdb_export(db, filename);
-            } else if (strstr(trimmed_line, "import") == trimmed_line) {
-                char filename[MAX_PATH_LENGTH];
-                sscanf(trimmed_line, "import(filename: \"%[^\"]\")", filename);
-                fossil_crabdb_import(db, filename);
-            }
-        }
+        char* key_start = strchr(type_end + 1, '"') + 1;
+        char* key_end = strchr(key_start, '"');
+        if (!key_start || !key_end) continue;
+        *key_end = '\0';
+
+        char* value_start = strchr(key_end + 1, '"') + 1;
+        char* value_end = strchr(value_start, '"');
+        if (!value_start || !value_end) continue;
+        *value_end = '\0';
+
+        fossil_crabdb_insert(deque, key_start, value_start, type_start);
     }
 
     fclose(file);
-    return 0; // Success
+    return true;
 }
 
-// Utility function to trim leading and trailing whitespace from a string
-static void trim_whitespace(char *str) {
-    char *end;
-    while (isspace(*str)) str++;
-    if (*str == 0) return;
-    end = str + strlen(str) - 1;
-    while (end > str && isspace(*end)) end--;
-    *(end + 1) = '\0';
+// Define constants for command-line flags and options
+#define FLAG_HELP "--help"
+#define FLAG_VERBOSE "--verbose"
+
+// Define a maximum length for each command line
+#define MAX_COMMAND_LENGTH 1024
+
+// Function to remove leading and trailing whitespace
+char* trim_whitespace(char* str) {
+    while (isspace((unsigned char)*str)) str++;
+    if (*str == 0) return str;
+
+    char* end = str + strlen(str) - 1;
+    while (end > str && isspace((unsigned char)*end)) end--;
+    *(end + 1) = 0;
+
+    return str;
 }
 
-// Parse key-value arguments from a line of text
-static int parse_kwargs(const char *line, kwargs_t *kwargs, size_t *num_kwargs) {
-    const char *p = line;
-    size_t count = 0;
+// Function to handle single-quoted strings
+char* extract_single_quoted_string(char* str) {
+    char* start = strchr(str, '\'');
+    if (!start) return NULL;
+    start++;
 
-    while (*p) {
-        while (*p && isspace(*p)) p++;
-        if (*p == '\0') break;
+    char* end = strchr(start, '\'');
+    if (!end) return NULL;
 
-        // Parse key
-        char key[MAX_KEY_LENGTH];
-        const char *key_start = p;
-        while (*p && *p != ':') p++;
-        if (*p != ':') return -1; // Invalid format
-        strncpy(key, key_start, p - key_start);
-        key[p - key_start] = '\0';
-        p++;
-
-        // Skip whitespace
-        while (*p && isspace(*p)) p++;
-
-        // Parse value
-        char value[MAX_VALUE_LENGTH];
-        const char *value_start = p;
-        while (*p && *p != ',' && *p != ')') p++;
-        strncpy(value, value_start, p - value_start);
-        value[p - value_start] = '\0';
-
-        strcpy(kwargs[count].key, key);
-        strcpy(kwargs[count].value, value);
-        count++;
-
-        if (*p == ',') p++;
-    }
-
-    *num_kwargs = count;
-    return 0;
+    *end = '\0';
+    return start;
 }
 
-// Execute a command with arguments parsed from the script
-static int execute_command(fossil_crabdb_t *db, const char *command, kwargs_t *kwargs, size_t num_kwargs) {
-    if (strcmp(command, "create_namespace") == 0) {
-        for (size_t i = 0; i < num_kwargs; i++) {
-            if (strcmp(kwargs[i].key, "name") == 0) {
-                return fossil_crabdb_add_namespace(db, kwargs[i].value);
-            }
-        }
-        return -1; // Required argument missing
-    } else if (strcmp(command, "delete_namespace") == 0) {
-        for (size_t i = 0; i < num_kwargs; i++) {
-            if (strcmp(kwargs[i].key, "name") == 0) {
-                return fossil_crabdb_delete_namespace(db, kwargs[i].value);
-            }
-        }
-        return -1; // Required argument missing
-    } else if (strcmp(command, "set") == 0) {
-        const char *namespace_name = NULL;
-        const char *key = NULL;
-        const char *value = NULL;
-        for (size_t i = 0; i < num_kwargs; i++) {
-            if (strcmp(kwargs[i].key, "namespace") == 0) {
-                namespace_name = kwargs[i].value;
-            } else if (strcmp(kwargs[i].key, "key") == 0) {
-                key = kwargs[i].value;
-            } else if (strcmp(kwargs[i].key, "value") == 0) {
-                value = kwargs[i].value;
-            }
-        }
-        fossil_crabdb_namespace_t *ns = namespace_name ? fossil_crabdb_find_namespace(db, namespace_name) : db->namespaceHead;
-        if (ns && key && value) {
-            return fossil_crabdb_add_key_value(ns, key, value);
-        }
-        return -1; // Arguments missing or namespace not found
-    } else if (strcmp(command, "get") == 0) {
-        const char *namespace_name = NULL;
-        const char *key = NULL;
-        for (size_t i = 0; i < num_kwargs; i++) {
-            if (strcmp(kwargs[i].key, "namespace") == 0) {
-                namespace_name = kwargs[i].value;
-            } else if (strcmp(kwargs[i].key, "key") == 0) {
-                key = kwargs[i].value;
-            }
-        }
-        fossil_crabdb_namespace_t *ns = namespace_name ? fossil_crabdb_find_namespace(db, namespace_name) : db->namespaceHead;
-        if (ns && key) {
-            const char *value = fossil_crabdb_get_value(ns, key);
-            if (value) {
-                printf("%s\n", value);
-            } else {
-                printf("Not found\n");
-            }
-            return 0;
-        }
-        return -1; // Arguments missing or namespace not found
-    } else if (strcmp(command, "print") == 0) {
-        for (size_t i = 0; i < num_kwargs; i++) {
-            if (strcmp(kwargs[i].key, "message") == 0) {
-                printf("%s\n", kwargs[i].value);
-                return 0;
-            }
-        }
-        return -1; // Required argument missing
-    }
-    return -1; // Unsupported command
-}
+// Function to execute commands from a .crabql script file with conditions
+bool fossil_crabdb_exec(const char* filename, fossil_crabdb_deque_t* deque) {
+    if (!filename || !deque) return false;
 
-// Function to execute a script file containing .crabql commands
-int fossil_crabdb_execute_script(fossil_crabdb_t *db, const char *filename) {
-    FILE *file = fopen(filename, "r");
-    if (!file) return -1;
+    // Check if filename ends with .crabql
+    size_t len = strlen(filename);
+    if (len < 6 || strcmp(filename + len - 6, ".crabql") != 0) return false;
 
-    char line[MAX_LINE_LENGTH];
-    char command[MAX_ARG_LENGTH];
-    kwargs_t kwargs[10]; // Adjust the size as needed
-    size_t num_kwargs = 0;
-    int in_condition = 0; // 0: not inside any condition, 1: inside if, 2: inside else
-    int in_foreach = 0;   // 0: not inside foreach, 1: inside foreach
-    char variable[MAX_ARG_LENGTH] = {0};
-    char **list = NULL;
-    size_t list_index = 0, list_size = 0;
+    FILE* file = fopen(filename, "r");
+    if (!file) return false;
 
+    char line[MAX_COMMAND_LENGTH];
     while (fgets(line, sizeof(line), file)) {
-        trim_whitespace(line);
-        if (line[0] == '\0' || line[0] == '#') continue; // Skip empty lines and comments
+        // Remove newline character if present
+        line[strcspn(line, "\n")] = '\0';
 
-        // Convert the entire line to lowercase
-        for (int i = 0; line[i]; i++) {
-            line[i] = tolower(line[i]);
-        }
+        // Parse the command type
+        char* command_type = strtok(line, " ");
+        if (!command_type) continue;
 
-        // Handle control structures
-        if (strstr(line, "if") == line) {
-            in_condition = 1;
-            continue;
-        } else if (strstr(line, "elseif") == line) {
-            if (in_condition == 1) in_condition = 2;
-            continue;
-        } else if (strstr(line, "else") == line) {
-            if (in_condition == 1) in_condition = 2;
-            else if (in_condition == 2) in_condition = 1;
-            continue;
-        } else if (strstr(line, "end") == line) {
-            in_condition = 0;
-            in_foreach = 0;
-            list_index = 0;
-            continue;
-        } else if (strstr(line, "foreach") == line) {
-            in_foreach = 1;
-            sscanf(line, "foreach %s in %s", variable, line);
-            // Assume list is a comma-separated string
-            char *token = strtok(line, ",");
-            while (token) {
-                list = realloc(list, (list_size + 1) * sizeof(char *));
-                list[list_size++] = fossil_crabdb_strdup(token);
-                token = strtok(NULL, ",");
+        // Check for conditionals
+        char* condition = strchr(line, '?');
+        bool condition_met = true; // Default to true if no condition
+        if (condition) {
+            *condition = '\0'; // Split command and condition
+            condition++; // Skip '?'
+
+            // Parse condition
+            if (strncmp(condition, "EXISTS ", 7) == 0) {
+                condition += 7; // Skip "EXISTS "
+                char* key = condition;
+                condition_met = fossil_crabdb_exist(deque, key);
+            } else if (strncmp(condition, "VALUE_IS ", 9) == 0) {
+                condition += 9; // Skip "VALUE_IS "
+                char* key = strtok(condition, " ");
+                char* expected_value = strtok(NULL, " ");
+                if (key && expected_value) {
+                    char value[1024];
+                    condition_met = fossil_crabdb_select(deque, key, value, sizeof(value)) &&
+                                    strcmp(value, expected_value) == 0;
+                } else {
+                    condition_met = false;
+                }
+            } else if (strncmp(condition, "KEY_STARTS_WITH ", 16) == 0) {
+                condition += 16; // Skip "KEY_STARTS_WITH "
+                char* prefix = condition;
+                fossil_crabdb_node_t* current = deque->head;
+                while (current) {
+                    if (strncmp(current->key, prefix, strlen(prefix)) == 0) {
+                        condition_met = true;
+                        break;
+                    }
+                    current = current->next;
+                }
+                condition_met = false; // Default to false if no matching key
+            } else if (strncmp(condition, "VALUE_CONTAINS ", 15) == 0) {
+                condition += 15; // Skip "VALUE_CONTAINS "
+                char* substring = condition;
+                fossil_crabdb_node_t* current = deque->head;
+                while (current) {
+                    if (strstr(current->value, substring)) {
+                        condition_met = true;
+                        break;
+                    }
+                    current = current->next;
+                }
+                condition_met = false; // Default to false if no matching value
+            } else {
+                condition_met = false; // Unknown condition
             }
-            list_index = 0;
-            continue;
         }
 
-        // Handle variable assignment
-        if (strstr(line, "let") == line) {
-            char var_name[MAX_ARG_LENGTH] = {0}, var_value[MAX_ARG_LENGTH] = {0};
-            sscanf(line, "let %s = %s", var_name, var_value);
-            // Store the variable in some context, this example assumes a simple key-value store.
-            // You will need to implement this part based on how you manage variables.
-            continue;
-        }
-
-        // Execution logic based on conditionals and loops
-        if (in_condition == 0 || in_condition == 1) {
-            // Process commands only if not inside else or elseif
-            if (in_foreach && list_index < list_size) {
-                // Assign current value to the loop variable
-                strcpy(variable, list[list_index++]);
-            }
-
-            if (strchr(line, '(')) {
-                char *p = strtok(line, "(");
-                char *command_end = strtok(NULL, ")");
-                if (p && command_end) {
-                    strcpy(command, p);
-                    char *args_start = command_end + 1;
-                    parse_kwargs(args_start, kwargs, &num_kwargs);
-                    if (execute_command(db, command, kwargs, num_kwargs) != 0) {
-                        fclose(file);
-                        return -1; // Error executing command
+        // Execute command only if condition is met
+        if (condition_met) {
+            if (strcmp(command_type, "INSERT") == 0) {
+                // Parse INSERT command
+                char* key = strtok(NULL, " ");
+                char* value = strtok(NULL, " ");
+                if (key && value) {
+                    fossil_crabdb_insert(deque, key, value, FOSSIL_CRABDB_TYPE_STRING);
+                }
+            } else if (strcmp(command_type, "SELECT") == 0) {
+                // Parse SELECT command
+                char* key = strtok(NULL, " ");
+                if (key) {
+                    char value[1024];
+                    if (fossil_crabdb_select(deque, key, value, sizeof(value))) {
+                        printf("%s\n", value);
                     }
                 }
+            } else if (strcmp(command_type, "UPDATE") == 0) {
+                // Parse UPDATE command
+                char* key = strtok(NULL, " ");
+                char* value = strtok(NULL, " ");
+                if (key && value) {
+                    fossil_crabdb_update(deque, key, value);
+                }
+            } else if (strcmp(command_type, "DELETE") == 0) {
+                // Parse DELETE command
+                char* key = strtok(NULL, " ");
+                if (key) {
+                    fossil_crabdb_delete(deque, key);
+                }
+            } else if (strcmp(command_type, "LIST") == 0) {
+                // Parse LIST command
+                char list_buffer[1024 * 10];
+                if (fossil_crabdb_list(deque, list_buffer, sizeof(list_buffer))) {
+                    printf("%s\n", list_buffer);
+                }
+            } else if (strcmp(command_type, "CLEAR") == 0) {
+                // Parse CLEAR command
+                fossil_crabdb_clear(deque);
+            } else if (strcmp(command_type, "SHOW") == 0) {
+                // Parse SHOW command
+                fossil_crabdb_show(deque);
+            } else if (strcmp(command_type, "DROP") == 0) {
+                // Parse DROP command
+                fossil_crabdb_drop(deque);
+            } else if (strcmp(command_type, "EXIST") == 0) {
+                // Parse EXIST command
+                char* key = strtok(NULL, " ");
+                if (key) {
+                    bool exists = fossil_crabdb_exist(deque, key);
+                    printf(exists ? "true\n" : "false\n");
+                }
+            } else if (strcmp(command_type, "SEARCH_KEY") == 0) {
+                // Parse SEARCH_KEY command
+                char* key = strtok(NULL, " ");
+                char value[1024];
+                if (key && fossil_crabdb_search_by_key(deque, key, value, sizeof(value))) {
+                    printf("%s\n", value);
+                }
+            } else if (strcmp(command_type, "SEARCH_VALUE") == 0) {
+                // Parse SEARCH_VALUE command
+                char* value = strtok(NULL, " ");
+                char key[1024];
+                if (value && fossil_crabdb_search_by_value(deque, value, key, sizeof(key))) {
+                    printf("%s\n", key);
+                }
+            } else if (strcmp(command_type, "SORT_KEY") == 0) {
+                // Parse SORT_KEY command
+                fossil_crabdb_sort_by_key(deque);
+            } else if (strcmp(command_type, "SORT_VALUE") == 0) {
+                // Parse SORT_VALUE command
+                fossil_crabdb_sort_by_value(deque);
+            } else {
+                fprintf(stderr, "Unknown command: %s\n", command_type);
             }
         }
     }
 
-    // Clean up dynamically allocated list
-    for (size_t i = 0; i < list_size; i++) {
-        free(list[i]);
+    fclose(file);
+    return true;
+}
+
+// Function to execute commands from a .crabql script file with conditions and new features
+bool fossil_crabdb_script(const char* filename, fossil_crabdb_deque_t* deque) {
+    if (!filename || !deque) return false;
+
+    // Check if filename ends with .crabql
+    size_t len = strlen(filename);
+    if (len < 6 || strcmp(filename + len - 6, ".crabql") != 0) return false;
+
+    FILE* file = fopen(filename, "r");
+    if (!file) return false;
+
+    char line[MAX_COMMAND_LENGTH];
+    while (fgets(line, sizeof(line), file)) {
+        // Remove newline character if present
+        line[strcspn(line, "\n")] = '\0';
+
+        // Ignore comments
+        if (line[0] == '#') continue;
+
+        // Remove leading and trailing whitespace
+        char* trimmed_line = trim_whitespace(line);
+        if (*trimmed_line == '\0') continue;
+
+        // Extract the command type and arguments
+        char* command_type = strtok(trimmed_line, " ");
+        if (!command_type) continue;
+
+        // Extract optional key-value arguments
+        char* args[MAX_COMMAND_LENGTH];
+        int arg_count = 0;
+        while (true) {
+            char* arg = strtok(NULL, " ");
+            if (!arg) break;
+
+            // Handle single-quoted strings
+            char* quoted_str = extract_single_quoted_string(arg);
+            if (quoted_str) {
+                args[arg_count++] = quoted_str;
+            } else {
+                args[arg_count++] = arg;
+            }
+        }
+
+        // Execute command
+        if (strcmp(command_type, "insert") == 0) {
+            if (arg_count >= 2) {
+                char* key = args[0];
+                char* value = args[1];
+                fossil_crabdb_insert(deque, key, value, FOSSIL_CRABDB_TYPE_STRING);
+            }
+        } else if (strcmp(command_type, "select") == 0) {
+            if (arg_count >= 1) {
+                char* key = args[0];
+                char value[1024];
+                if (fossil_crabdb_select(deque, key, value, sizeof(value))) {
+                    printf("%s\n", value);
+                }
+            }
+        } else if (strcmp(command_type, "update") == 0) {
+            if (arg_count >= 2) {
+                char* key = args[0];
+                char* value = args[1];
+                fossil_crabdb_update(deque, key, value);
+            }
+        } else if (strcmp(command_type, "delete") == 0) {
+            if (arg_count >= 1) {
+                char* key = args[0];
+                fossil_crabdb_delete(deque, key);
+            }
+        } else if (strcmp(command_type, "list") == 0) {
+            char list_buffer[1024 * 10];
+            if (fossil_crabdb_list(deque, list_buffer, sizeof(list_buffer))) {
+                printf("%s\n", list_buffer);
+            }
+        } else if (strcmp(command_type, "clear") == 0) {
+            fossil_crabdb_clear(deque);
+        } else if (strcmp(command_type, "show") == 0) {
+            fossil_crabdb_show(deque);
+        } else if (strcmp(command_type, "drop") == 0) {
+            fossil_crabdb_drop(deque);
+        } else if (strcmp(command_type, "exist") == 0) {
+            if (arg_count >= 1) {
+                char* key = args[0];
+                bool exists = fossil_crabdb_exist(deque, key);
+                printf(exists ? "true\n" : "false\n");
+            }
+        } else if (strcmp(command_type, "search_key") == 0) {
+            if (arg_count >= 1) {
+                char* key = args[0];
+                char value[1024];
+                if (fossil_crabdb_search_by_key(deque, key, value, sizeof(value))) {
+                    printf("%s\n", value);
+                }
+            }
+        } else if (strcmp(command_type, "search_value") == 0) {
+            if (arg_count >= 1) {
+                char* value = args[0];
+                char key[1024];
+                if (fossil_crabdb_search_by_value(deque, value, key, sizeof(key))) {
+                    printf("%s\n", key);
+                }
+            }
+        } else if (strcmp(command_type, "sort_key") == 0) {
+            fossil_crabdb_sort_by_key(deque);
+        } else if (strcmp(command_type, "sort_value") == 0) {
+            fossil_crabdb_sort_by_value(deque);
+        } else {
+            fprintf(stderr, "Unknown command: %s\n", command_type);
+        }
     }
-    free(list);
 
     fclose(file);
-    return 0; // Success
+    return true;
+}
+
+// Function to parse options
+bool parse_options(char* arg, bool* verbose) {
+    if (strcmp(arg, FLAG_HELP) == 0) {
+        printf("Available commands:\n");
+        printf("  insert <key> <value>\n");
+        printf("  select <key>\n");
+        printf("  update <key> <value>\n");
+        printf("  delete <key>\n");
+        printf("  list\n");
+        printf("  clear\n");
+        printf("  show\n");
+        printf("  drop\n");
+        printf("  exist <key>\n");
+        printf("  search_key <key>\n");
+        printf("  search_value <value>\n");
+        printf("  sort_key\n");
+        printf("  sort_value\n");
+        printf("Flags:\n");
+        printf("  --help          Show this help message\n");
+        printf("  --verbose       Enable verbose output\n");
+        return false;
+    } else if (strcmp(arg, FLAG_VERBOSE) == 0) {
+        *verbose = true;
+        return true;
+    }
+    return false;
+}
+
+// Function to execute commands from the command line with support for flags and options
+bool fossil_crabdb_commandline(fossil_crabdb_deque_t* deque) {
+    if (!deque) return false;
+
+    char line[MAX_COMMAND_LENGTH];
+    bool verbose = false;
+
+    while (true) {
+        printf("fossil_crabdb> ");
+        if (!fgets(line, sizeof(line), stdin)) return false;
+
+        // Remove newline character if present
+        line[strcspn(line, "\n")] = '\0';
+
+        // Exit on "exit" command
+        if (strcmp(line, "exit") == 0) {
+            break;
+        }
+
+        // Remove leading and trailing whitespace
+        char* trimmed_line = trim_whitespace(line);
+        if (*trimmed_line == '\0') continue;
+
+        // Handle flags and options
+        char* arg = strtok(trimmed_line, " ");
+        if (arg && parse_options(arg, &verbose)) continue;
+
+        // Extract the command type and arguments
+        char* command_type = arg;
+        char* args[MAX_COMMAND_LENGTH];
+        int arg_count = 0;
+        while (true) {
+            char* arg = strtok(NULL, " ");
+            if (!arg) break;
+
+            // Handle single-quoted strings
+            char* quoted_str = extract_single_quoted_string(arg);
+            if (quoted_str) {
+                args[arg_count++] = quoted_str;
+            } else {
+                args[arg_count++] = arg;
+            }
+        }
+
+        // Execute command
+        if (strcmp(command_type, "insert") == 0) {
+            if (arg_count >= 2) {
+                char* key = args[0];
+                char* value = args[1];
+                if (verbose) printf("Inserting key '%s' with value '%s'\n", key, value);
+                fossil_crabdb_insert(deque, key, value, FOSSIL_CRABDB_TYPE_STRING);
+            }
+        } else if (strcmp(command_type, "select") == 0) {
+            if (arg_count >= 1) {
+                char* key = args[0];
+                char value[1024];
+                if (fossil_crabdb_select(deque, key, value, sizeof(value))) {
+                    printf("Value: %s\n", value);
+                }
+            }
+        } else if (strcmp(command_type, "update") == 0) {
+            if (arg_count >= 2) {
+                char* key = args[0];
+                char* value = args[1];
+                if (verbose) printf("Updating key '%s' with value '%s'\n", key, value);
+                fossil_crabdb_update(deque, key, value);
+            }
+        } else if (strcmp(command_type, "delete") == 0) {
+            if (arg_count >= 1) {
+                char* key = args[0];
+                if (verbose) printf("Deleting key '%s'\n", key);
+                fossil_crabdb_delete(deque, key);
+            }
+        } else if (strcmp(command_type, "list") == 0) {
+            char list_buffer[1024 * 10];
+            if (fossil_crabdb_list(deque, list_buffer, sizeof(list_buffer))) {
+                printf("List:\n%s\n", list_buffer);
+            }
+        } else if (strcmp(command_type, "clear") == 0) {
+            if (verbose) printf("Clearing the deque\n");
+            fossil_crabdb_clear(deque);
+        } else if (strcmp(command_type, "show") == 0) {
+            if (verbose) printf("Showing the deque\n");
+            fossil_crabdb_show(deque);
+        } else if (strcmp(command_type, "drop") == 0) {
+            if (verbose) printf("Dropping the deque\n");
+            fossil_crabdb_drop(deque);
+        } else if (strcmp(command_type, "exist") == 0) {
+            if (arg_count >= 1) {
+                char* key = args[0];
+                bool exists = fossil_crabdb_exist(deque, key);
+                printf(exists ? "Key exists\n" : "Key does not exist\n");
+            }
+        } else if (strcmp(command_type, "search_key") == 0) {
+            if (arg_count >= 1) {
+                char* key = args[0];
+                char value[1024];
+                if (fossil_crabdb_search_by_key(deque, key, value, sizeof(value))) {
+                    printf("Value for key '%s': %s\n", key, value);
+                }
+            }
+        } else if (strcmp(command_type, "search_value") == 0) {
+            if (arg_count >= 1) {
+                char* value = args[0];
+                char key[1024];
+                if (fossil_crabdb_search_by_value(deque, value, key, sizeof(key))) {
+                    printf("Key for value '%s': %s\n", value, key);
+                }
+            }
+        } else if (strcmp(command_type, "sort_key") == 0) {
+            if (verbose) printf("Sorting by key\n");
+            fossil_crabdb_sort_by_key(deque);
+        } else if (strcmp(command_type, "sort_value") == 0) {
+            if (verbose) printf("Sorting by value\n");
+            fossil_crabdb_sort_by_value(deque);
+        } else {
+            fprintf(stderr, "Unknown command: %s\n", command_type);
+        }
+    }
+
+    return true;
 }
