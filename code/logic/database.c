@@ -285,6 +285,70 @@ bool fossil_crabdb_sort_by_value(fossil_crabdb_deque_t* deque) {
     return true;
 }
 
+const char* fossil_crabdb_type_to_string(fossil_crabdb_type_t type) {
+    switch (type) {
+        case FOSSIL_CRABDB_TYPE_INT8: return "i8";
+        case FOSSIL_CRABDB_TYPE_INT16: return "i16";
+        case FOSSIL_CRABDB_TYPE_INT32: return "i32";
+        case FOSSIL_CRABDB_TYPE_INT64: return "i64";
+        case FOSSIL_CRABDB_TYPE_UINT8: return "u8";
+        case FOSSIL_CRABDB_TYPE_UINT16: return "u16";
+        case FOSSIL_CRABDB_TYPE_UINT32: return "u32";
+        case FOSSIL_CRABDB_TYPE_UINT64: return "u64";
+        case FOSSIL_CRABDB_TYPE_OCTAL8: return "o8";
+        case FOSSIL_CRABDB_TYPE_OCTAL16: return "o16";
+        case FOSSIL_CRABDB_TYPE_OCTAL32: return "o32";
+        case FOSSIL_CRABDB_TYPE_OCTAL64: return "o64";
+        case FOSSIL_CRABDB_TYPE_HEX8: return "h8";
+        case FOSSIL_CRABDB_TYPE_HEX16: return "h16";
+        case FOSSIL_CRABDB_TYPE_HEX32: return "h32";
+        case FOSSIL_CRABDB_TYPE_HEX64: return "h64";
+        case FOSSIL_CRABDB_TYPE_BIN8: return "b8";
+        case FOSSIL_CRABDB_TYPE_BIN16: return "b16";
+        case FOSSIL_CRABDB_TYPE_BIN32: return "b32";
+        case FOSSIL_CRABDB_TYPE_BIN64: return "b64";
+        case FOSSIL_CRABDB_TYPE_FLOAT: return "f32";
+        case FOSSIL_CRABDB_TYPE_DOUBLE: return "f64";
+        case FOSSIL_CRABDB_TYPE_STRING: return "cstr";
+        case FOSSIL_CRABDB_TYPE_BOOL: return "bool";
+        case FOSSIL_CRABDB_TYPE_CHAR: return "char";
+        case FOSSIL_CRABDB_TYPE_NULL: return "null";
+        default: return "unknown";
+    }
+}
+
+fossil_crabdb_type_t fossil_crabdb_type_from_string(const char* type_str) {
+    if (strcmp(type_str, "i8") == 0) return FOSSIL_CRABDB_TYPE_INT8;
+    if (strcmp(type_str, "i16") == 0) return FOSSIL_CRABDB_TYPE_INT16;
+    if (strcmp(type_str, "i32") == 0) return FOSSIL_CRABDB_TYPE_INT32;
+    if (strcmp(type_str, "i64") == 0) return FOSSIL_CRABDB_TYPE_INT64;
+    if (strcmp(type_str, "u8") == 0) return FOSSIL_CRABDB_TYPE_UINT8;
+    if (strcmp(type_str, "u16") == 0) return FOSSIL_CRABDB_TYPE_UINT16;
+    if (strcmp(type_str, "u32") == 0) return FOSSIL_CRABDB_TYPE_UINT32;
+    if (strcmp(type_str, "u64") == 0) return FOSSIL_CRABDB_TYPE_UINT64;
+    if (strcmp(type_str, "o8") == 0) return FOSSIL_CRABDB_TYPE_OCTAL8;
+    if (strcmp(type_str, "o16") == 0) return FOSSIL_CRABDB_TYPE_OCTAL16;
+    if (strcmp(type_str, "o32") == 0) return FOSSIL_CRABDB_TYPE_OCTAL32;
+    if (strcmp(type_str, "o64") == 0) return FOSSIL_CRABDB_TYPE_OCTAL64;
+    if (strcmp(type_str, "h8") == 0) return FOSSIL_CRABDB_TYPE_HEX8;
+    if (strcmp(type_str, "h16") == 0) return FOSSIL_CRABDB_TYPE_HEX16;
+    if (strcmp(type_str, "h32") == 0) return FOSSIL_CRABDB_TYPE_HEX32;
+    if (strcmp(type_str, "h64") == 0) return FOSSIL_CRABDB_TYPE_HEX64;
+    if (strcmp(type_str, "b8") == 0) return FOSSIL_CRABDB_TYPE_BIN8;
+    if (strcmp(type_str, "b16") == 0) return FOSSIL_CRABDB_TYPE_BIN16;
+    if (strcmp(type_str, "b32") == 0) return FOSSIL_CRABDB_TYPE_BIN32;
+    if (strcmp(type_str, "b64") == 0) return FOSSIL_CRABDB_TYPE_BIN64;
+    if (strcmp(type_str, "f32") == 0) return FOSSIL_CRABDB_TYPE_FLOAT;
+    if (strcmp(type_str, "f64") == 0) return FOSSIL_CRABDB_TYPE_DOUBLE;
+    if (strcmp(type_str, "cstr") == 0) return FOSSIL_CRABDB_TYPE_STRING;
+    if (strcmp(type_str, "bool") == 0) return FOSSIL_CRABDB_TYPE_BOOL;
+    if (strcmp(type_str, "char") == 0) return FOSSIL_CRABDB_TYPE_CHAR;
+    if (strcmp(type_str, "null") == 0) return FOSSIL_CRABDB_TYPE_NULL;
+    
+    // If no match, return a default or unknown type, based on your design.
+    return FOSSIL_CRABDB_TYPE_NULL;  // or a custom "unknown" type if defined
+}
+
 // Function to encode the contents of a CrabDB deque and save it to a file
 bool fossil_crabdb_encode(const char* filename, fossil_crabdb_deque_t* deque) {
     if (!filename || !deque) return false;
@@ -298,7 +362,7 @@ bool fossil_crabdb_encode(const char* filename, fossil_crabdb_deque_t* deque) {
 
     fossil_crabdb_node_t* current = deque->head;
     while (current) {
-        fprintf(file, "%s:%s:%s\n", current->type, current->key, current->value);
+        fprintf(file, "%s:%s:%s\n", fossil_crabdb_type_to_string(current->type), current->key, current->value);
         current = current->next;
     }
 
@@ -335,7 +399,7 @@ bool fossil_crabdb_decode(const char* filename, fossil_crabdb_deque_t* deque) {
         char* key = key_value;
         char* value = key_delim + 1;
 
-        fossil_crabdb_insert(deque, key, value, type);
+        fossil_crabdb_insert(deque, key, value, fossil_crabdb_type_from_string(type));
     }
 
     fclose(file);
@@ -368,7 +432,7 @@ bool fossil_crabdb_export_csv(const char* filename, fossil_crabdb_deque_t* deque
 
     fossil_crabdb_node_t* current = deque->head;
     while (current) {
-        fprintf(file, "\"%s\",\"%s\",\"%s\"\n", current->type, current->key, current->value);
+        fprintf(file, "\"%s\",\"%s\",\"%s\"\n", fossil_crabdb_type_to_string(current->type), current->key, current->value);
         current = current->next;
     }
 
@@ -405,7 +469,7 @@ bool fossil_crabdb_import_csv(const char* filename, fossil_crabdb_deque_t* deque
         if (!value_start || !value_end) continue;
         *value_end = '\0';
 
-        fossil_crabdb_insert(deque, key_start, value_start, type_start);
+        fossil_crabdb_insert(deque, key_start, value_start, fossil_crabdb_type_from_string(type_start));
     }
 
     fclose(file);
