@@ -1,0 +1,3 @@
+# Insert and select
+insert ('myKey2', 'myValue2');
+select ('myKey2');

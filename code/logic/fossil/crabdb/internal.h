@@ -14,9 +14,12 @@
 #ifndef FOSSIL_CRABDB_INTERNAL_H
 #define FOSSIL_CRABDB_INTERNAL_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+#include <ctype.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -1,9 +1,11 @@
 if get_option('with_test').enabled()
+    subdir('data')
+
     run_command(['python3', 'tools' / 'generate-runner.py'], check: true)
 
     test_src = ['unit_runner.c']
     test_cubes = [
-        'database', 'datastore', 'namespace',
+        'operations', 'query', 'script',
     ]
 
     foreach cube : test_cubes
