@@ -83,6 +83,7 @@ FOSSIL_TEST(test_sort_key_command) {
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
 FOSSIL_TEST_GROUP(c_crabql_script_tests) {
+    (void)test_env; // Silence the unused variable warning, must resume this later for 0.1.3
     // ADD_TESTF(test_insert_commands, crabdb_script_fixture);
     // ADD_TESTF(test_update_command, crabdb_script_fixture);
     // ADD_TESTF(test_select_command, crabdb_script_fixture);

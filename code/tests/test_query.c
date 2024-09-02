@@ -77,6 +77,7 @@ FOSSIL_TEST(test_fossil_crabdb_exec_invalid_extension) {
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
 FOSSIL_TEST_GROUP(c_crabql_query_tests) {
+    (void)test_env; // Silence the unused variable warning, must resume this later for 0.1.3
     // ADD_TESTF(test_fossil_crabdb_exec_valid_file, crabdb_query_fixture);
     // ADD_TESTF(test_fossil_crabdb_exec_condition_met, crabdb_query_fixture);
     // ADD_TESTF(test_fossil_crabdb_exec_condition_not_met, crabdb_query_fixture);
