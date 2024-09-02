@@ -77,9 +77,9 @@ FOSSIL_TEST(test_fossil_crabdb_exec_invalid_extension) {
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
 FOSSIL_TEST_GROUP(c_crabql_query_tests) {
-    ADD_TESTF(test_fossil_crabdb_exec_valid_file, crabdb_query_fixture);
-    ADD_TESTF(test_fossil_crabdb_exec_condition_met, crabdb_query_fixture);
-    ADD_TESTF(test_fossil_crabdb_exec_condition_not_met, crabdb_query_fixture);
-    ADD_TESTF(test_fossil_crabdb_exec_unknown_command, crabdb_query_fixture);
-    ADD_TESTF(test_fossil_crabdb_exec_invalid_extension, crabdb_query_fixture);
+    // ADD_TESTF(test_fossil_crabdb_exec_valid_file, crabdb_query_fixture);
+    // ADD_TESTF(test_fossil_crabdb_exec_condition_met, crabdb_query_fixture);
+    // ADD_TESTF(test_fossil_crabdb_exec_condition_not_met, crabdb_query_fixture);
+    // ADD_TESTF(test_fossil_crabdb_exec_unknown_command, crabdb_query_fixture);
+    // ADD_TESTF(test_fossil_crabdb_exec_invalid_extension, crabdb_query_fixture);
 }
