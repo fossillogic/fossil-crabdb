@@ -33,41 +33,41 @@ FOSSIL_TEARDOWN(crabdb_query_fixture) {
 
 // Test case 1: Valid .crabql file with multiple commands
 FOSSIL_TEST(test_fossil_crabdb_exec_valid_file) {
-    bool result = fossil_crabdb_exec("test_valid.crabql", &query_test_db);
+    bool result = fossil_crabdb_exec("test_valid.crabql", query_test_db);
     ASSUME_ITS_TRUE(result);
     char value[1024];
-    ASSUME_ITS_TRUE(fossil_crabdb_select(&query_test_db, "key1", value, sizeof(value)));
+    ASSUME_ITS_TRUE(fossil_crabdb_select(query_test_db, "key1", value, sizeof(value)));
     ASSUME_ITS_EQUAL_CSTR("value1", value);
 }
 
 // Test case 2: File with a condition that is met
 FOSSIL_TEST(test_fossil_crabdb_exec_condition_met) {
-    bool result = fossil_crabdb_exec("test_condition_met.crabql", &query_test_db);
+    bool result = fossil_crabdb_exec("test_condition_met.crabql", query_test_db);
     ASSUME_ITS_TRUE(result);
     char value[1024];
-    ASSUME_ITS_TRUE(fossil_crabdb_select(&query_test_db, "key2", value, sizeof(value)));
+    ASSUME_ITS_TRUE(fossil_crabdb_select(query_test_db, "key2", value, sizeof(value)));
     ASSUME_ITS_EQUAL_CSTR("value2", value);
 }
 
 // Test case 3: File with a condition that is not met
 FOSSIL_TEST(test_fossil_crabdb_exec_condition_not_met) {
-    bool result = fossil_crabdb_exec("test_condition_not_met.crabql", &query_test_db);
+    bool result = fossil_crabdb_exec("test_condition_not_met.crabql", query_test_db);
     ASSUME_ITS_TRUE(result);
     char value[1024];
-    ASSUME_NOT_TRUE(fossil_crabdb_select(&query_test_db, "key3", value, sizeof(value)));
+    ASSUME_NOT_TRUE(fossil_crabdb_select(query_test_db, "key3", value, sizeof(value)));
 }
 
 // Test case 4: File with an unknown command
 FOSSIL_TEST(test_fossil_crabdb_exec_unknown_command) {
-    bool result = fossil_crabdb_exec("test_unknown_command.crabql", &query_test_db);
+    bool result = fossil_crabdb_exec("test_unknown_command.crabql", query_test_db);
     ASSUME_ITS_TRUE(result);
     char value[1024];
-    ASSUME_ITS_FALSE(fossil_crabdb_select(&query_test_db, "key4", value, sizeof(value)));
+    ASSUME_ITS_FALSE(fossil_crabdb_select(query_test_db, "key4", value, sizeof(value)));
 }
 
 // Test case 5: Invalid file extension
 FOSSIL_TEST(test_fossil_crabdb_exec_invalid_extension) {
-    bool result = fossil_crabdb_exec("test_invalid.txt", &query_test_db);
+    bool result = fossil_crabdb_exec("test_invalid.txt", query_test_db);
     ASSUME_NOT_TRUE(result);
 }
 
