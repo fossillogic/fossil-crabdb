@@ -21,6 +21,12 @@
 #include <stdint.h>
 #include <ctype.h>
 
+#ifdef _WIN32
+    #include <windows.h>
+#else
+    #include <pthread.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
