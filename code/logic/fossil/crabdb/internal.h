@@ -22,9 +22,25 @@
 #include <ctype.h>
 
 #ifdef _WIN32
+    #include <winsock2.h>
+    #include <ws2tcpip.h> // For additional socket functions like inet_pton
+    #pragma comment(lib, "ws2_32.lib")
+#else
+    #include <sys/socket.h>
+    #include <netinet/in.h>
+    #include <arpa/inet.h>
+    #include <unistd.h>
+    #include <errno.h>
+#endif
+
+#ifdef _WIN32
     #include <windows.h>
+    #define THREAD_HANDLE HANDLE
+    #define THREAD_FUNC LPVOID
 #else
     #include <pthread.h>
+    #define THREAD_HANDLE pthread_t
+    #define THREAD_FUNC void*
 #endif
 
 #ifdef __cplusplus
