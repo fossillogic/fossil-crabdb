@@ -212,12 +212,6 @@ bool fossil_crabdb_batch_insert(fossil_crabdb_deque_t* deque, const char keys[][
 bool fossil_crabdb_batch_delete(fossil_crabdb_deque_t* deque, const char keys[][MAX_KEY_SIZE], size_t count);
 
 //
-// DATABASE TCP SERVER
-//
-
-
-
-//
 // DATABASE ALGORITHMS
 //
 
