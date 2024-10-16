@@ -200,7 +200,7 @@ bool fossil_crabdb_compact(fossil_crabdb_deque_t* deque);
  * @param count The number of key-value pairs to insert.
  * @return true if the pairs were inserted successfully, false otherwise.
  */
-bool fossil_crabdb_batch_insert(fossil_crabdb_deque_t* deque, const char* keys[], const char* values[], fossil_crabdb_type_t types[], size_t count);
+bool fossil_crabdb_batch_insert(fossil_crabdb_deque_t* deque, const char keys[][MAX_KEY_SIZE], const char values[][MAX_VALUE_SIZE], fossil_crabdb_type_t types[], size_t count);
 
 /**
  * @brief Batch deletes multiple key-value pairs from a CrabDB deque by key.
@@ -209,7 +209,7 @@ bool fossil_crabdb_batch_insert(fossil_crabdb_deque_t* deque, const char* keys[]
  * @param count The number of keys to delete.
  * @return true if the pairs were deleted successfully, false otherwise.
  */
-bool fossil_crabdb_batch_delete(fossil_crabdb_deque_t* deque, const char* keys[], size_t count);
+bool fossil_crabdb_batch_delete(fossil_crabdb_deque_t* deque, const char keys[][MAX_KEY_SIZE], size_t count);
 
 //
 // DATABASE ALGORITHMS
