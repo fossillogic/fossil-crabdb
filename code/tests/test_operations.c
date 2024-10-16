@@ -13,7 +13,7 @@
  */
 #include <fossil/unittest/framework.h> // Includes the Fossil Unit Test Framework
 #include <fossil/mockup/framework.h>   // Includes the Fossil Mockup Framework
-#include <fossil/xassume.h>            // Includes the Fossil Assume Framework
+#include <fossil/unittest/assume.h>            // Includes the Fossil Assume Framework
 
 #include "fossil/crabdb/framework.h"
 
