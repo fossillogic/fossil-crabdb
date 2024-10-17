@@ -67,6 +67,11 @@ typedef struct fossil_crabdb_node {
 typedef struct fossil_crabdb_deque {
     fossil_crabdb_node_t* head;
     fossil_crabdb_node_t* tail;
+#ifdef _WIN32
+    CRITICAL_SECTION lock;    // Windows lock mechanism
+#else
+    pthread_mutex_t lock;     // POSIX lock mechanism
+#endif
 } fossil_crabdb_deque_t;
 
 //
@@ -162,6 +167,49 @@ bool fossil_crabdb_drop(fossil_crabdb_deque_t* deque);
  * @return true if the key exists in the deque, false otherwise.
  */
 bool fossil_crabdb_exist(fossil_crabdb_deque_t* deque, const char* key);
+
+/**
+ * @brief Backs up the contents of a CrabDB deque to a specified file.
+ * @param filename The name of the backup file.
+ * @param deque A pointer to the deque to back up.
+ * @return true if the backup was created successfully, false otherwise.
+ */
+bool fossil_crabdb_backup(const char* filename, fossil_crabdb_deque_t* deque);
+
+/**
+ * @brief Restores the contents of a CrabDB deque from a backup file.
+ * @param filename The name of the backup file.
+ * @param deque A pointer to the deque to restore.
+ * @return true if the deque was restored successfully, false otherwise.
+ */
+bool fossil_crabdb_restore(const char* filename, fossil_crabdb_deque_t* deque);
+
+/**
+ * @brief Compacts the CrabDB deque by removing deleted entries and reclaiming space.
+ * @param deque A pointer to the deque to compact.
+ * @return true if the deque was compacted successfully, false otherwise.
+ */
+bool fossil_crabdb_compact(fossil_crabdb_deque_t* deque);
+
+/**
+ * @brief Batch inserts multiple key-value pairs into a CrabDB deque.
+ * @param deque A pointer to the deque to insert the pairs into.
+ * @param keys An array of keys.
+ * @param values An array of values corresponding to the keys.
+ * @param types An array of value types corresponding to the values.
+ * @param count The number of key-value pairs to insert.
+ * @return true if the pairs were inserted successfully, false otherwise.
+ */
+bool fossil_crabdb_batch_insert(fossil_crabdb_deque_t* deque, const char keys[][MAX_KEY_SIZE], const char values[][MAX_VALUE_SIZE], fossil_crabdb_type_t types[], size_t count);
+
+/**
+ * @brief Batch deletes multiple key-value pairs from a CrabDB deque by key.
+ * @param deque A pointer to the deque to delete the pairs from.
+ * @param keys An array of keys to delete.
+ * @param count The number of keys to delete.
+ * @return true if the pairs were deleted successfully, false otherwise.
+ */
+bool fossil_crabdb_batch_delete(fossil_crabdb_deque_t* deque, const char keys[][MAX_KEY_SIZE], size_t count);
 
 //
 // DATABASE ALGORITHMS
