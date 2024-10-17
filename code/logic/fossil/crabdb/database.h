@@ -20,9 +20,10 @@
 extern "C" {
 #endif
 
-//
-// DATABASE TYPES
-//
+/* ======================================================
+ * CRAB DATABASE TYPES
+ * ------------------------------------------------------
+ */
 
 #define MAX_KEY_SIZE 256
 #define MAX_VALUE_SIZE 1024
@@ -74,9 +75,10 @@ typedef struct fossil_crabdb_deque {
 #endif
 } fossil_crabdb_deque_t;
 
-//
-// DATABASE MANAGEMENT
-//
+/* ======================================================
+ * CRAB DATABASE MANAGMENT
+ * ------------------------------------------------------
+ */
 
 /**
  * @brief Creates a new CrabDB deque.
@@ -90,9 +92,10 @@ fossil_crabdb_deque_t* fossil_crabdb_create(void);
  */
 void fossil_crabdb_destroy(fossil_crabdb_deque_t* deque);
 
-//
-// DATABASE OPERATIONS
-//
+/* ======================================================
+ * CRAB DATABASE OPERATIONS
+ * ------------------------------------------------------
+ */
 
 /**
  * @brief Inserts a key-value pair into a CrabDB deque.
@@ -211,9 +214,10 @@ bool fossil_crabdb_batch_insert(fossil_crabdb_deque_t* deque, const char keys[][
  */
 bool fossil_crabdb_batch_delete(fossil_crabdb_deque_t* deque, const char keys[][MAX_KEY_SIZE], size_t count);
 
-//
-// DATABASE ALGORITHMS
-//
+/* ======================================================
+ * CRAB DATABASE ALGORITMS
+ * ------------------------------------------------------
+ */
 
 /**
  * @brief Searches for a key-value pair in a CrabDB deque by key.
@@ -249,9 +253,10 @@ bool fossil_crabdb_sort_by_key(fossil_crabdb_deque_t* deque);
  */
 bool fossil_crabdb_sort_by_value(fossil_crabdb_deque_t* deque);
 
-//
-// DATABASE SERIALIZATION
-//
+/* ======================================================
+ * CRAB DATABASE SERIALIZATION
+ * ------------------------------------------------------
+ */
 
 /**
  * @brief Encodes the contents of a CrabDB deque and saves it to a file.
@@ -292,9 +297,10 @@ bool fossil_crabdb_export_csv(const char* filename, fossil_crabdb_deque_t* deque
  */
 bool fossil_crabdb_import_csv(const char* filename, fossil_crabdb_deque_t* deque);
 
-//
-// DATABASE QUERY LANGUAGE
-//
+/* ======================================================
+ * CRAB DATABASE QUERY LANGUAGE
+ * ------------------------------------------------------
+ */
 
 /**
  * @brief Executes a CrabQL query on a CrabDB deque.
