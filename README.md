@@ -33,7 +33,7 @@ Before getting started, make sure you have the following installed:
    # ======================
    [wrap-git]
    url = https://github.com/fossillogic/fossil-crabdb.git
-   revision = v0.1.2
+   revision = v0.1.3
 
    [provide]
    fossil-crabdb = fossil_crabdb_dep
