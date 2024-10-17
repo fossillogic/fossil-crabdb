@@ -19,36 +19,36 @@
 // Initialize the mutex
 static void fossil_crabdb_mutex_init(fossil_crabdb_mutex_t* mutex) {
 #ifdef _WIN32
-    InitializeCriticalSection(&mutex->cs);
+    InitializeCriticalSection(&mutex->cs);  // Windows initialization
 #else
-    pthread_mutex_init(&mutex->mutex, NULL);
+    pthread_mutex_init(&mutex->mutex, NULL);  // POSIX initialization
 #endif
 }
 
 // Lock the mutex
 static void fossil_crabdb_mutex_lock(fossil_crabdb_mutex_t* mutex) {
 #ifdef _WIN32
-    EnterCriticalSection(&mutex->cs);
+    EnterCriticalSection(&mutex->cs);  // Windows locking
 #else
-    pthread_mutex_lock(&mutex->mutex);
+    pthread_mutex_lock(&mutex->mutex);  // POSIX locking
 #endif
 }
 
 // Unlock the mutex
 static void fossil_crabdb_mutex_unlock(fossil_crabdb_mutex_t* mutex) {
 #ifdef _WIN32
-    LeaveCriticalSection(&mutex->cs);
+    LeaveCriticalSection(&mutex->cs);  // Windows unlocking
 #else
-    pthread_mutex_unlock(&mutex->mutex);
+    pthread_mutex_unlock(&mutex->mutex);  // POSIX unlocking
 #endif
 }
 
 // Destroy the mutex
 static void fossil_crabdb_mutex_destroy(fossil_crabdb_mutex_t* mutex) {
 #ifdef _WIN32
-    DeleteCriticalSection(&mutex->cs);
+    DeleteCriticalSection(&mutex->cs);  // Windows destruction
 #else
-    pthread_mutex_destroy(&mutex->mutex);
+    pthread_mutex_destroy(&mutex->mutex);  // POSIX destruction
 #endif
 }
 
