@@ -25,8 +25,10 @@ extern "C" {
  * ------------------------------------------------------
  */
 
-#define MAX_KEY_SIZE 256
-#define MAX_VALUE_SIZE 1024
+enum {
+    _FOSSIL_CRABDB_VAL_SIZE = 256,
+    _FOSSIL_CRABDB_KEY_SIZE = 1024
+};
 
 typedef enum {
     FOSSIL_CRABDB_TYPE_INT8,
@@ -58,8 +60,8 @@ typedef enum {
 } fossil_crabdb_type_t;
 
 typedef struct fossil_crabdb_node {
-    char key[MAX_KEY_SIZE];
-    char value[MAX_VALUE_SIZE];
+    char key[_FOSSIL_CRABDB_KEY_SIZE];
+    char value[_FOSSIL_CRABDB_VAL_SIZE];
     fossil_crabdb_type_t type;
     struct fossil_crabdb_node* prev;
     struct fossil_crabdb_node* next;
@@ -200,7 +202,7 @@ bool fossil_crabdb_compact(fossil_crabdb_deque_t* deque);
  * @param count The number of key-value pairs to insert.
  * @return true if the pairs were inserted successfully, false otherwise.
  */
-bool fossil_crabdb_batch_insert(fossil_crabdb_deque_t* deque, const char keys[][MAX_KEY_SIZE], const char values[][MAX_VALUE_SIZE], fossil_crabdb_type_t types[], size_t count);
+bool fossil_crabdb_batch_insert(fossil_crabdb_deque_t* deque, const char keys[][_FOSSIL_CRABDB_KEY_SIZE], const char values[][_FOSSIL_CRABDB_VAL_SIZE], fossil_crabdb_type_t types[], size_t count);
 
 /**
  * @brief Batch deletes multiple key-value pairs from a CrabDB deque by key.
@@ -209,7 +211,7 @@ bool fossil_crabdb_batch_insert(fossil_crabdb_deque_t* deque, const char keys[][
  * @param count The number of keys to delete.
  * @return true if the pairs were deleted successfully, false otherwise.
  */
-bool fossil_crabdb_batch_delete(fossil_crabdb_deque_t* deque, const char keys[][MAX_KEY_SIZE], size_t count);
+bool fossil_crabdb_batch_delete(fossil_crabdb_deque_t* deque, const char keys[][_FOSSIL_CRABDB_KEY_SIZE], size_t count);
 
 /* ======================================================
  * CRAB DATABASE ALGORITMS
@@ -356,7 +358,7 @@ namespace fossil {
         }
 
         bool select(const std::string& key, std::string& value) {
-            char buffer[MAX_VALUE_SIZE];
+            char buffer[_FOSSIL_CRABDB_VAL_SIZE];
             bool success = fossil_crabdb_select(deque, key.c_str(), buffer, sizeof(buffer));
             if (success) {
                 value = buffer;
@@ -366,7 +368,7 @@ namespace fossil {
 
         std::vector<std::pair<std::string, std::string>> list() {
             std::vector<std::pair<std::string, std::string>> pairs;
-            char buffer[MAX_VALUE_SIZE];
+            char buffer[_FOSSIL_CRABDB_VAL_SIZE];
             bool success = fossil_crabdb_list(deque, buffer, sizeof(buffer));
             if (success) {
                 std::string listString(buffer);

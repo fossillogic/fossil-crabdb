@@ -56,8 +56,8 @@ static void fossil_crabdb_mutex_destroy(fossil_crabdb_mutex_t* mutex) {
 static fossil_crabdb_node_t* create_node(const char* key, const char* value, fossil_crabdb_type_t type) {
     fossil_crabdb_node_t* node = (fossil_crabdb_node_t*)fossil_crabdb_alloc(sizeof(fossil_crabdb_node_t));
     if (!node) return NULL;
-    strncpy(node->key, key, MAX_KEY_SIZE);
-    strncpy(node->value, value, MAX_VALUE_SIZE);
+    strncpy(node->key, key, _FOSSIL_CRABDB_KEY_SIZE);
+    strncpy(node->value, value, _FOSSIL_CRABDB_VAL_SIZE);
     node->type = type;
     node->prev = NULL;
     node->next = NULL;
@@ -68,8 +68,8 @@ static fossil_crabdb_node_t* create_node(const char* key, const char* value, fos
 static fossil_crabdb_node_t* create_node(const char* key, const char* value, fossil_crabdb_type_t type) {
     fossil_crabdb_node_t* node = (fossil_crabdb_node_t*)malloc(sizeof(fossil_crabdb_node_t));
     if (!node) return NULL;
-    strncpy(node->key, key, MAX_KEY_SIZE);
-    strncpy(node->value, value, MAX_VALUE_SIZE);
+    strncpy(node->key, key, _FOSSIL_CRABDB_KEY_SIZE);
+    strncpy(node->value, value, _FOSSIL_CRABDB_VAL_SIZE);
     node->type = type;
     node->prev = NULL;
     node->next = NULL;
@@ -108,36 +108,7 @@ void fossil_crabdb_destroy(fossil_crabdb_deque_t* deque) {
     fossil_crabdb_mutex_unlock(&deque->mutex);
     fossil_crabdb_mutex_destroy(&deque->mutex);
     
-    free(deque);  // Free the deque structure
-}
-
-// Example function to add a node with thread safety
-bool fossil_crabdb_add_node(fossil_crabdb_deque_t* deque, const char* key, const char* value, fossil_crabdb_type_t type) {
-    if (!deque || !key || !value) return false;
-
-    // Lock the mutex for thread-safe access
-    fossil_crabdb_mutex_lock(&deque->mutex);
-
-    fossil_crabdb_node_t* new_node = create_node(key, value, type);
-    if (!new_node) {
-        fossil_crabdb_mutex_unlock(&deque->mutex);
-        return false;
-    }
-
-    if (!deque->head) {
-        // Deque is empty
-        deque->head = deque->tail = new_node;
-    } else {
-        // Add the node to the end of the deque
-        deque->tail->next = new_node;
-        new_node->prev = deque->tail;
-        deque->tail = new_node;
-    }
-
-    // Unlock the mutex after modification
-    fossil_crabdb_mutex_unlock(&deque->mutex);
-    
-    return true;
+    fossil_crabdb_free(deque);  // Free the deque structure
 }
 
 // Insert a key-value pair
@@ -150,7 +121,7 @@ bool fossil_crabdb_insert(fossil_crabdb_deque_t* deque, const char* key, const c
     fossil_crabdb_node_t* current = deque->head;
     while (current) {
         if (strcmp(current->key, key) == 0) {
-            strncpy(current->value, value, MAX_VALUE_SIZE);
+            strncpy(current->value, value, _FOSSIL_CRABDB_VAL_SIZE);
             current->type = type;
             fossil_crabdb_unlock(deque);
             return true;
@@ -334,7 +305,7 @@ bool fossil_crabdb_compact(fossil_crabdb_deque_t* deque) {
 }
 
 // Thread-safe batch insert of key-value pairs
-bool fossil_crabdb_batch_insert(fossil_crabdb_deque_t* deque, const char keys[][MAX_KEY_SIZE], const char values[][MAX_VALUE_SIZE], fossil_crabdb_type_t types[], size_t count) {
+bool fossil_crabdb_batch_insert(fossil_crabdb_deque_t* deque, const char keys[][_FOSSIL_CRABDB_KEY_SIZE], const char values[][_FOSSIL_CRABDB_VAL_SIZE], fossil_crabdb_type_t types[], size_t count) {
     if (!deque || !keys || !values || !types || count == 0) {
         return false;
     }
@@ -349,8 +320,8 @@ bool fossil_crabdb_batch_insert(fossil_crabdb_deque_t* deque, const char keys[][
         }
 
         // Copy key, value, and type into the new node
-        strncpy(new_node->key, keys[i], MAX_KEY_SIZE);
-        strncpy(new_node->value, values[i], MAX_VALUE_SIZE);
+        strncpy(new_node->key, keys[i], _FOSSIL_CRABDB_KEY_SIZE);
+        strncpy(new_node->value, values[i], _FOSSIL_CRABDB_VAL_SIZE);
         new_node->type = types[i];
         new_node->prev = deque->tail;
         new_node->next = NULL;
@@ -370,7 +341,7 @@ bool fossil_crabdb_batch_insert(fossil_crabdb_deque_t* deque, const char keys[][
 }
 
 // Thread-safe batch delete of key-value pairs by key
-bool fossil_crabdb_batch_delete(fossil_crabdb_deque_t* deque, const char keys[][MAX_KEY_SIZE], size_t count) {
+bool fossil_crabdb_batch_delete(fossil_crabdb_deque_t* deque, const char keys[][_FOSSIL_CRABDB_KEY_SIZE], size_t count) {
     if (!deque || !keys || count == 0) {
         return false;
     }
@@ -380,10 +351,10 @@ bool fossil_crabdb_batch_delete(fossil_crabdb_deque_t* deque, const char keys[][
     for (size_t i = 0; i < count; i++) {
         fossil_crabdb_node_t* current = deque->head;
         while (current) {
-            if (strncmp(current->key, keys[i], MAX_KEY_SIZE) == 0) {
+            if (strncmp(current->key, keys[i], _FOSSIL_CRABDB_KEY_SIZE) == 0) {
                 // Mark the node as deleted by clearing its key and value
-                memset(current->key, 0, MAX_KEY_SIZE);
-                memset(current->value, 0, MAX_VALUE_SIZE);
+                memset(current->key, 0, _FOSSIL_CRABDB_KEY_SIZE);
+                memset(current->value, 0, _FOSSIL_CRABDB_VAL_SIZE);
                 break; // Move to the next key after deleting the match
             }
             current = current->next;
@@ -412,8 +383,8 @@ bool fossil_crabdb_backup(const char* filename, fossil_crabdb_deque_t* deque) {
     while (current) {
         if (strcmp(current->key, "") != 0) { // Skip deleted nodes (empty key)
             fwrite(&current->type, sizeof(current->type), 1, file);
-            fwrite(current->key, sizeof(char), MAX_KEY_SIZE, file);
-            fwrite(current->value, sizeof(char), MAX_VALUE_SIZE, file);
+            fwrite(current->key, sizeof(char), _FOSSIL_CRABDB_KEY_SIZE, file);
+            fwrite(current->value, sizeof(char), _FOSSIL_CRABDB_VAL_SIZE, file);
         }
         current = current->next;
     }
@@ -461,14 +432,14 @@ bool fossil_crabdb_restore(const char* filename, fossil_crabdb_deque_t* deque) {
         }
 
         // Read the key
-        if (fread(new_node->key, sizeof(char), MAX_KEY_SIZE, file) != MAX_KEY_SIZE) {
+        if (fread(new_node->key, sizeof(char), _FOSSIL_CRABDB_KEY_SIZE, file) != _FOSSIL_CRABDB_KEY_SIZE) {
             free(new_node);
             fclose(file);
             return false;  // Error reading the key
         }
 
         // Read the value
-        if (fread(new_node->value, sizeof(char), MAX_VALUE_SIZE, file) != MAX_VALUE_SIZE) {
+        if (fread(new_node->value, sizeof(char), _FOSSIL_CRABDB_VAL_SIZE, file) != _FOSSIL_CRABDB_VAL_SIZE) {
             free(new_node);
             fclose(file);
             return false;  // Error reading the value
