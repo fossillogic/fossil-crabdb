@@ -65,15 +65,12 @@ typedef struct fossil_crabdb_node {
     struct fossil_crabdb_node* next;
 } fossil_crabdb_node_t;
 
-typedef struct fossil_crabdb_deque {
+typedef struct fossil_crabdb_deque_t {
     fossil_crabdb_node_t* head;
     fossil_crabdb_node_t* tail;
-#ifdef _WIN32
-    CRITICAL_SECTION lock;    // Windows lock mechanism
-#else
-    pthread_mutex_t lock;     // POSIX lock mechanism
-#endif
+    fossil_crabdb_mutex_t mutex;  // Cross-platform mutex
 } fossil_crabdb_deque_t;
+
 
 /* ======================================================
  * CRAB DATABASE MANAGMENT

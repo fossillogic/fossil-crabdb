@@ -23,13 +23,18 @@
 
 #ifdef _WIN32
     #include <windows.h>
-    #define THREAD_HANDLE HANDLE
-    #define THREAD_FUNC LPVOID
 #else
     #include <pthread.h>
-    #define THREAD_HANDLE pthread_t
-    #define THREAD_FUNC void*
 #endif
+
+// Cross-platform mutex structure
+typedef struct fossil_crabdb_mutex_t {
+#ifdef _WIN32
+    CRITICAL_SECTION cs;
+#else
+    pthread_mutex_t mutex;
+#endif
+} fossil_crabdb_mutex_t;
 
 #ifdef __cplusplus
 extern "C" {
