@@ -16,42 +16,6 @@
 #include <stdio.h>
 
 
-// Initialize the mutex
-static void fossil_crabdb_mutex_init(fossil_crabdb_mutex_t* mutex) {
-#ifdef _WIN32
-    InitializeCriticalSection(&mutex->cs);  // Windows initialization
-#else
-    pthread_mutex_init(&mutex->mutex, NULL);  // POSIX initialization
-#endif
-}
-
-// Lock the mutex
-static void fossil_crabdb_mutex_lock(fossil_crabdb_mutex_t* mutex) {
-#ifdef _WIN32
-    EnterCriticalSection(&mutex->cs);  // Windows locking
-#else
-    pthread_mutex_lock(&mutex->mutex);  // POSIX locking
-#endif
-}
-
-// Unlock the mutex
-static void fossil_crabdb_mutex_unlock(fossil_crabdb_mutex_t* mutex) {
-#ifdef _WIN32
-    LeaveCriticalSection(&mutex->cs);  // Windows unlocking
-#else
-    pthread_mutex_unlock(&mutex->mutex);  // POSIX unlocking
-#endif
-}
-
-// Destroy the mutex
-static void fossil_crabdb_mutex_destroy(fossil_crabdb_mutex_t* mutex) {
-#ifdef _WIN32
-    DeleteCriticalSection(&mutex->cs);  // Windows destruction
-#else
-    pthread_mutex_destroy(&mutex->mutex);  // POSIX destruction
-#endif
-}
-
 // Helper function to create a new node
 static fossil_crabdb_node_t* create_node(const char* key, const char* value, fossil_crabdb_type_t type) {
     fossil_crabdb_node_t* node = (fossil_crabdb_node_t*)malloc(sizeof(fossil_crabdb_node_t));
@@ -71,9 +35,6 @@ fossil_crabdb_deque_t* fossil_crabdb_create(void) {
     
     deque->head = NULL;
     deque->tail = NULL;
-
-    // Initialize the cross-platform mutex
-    fossil_crabdb_mutex_init(&deque->mutex);
     
     return deque;
 }
@@ -82,19 +43,12 @@ fossil_crabdb_deque_t* fossil_crabdb_create(void) {
 void fossil_crabdb_destroy(fossil_crabdb_deque_t* deque) {
     if (!deque) return;
 
-    // Lock the mutex for thread-safe destruction
-    fossil_crabdb_mutex_lock(&deque->mutex);
-
     fossil_crabdb_node_t* current = deque->head;
     while (current) {
         fossil_crabdb_node_t* next = current->next;
         free(current);  // Free each node
         current = next;
     }
-
-    // Unlock and destroy the mutex
-    fossil_crabdb_mutex_unlock(&deque->mutex);
-    fossil_crabdb_mutex_destroy(&deque->mutex);
     
     fossil_crabdb_free(deque);  // Free the deque structure
 }
@@ -103,15 +57,12 @@ void fossil_crabdb_destroy(fossil_crabdb_deque_t* deque) {
 bool fossil_crabdb_insert(fossil_crabdb_deque_t* deque, const char* key, const char* value, fossil_crabdb_type_t type) {
     if (!deque || !key || !value) return false;
     
-    fossil_crabdb_lock(deque);
-    
     // Check if key already exists and update if needed
     fossil_crabdb_node_t* current = deque->head;
     while (current) {
         if (strcmp(current->key, key) == 0) {
             strncpy(current->value, value, _FOSSIL_CRABDB_VAL_SIZE);
             current->type = type;
-            fossil_crabdb_unlock(deque);
             return true;
         }
         current = current->next;
@@ -120,7 +71,6 @@ bool fossil_crabdb_insert(fossil_crabdb_deque_t* deque, const char* key, const c
     // Add new node
     fossil_crabdb_node_t* new_node = create_node(key, value, type);
     if (!new_node) {
-        fossil_crabdb_unlock(deque);
         return false;
     }
     if (!deque->head) {
@@ -132,7 +82,6 @@ bool fossil_crabdb_insert(fossil_crabdb_deque_t* deque, const char* key, const c
         deque->tail = new_node;
     }
 
-    fossil_crabdb_unlock(deque);
     return true;
 }
 
@@ -145,8 +94,6 @@ bool fossil_crabdb_update(fossil_crabdb_deque_t* deque, const char* key, const c
 bool fossil_crabdb_delete(fossil_crabdb_deque_t* deque, const char* key) {
     if (!deque || !key) return false;
     
-    fossil_crabdb_lock(deque);
-    
     fossil_crabdb_node_t* current = deque->head;
     while (current) {
         if (strcmp(current->key, key) == 0) {
@@ -155,13 +102,11 @@ bool fossil_crabdb_delete(fossil_crabdb_deque_t* deque, const char* key) {
             if (current == deque->head) deque->head = current->next;
             if (current == deque->tail) deque->tail = current->prev;
             fossil_crabdb_free(current);
-            fossil_crabdb_unlock(deque);
             return true;
         }
         current = current->next;
     }
     
-    fossil_crabdb_unlock(deque);
     return false;
 }
 
@@ -169,19 +114,15 @@ bool fossil_crabdb_delete(fossil_crabdb_deque_t* deque, const char* key) {
 bool fossil_crabdb_select(fossil_crabdb_deque_t* deque, const char* key, char* value, size_t value_size) {
     if (!deque || !key || !value) return false;
     
-    fossil_crabdb_lock(deque);
-    
     fossil_crabdb_node_t* current = deque->head;
     while (current) {
         if (strcmp(current->key, key) == 0) {
             strncpy(value, current->value, value_size);
-            fossil_crabdb_unlock(deque);
             return true;
         }
         current = current->next;
     }
     
-    fossil_crabdb_unlock(deque);
     return false;
 }
 
@@ -189,19 +130,16 @@ bool fossil_crabdb_select(fossil_crabdb_deque_t* deque, const char* key, char* v
 bool fossil_crabdb_list(fossil_crabdb_deque_t* deque, char* list_buffer, size_t buffer_size) {
     if (!deque || !list_buffer) return false;
 
-    pthread_mutex_lock(&deque->mutex); // Lock the deque for thread safety
     size_t offset = 0;
     fossil_crabdb_node_t* current = deque->head;
     while (current) {
         int written = snprintf(list_buffer + offset, buffer_size - offset, "%s: %s\n", current->key, current->value);
         if (written < 0 || (size_t)written >= buffer_size - offset) {
-            pthread_mutex_unlock(&deque->mutex); // Unlock on failure
             return false;
         }
         offset += written;
         current = current->next;
     }
-    pthread_mutex_unlock(&deque->mutex); // Unlock after operation
     return true;
 }
 
@@ -209,7 +147,6 @@ bool fossil_crabdb_list(fossil_crabdb_deque_t* deque, char* list_buffer, size_t 
 bool fossil_crabdb_clear(fossil_crabdb_deque_t* deque) {
     if (!deque) return false;
 
-    pthread_mutex_lock(&deque->mutex); // Lock the deque for thread safety
     fossil_crabdb_node_t* current = deque->head;
     while (current) {
         fossil_crabdb_node_t* next = current->next;
@@ -218,7 +155,6 @@ bool fossil_crabdb_clear(fossil_crabdb_deque_t* deque) {
     }
     deque->head = NULL;
     deque->tail = NULL;
-    pthread_mutex_unlock(&deque->mutex); // Unlock after clearing
     return true;
 }
 
@@ -226,13 +162,11 @@ bool fossil_crabdb_clear(fossil_crabdb_deque_t* deque) {
 bool fossil_crabdb_show(fossil_crabdb_deque_t* deque) {
     if (!deque) return false;
 
-    pthread_mutex_lock(&deque->mutex); // Lock the deque for thread safety
     fossil_crabdb_node_t* current = deque->head;
     while (current) {
         printf("%s: %s\n", current->key, current->value);
         current = current->next;
     }
-    pthread_mutex_unlock(&deque->mutex); // Unlock after operation
     return true;
 }
 
@@ -245,16 +179,13 @@ bool fossil_crabdb_drop(fossil_crabdb_deque_t* deque) {
 bool fossil_crabdb_exist(fossil_crabdb_deque_t* deque, const char* key) {
     if (!deque || !key) return false;
 
-    pthread_mutex_lock(&deque->mutex); // Lock the deque for thread safety
     fossil_crabdb_node_t* current = deque->head;
     while (current) {
         if (strcmp(current->key, key) == 0) {
-            pthread_mutex_unlock(&deque->mutex); // Unlock after finding key
             return true;
         }
         current = current->next;
     }
-    pthread_mutex_unlock(&deque->mutex); // Unlock if key not found
     return false;
 }
 
@@ -262,7 +193,6 @@ bool fossil_crabdb_exist(fossil_crabdb_deque_t* deque, const char* key) {
 bool fossil_crabdb_compact(fossil_crabdb_deque_t* deque) {
     if (!deque || !deque->head) return false;
 
-    pthread_mutex_lock(&deque->mutex); // Lock the deque for thread safety
     fossil_crabdb_node_t* current = deque->head;
     while (current) {
         fossil_crabdb_node_t* next = current->next;
@@ -288,7 +218,6 @@ bool fossil_crabdb_compact(fossil_crabdb_deque_t* deque) {
 
         current = next;
     }
-    pthread_mutex_unlock(&deque->mutex); // Unlock after operation
     return true;
 }
 
@@ -298,12 +227,9 @@ bool fossil_crabdb_batch_insert(fossil_crabdb_deque_t* deque, const char keys[][
         return false;
     }
 
-    pthread_mutex_lock(&deque->mutex); // Lock the deque for thread safety
-
     for (size_t i = 0; i < count; i++) {
         fossil_crabdb_node_t* new_node = (fossil_crabdb_node_t*)malloc(sizeof(fossil_crabdb_node_t));
         if (!new_node) {
-            pthread_mutex_unlock(&deque->mutex); // Unlock before returning
             return false;
         }
 
@@ -324,7 +250,6 @@ bool fossil_crabdb_batch_insert(fossil_crabdb_deque_t* deque, const char keys[][
         deque->tail = new_node; // Always update the tail to the new node
     }
 
-    pthread_mutex_unlock(&deque->mutex); // Unlock after inserting
     return true;
 }
 
@@ -333,8 +258,6 @@ bool fossil_crabdb_batch_delete(fossil_crabdb_deque_t* deque, const char keys[][
     if (!deque || !keys || count == 0) {
         return false;
     }
-
-    pthread_mutex_lock(&deque->mutex); // Lock the deque for thread safety
 
     for (size_t i = 0; i < count; i++) {
         fossil_crabdb_node_t* current = deque->head;
@@ -349,7 +272,6 @@ bool fossil_crabdb_batch_delete(fossil_crabdb_deque_t* deque, const char keys[][
         }
     }
 
-    pthread_mutex_unlock(&deque->mutex); // Unlock after deleting
     return true;
 }
 
@@ -359,11 +281,8 @@ bool fossil_crabdb_backup(const char* filename, fossil_crabdb_deque_t* deque) {
         return false;
     }
 
-    pthread_mutex_lock(&deque->mutex); // Lock the deque for thread safety
-
     FILE* file = fopen(filename, "wb");
     if (!file) {
-        pthread_mutex_unlock(&deque->mutex); // Unlock before returning
         return false;
     }
 
@@ -378,7 +297,6 @@ bool fossil_crabdb_backup(const char* filename, fossil_crabdb_deque_t* deque) {
     }
 
     fclose(file);
-    pthread_mutex_unlock(&deque->mutex); // Unlock after backing up
     return true;
 }
 

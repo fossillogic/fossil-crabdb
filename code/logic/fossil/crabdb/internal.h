@@ -21,21 +21,6 @@
 #include <stdint.h>
 #include <ctype.h>
 
-#ifdef _WIN32
-    #include <windows.h>
-#else
-    #include <pthread.h>
-#endif
-
-// Cross-platform mutex structure
-typedef struct fossil_crabdb_mutex_t {
-#ifdef _WIN32
-    CRITICAL_SECTION cs;
-#else
-    pthread_mutex_t mutex;
-#endif
-} fossil_crabdb_mutex_t;
-
 #ifdef __cplusplus
 extern "C" {
 #endif

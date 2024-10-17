@@ -82,7 +82,6 @@ typedef struct fossil_crabdb_node {
 typedef struct fossil_crabdb_deque_t {
     fossil_crabdb_node_t* head;  /**< Pointer to the head node */
     fossil_crabdb_node_t* tail;  /**< Pointer to the tail node */
-    fossil_crabdb_mutex_t mutex; /**< Cross-platform mutex */
 } fossil_crabdb_deque_t;
 
 
