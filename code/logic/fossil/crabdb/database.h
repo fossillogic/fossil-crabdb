@@ -25,11 +25,17 @@ extern "C" {
  * ------------------------------------------------------
  */
 
+/**
+ * @brief Defines the maximum size for values in the CrabDB.
+ */
 enum {
     _FOSSIL_CRABDB_VAL_SIZE = 256,
     _FOSSIL_CRABDB_KEY_SIZE = 1024
 };
 
+/**
+ * @brief Enumeration of possible data types in CrabDB.
+ */
 typedef enum {
     FOSSIL_CRABDB_TYPE_INT8,
     FOSSIL_CRABDB_TYPE_INT16,
@@ -59,18 +65,24 @@ typedef enum {
     FOSSIL_CRABDB_TYPE_NULL
 } fossil_crabdb_type_t;
 
+/**
+ * @brief Structure representing a node in the CrabDB deque.
+ */
 typedef struct fossil_crabdb_node {
-    char key[_FOSSIL_CRABDB_KEY_SIZE];
-    char value[_FOSSIL_CRABDB_VAL_SIZE];
-    fossil_crabdb_type_t type;
-    struct fossil_crabdb_node* prev;
-    struct fossil_crabdb_node* next;
+    char key[_FOSSIL_CRABDB_KEY_SIZE];   /**< Key of the node */
+    char value[_FOSSIL_CRABDB_VAL_SIZE]; /**< Value of the node */
+    fossil_crabdb_type_t type;           /**< Type of the value */
+    struct fossil_crabdb_node* prev;     /**< Pointer to the previous node */
+    struct fossil_crabdb_node* next;     /**< Pointer to the next node */
 } fossil_crabdb_node_t;
 
+/**
+ * @brief Structure representing the CrabDB deque.
+ */
 typedef struct fossil_crabdb_deque_t {
-    fossil_crabdb_node_t* head;
-    fossil_crabdb_node_t* tail;
-    fossil_crabdb_mutex_t mutex;  // Cross-platform mutex
+    fossil_crabdb_node_t* head;  /**< Pointer to the head node */
+    fossil_crabdb_node_t* tail;  /**< Pointer to the tail node */
+    fossil_crabdb_mutex_t mutex; /**< Cross-platform mutex */
 } fossil_crabdb_deque_t;
 
 
