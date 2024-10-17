@@ -54,18 +54,6 @@ static void fossil_crabdb_mutex_destroy(fossil_crabdb_mutex_t* mutex) {
 
 // Helper function to create a new node
 static fossil_crabdb_node_t* create_node(const char* key, const char* value, fossil_crabdb_type_t type) {
-    fossil_crabdb_node_t* node = (fossil_crabdb_node_t*)fossil_crabdb_alloc(sizeof(fossil_crabdb_node_t));
-    if (!node) return NULL;
-    strncpy(node->key, key, _FOSSIL_CRABDB_KEY_SIZE);
-    strncpy(node->value, value, _FOSSIL_CRABDB_VAL_SIZE);
-    node->type = type;
-    node->prev = NULL;
-    node->next = NULL;
-    return node;
-}
-
-// Helper function to create a new node
-static fossil_crabdb_node_t* create_node(const char* key, const char* value, fossil_crabdb_type_t type) {
     fossil_crabdb_node_t* node = (fossil_crabdb_node_t*)malloc(sizeof(fossil_crabdb_node_t));
     if (!node) return NULL;
     strncpy(node->key, key, _FOSSIL_CRABDB_KEY_SIZE);
