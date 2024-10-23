@@ -835,6 +835,19 @@ bool parse_options(char* arg, bool* verbose) {
     return false;
 }
 
+// Function to handle single-quoted strings
+char* extract_single_quoted_string(char* str) {
+    char* start = strchr(str, '\'');
+    if (!start) return NULL;
+    start++;
+
+    char* end = strchr(start, '\'');
+    if (!end) return NULL;
+
+    *end = '\0';
+    return start;
+}
+
 // Function to execute commands from the command line with support for flags and options
 bool fossil_crabdb_commandline(fossil_crabdb_t* db) {
     if (!db) return false;
