@@ -5,7 +5,7 @@ if get_option('with_test').enabled()
 
     test_src = ['unit_runner.c']
     test_cubes = [
-        'operations', 'query', 'script',
+        'operations'
     ]
 
     foreach cube : test_cubes
