@@ -1,3 +1,0 @@
-# Insert and delete
-insert ('myKey1', 'myValue1');
-delete ('myKey1');
