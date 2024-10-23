@@ -1,3 +1,0 @@
-# Insert commands
-insert ('myKey1', 'myValue1');
-insert ('myKey2', 'myValue2');

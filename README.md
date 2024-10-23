@@ -33,7 +33,7 @@ Before getting started, make sure you have the following installed:
    # ======================
    [wrap-git]
    url = https://github.com/fossillogic/fossil-crabdb.git
-   revision = v0.1.3
+   revision = v0.2.0
 
    [provide]
    fossil-crabdb = fossil_crabdb_dep
@@ -57,98 +57,6 @@ Example:
 
 ```sh
 meson setup builddir -Dwith_test=enabled
-```
-
-## Usage Examples
-
-### CrabQL SQL-like Commands
-
-CrabQL provides SQL-like commands to interact with the Blue CrabDB database. Here are some examples of how to use these commands:
-
-```sql
--- Insert a new key-value pair
-INSERT INTO table_name (key, value) VALUES ('myKey', 'myValue');
-
--- Update an existing key-value pair
-UPDATE table_name SET value = 'newValue' WHERE key = 'myKey';
-
--- Select a value by key
-SELECT value FROM table_name WHERE key = 'myKey';
-
--- Delete a key-value pair
-DELETE FROM table_name WHERE key = 'myKey';
-
--- List all key-value pairs
-LIST;
-
--- Clear all key-value pairs
-CLEAR;
-
--- Show the contents of the database
-SHOW;
-
--- Drop the entire database
-DROP;
-
--- Check if a key exists
-EXIST ('myKey');
-
--- Search by key
-SEARCH_KEY ('myKey');
-
--- Search by value
-SEARCH_VALUE ('myValue');
-
--- Sort by key
-SORT_BY_KEY;
-
--- Sort by value
-SORT_BY_VALUE;
-```
-
-### CrabQL Script Syntax
-
-CrabQL scripts are similar to Meson build files, using `#` for comments and single quotes for strings. Here’s an example script:
-
-```ini
-# This is a CrabQL script
-
-# Insert commands
-insert ('myKey1', 'myValue1');
-insert ('myKey2', 'myValue2');
-
-# Update command
-update ('myKey1', 'updatedValue1');
-
-# Select command
-select ('myKey2');
-
-# Delete command
-delete ('myKey1');
-
-# List all entries
-list();
-
-# Clear the database
-clear();
-
-# Show the current state of the database
-show();
-
-# Drop the database
-drop();
-
-# Check if a key exists
-exist ('myKey2');
-
-# Search for a value
-search_value ('updatedValue1');
-
-# Sort by key
-sort_by_key();
-
-# Sort by value
-sort_by_value();
 ```
 
 ## Contributing and Support

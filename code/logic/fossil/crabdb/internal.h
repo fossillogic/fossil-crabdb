@@ -21,16 +21,6 @@
 #include <stdint.h>
 #include <ctype.h>
 
-#ifdef _WIN32
-    #include <windows.h>
-    #define THREAD_HANDLE HANDLE
-    #define THREAD_FUNC LPVOID
-#else
-    #include <pthread.h>
-    #define THREAD_HANDLE pthread_t
-    #define THREAD_FUNC void*
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif

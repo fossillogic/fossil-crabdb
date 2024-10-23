@@ -1,3 +1,0 @@
-# Insert then update
-insert ('myKey1', 'myValue1');
-update ('myKey1', 'updatedValue1');
