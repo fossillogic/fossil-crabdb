@@ -59,6 +59,33 @@ Example:
 meson setup builddir -Dwith_test=enabled
 ```
 
+## CrabQL Sample
+
+Below is a sample CrabQL script demonstrating basic operations in Blue CrabDB:
+
+```sql
+-- Create a new table called 'users'
+CREATE TABLE users (
+    id INT PRIMARY KEY,
+    name STRING,
+    email STRING
+);
+
+-- Insert a new user into the 'users' table
+INSERT INTO users (id, name, email) VALUES (1, 'Alice', 'alice@example.com');
+
+-- Update the user's email
+UPDATE users SET email = 'alice.smith@example.com' WHERE id = 1;
+
+-- Select the user
+SELECT * FROM users WHERE id = 1;
+
+-- Delete the user
+DELETE FROM users WHERE id = 1;
+```
+
+This script illustrates the creation of a table, insertion of a record, updating a record, selecting a record, and deleting a record, showcasing the capabilities of the CrabQL language within the Blue CrabDB framework.
+
 ## Contributing and Support
 
 If you're interested in contributing to this project, encounter any issues, have questions, or would like to provide feedback, don't hesitate to open an issue or visit the [Fossil Logic Docs](https://fossillogic.com/docs) for more information.
