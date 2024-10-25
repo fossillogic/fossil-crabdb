@@ -19,7 +19,6 @@ namespace fossil {
 #endif
 
 #include "crabdb.h"
-#include "crabql.h"
 #include "crablogs.h"
 
 #ifdef __cplusplus
