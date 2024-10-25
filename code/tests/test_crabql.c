@@ -164,17 +164,23 @@ FOSSIL_TEST(test_query_by_time_success) {
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
-FOSSIL_TEST_GROUP(c_crab_database_tests) {    
-    ADD_TEST(test_fossil_crabdb_create);
-    ADD_TEST(test_fossil_crabdb_destroy);
-    ADD_TEST(test_fossil_crabdb_insert);
-    ADD_TEST(test_fossil_crabdb_insert_duplicate_key);
-    ADD_TEST(test_fossil_crabdb_select_existing_key);
-    ADD_TEST(test_fossil_crabdb_select_non_existing_key);
-    ADD_TEST(test_fossil_crabdb_update);
-    ADD_TEST(test_fossil_crabdb_delete);
-    ADD_TEST(test_fossil_crabdb_delete_non_existing_key);
-    ADD_TEST(test_fossil_crabdb_cleanup_expired);
-    ADD_TEST(test_fossil_crabdb_update_batch);
-    ADD_TEST(test_fossil_crabdb_delete_batch);
+FOSSIL_TEST_GROUP(c_crab_qsearch_tests) {    
+    ADD_TEST(test_query_by_type_null_db);
+    ADD_TEST(test_query_by_type_invalid_type);
+    ADD_TEST(test_query_by_type_buffer_overflow);
+    ADD_TEST(test_query_by_type_no_match_found);
+    ADD_TEST(test_query_by_type_success);
+    ADD_TEST(test_query_range_null_db);
+    ADD_TEST(test_query_range_invalid_type);
+    ADD_TEST(test_query_range_buffer_overflow);
+    ADD_TEST(test_query_range_no_match_found);
+    ADD_TEST(test_query_range_success);
+    ADD_TEST(test_full_text_search_null_db);
+    ADD_TEST(test_full_text_search_buffer_overflow);
+    ADD_TEST(test_full_text_search_no_match_found);
+    ADD_TEST(test_full_text_search_success);
+    ADD_TEST(test_query_by_time_null_db);
+    ADD_TEST(test_query_by_time_buffer_overflow);
+    ADD_TEST(test_query_by_time_no_match_found);
+    ADD_TEST(test_query_by_time_success);
 } // end of tests
