@@ -117,7 +117,7 @@ FOSSIL_TEST(test_fossil_crabdb_insert_batch) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     const char* keys[] = {"key1", "key2", "key3"};
     const char* values[] = {"value1", "value2", "value3"};
-    bool result = fossil_crabdb_insert_batch(db, keys, values, 3);
+    bool result = fossil_crabdb_insert_batch(db, keys, values, FOSSIL_CRABDB_TYPE_STRING, 3);
     ASSUME_ITS_TRUE(result);
     ASSUME_ITS_EQUAL_I32(3, db->node_count);
     fossil_crabdb_destroy(db);
