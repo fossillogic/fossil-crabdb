@@ -181,7 +181,7 @@ void fossil_crablog_query_timing(const char* query, double execution_time) {
 
 void fossil_crablog_resource_usage(size_t memory_usage, double cpu_usage) {
     char message[256];
-    snprintf(message, sizeof(message), "Memory usage: %zu bytes, CPU usage: %.2f%%", memory_usage, cpu_usage);
+    snprintf(message, sizeof(message), "Memory usage: %zu bytes, CPU usage: %.2f%%", (uint32_t)memory_usage, cpu_usage);
     fossil_crablog_log(CRABLOG_INFO, "resources", message);
 }
 
