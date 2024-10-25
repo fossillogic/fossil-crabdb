@@ -236,9 +236,9 @@ bool fossil_crabql_rollback_transaction(fossil_crabdb_t* db) {
 }
 
 bool fossil_crabql_list_tables(fossil_crabdb_t* db, char* table_buffer, size_t buffer_size) {
-    return fossil_crabql_get_tables(db, table_buffer, buffer_size);
+    return fossil_crabdb_get_tables(db, table_buffer, buffer_size);
 }
 
 bool fossil_crabql_list_columns(fossil_crabdb_t* db, const char* table, char* column_buffer, size_t buffer_size) {
-    return fossil_crabql_get_columns(db, table, column_buffer, buffer_size);
+    return fossil_crabdb_get_columns(db, table, column_buffer, buffer_size);
 }
