@@ -33,7 +33,6 @@ extern "C" {
 
 /* Enumeration for data types */
 typedef enum {
-    FOSSIL_CRABDB_TYPE_MIN,
     FOSSIL_CRABDB_TYPE_INT8,
     FOSSIL_CRABDB_TYPE_INT16,
     FOSSIL_CRABDB_TYPE_INT32,
@@ -59,8 +58,7 @@ typedef enum {
     FOSSIL_CRABDB_TYPE_STRING,
     FOSSIL_CRABDB_TYPE_BOOL,
     FOSSIL_CRABDB_TYPE_CHAR,
-    FOSSIL_CRABDB_TYPE_NULL,
-    FOSSIL_CRABDB_TYPE_MAX
+    FOSSIL_CRABDB_TYPE_NULL
 } fossil_crabdb_type_t;
 
 /* Structure for CrabDB node */

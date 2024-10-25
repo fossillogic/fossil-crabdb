@@ -60,85 +60,109 @@ bool contains_banned_words(const char* query) {
     return false;  // No banned words found
 }
 
-int fossil_crabdb_query_by_type(fossil_crabdb_t* db, fossil_crabdb_type_t type, char* result_buffer, size_t buffer_size) {
-    if (!db || !result_buffer) return -1;
-    if (buffer_size < MIN_BUFFER_SIZE) return -2;
-    if (type < FOSSIL_CRABDB_TYPE_MIN || type > FOSSIL_CRABDB_TYPE_MAX) return -3;
+/* Search Operations */
 
-    memset(result_buffer, 0, buffer_size);
-    size_t written = 0;
-    fossil_crabdb_node_t* current = db->head;
-    bool found = false;
-
-    while (current) {
-        if (current->type == type) {
-            int required_size = snprintf(NULL, 0, "%s:%s\n", current->key, current->value);
-            if (written + required_size >= buffer_size) return -4;
-
-            written += snprintf(result_buffer + written, buffer_size - written, "%s:%s\n", current->key, current->value);
-            found = true;
-        }
-        current = current->next;
+fossil_crabql_result_collection_t* fossil_crabql_init_result_collection(size_t capacity) {
+    fossil_crabql_result_collection_t* collection = (fossil_crabql_result_collection_t*)malloc(sizeof(fossil_crabql_result_collection_t));
+    if (!collection) {
+        return NULL;  // Memory allocation failed
     }
-
-    return found ? 0 : -5;  // -5 if no matches were found
+    
+    collection->results = (fossil_crabql_result_t*)malloc(capacity * sizeof(fossil_crabql_result_t));
+    if (!collection->results) {
+        free(collection);  // Clean up previously allocated memory
+        return NULL;  // Memory allocation failed
+    }
+    
+    collection->count = 0;
+    collection->capacity = capacity;
+    return collection;
 }
 
-bool fossil_crabdb_query_range(fossil_crabdb_t* db, const char* key, const char* min_value, const char* max_value, char* result_buffer, size_t buffer_size) {
-    if (!db || !key || !min_value || !max_value || !result_buffer) return false;
-
-    size_t current_size = 0;
-    fossil_crabdb_node_t* node = db->head;
-
-    while (node) {
-        if (strncmp(node->key, key, strlen(key)) == 0 && strcmp(node->value, min_value) >= 0 && strcmp(node->value, max_value) <= 0) {
-            int written = snprintf(result_buffer + current_size, buffer_size - current_size, "%s: %s\n", node->key, node->value);
-            if (written < 0 || (size_t)written >= buffer_size - current_size) return false;
-
-            current_size += written;
-        }
-        node = node->next;
+void fossil_crabql_destroy_result_collection(fossil_crabql_result_collection_t* collection) {
+    if (collection) {
+        free(collection->results);  // Free the array of results
+        free(collection);            // Free the collection structure
     }
-    return current_size > 0;
 }
 
-bool fossil_crabdb_full_text_search(fossil_crabdb_t* db, const char* search_text, char* result_buffer, size_t buffer_size) {
-    if (!db || !search_text || !result_buffer) return false;
-    if (contains_banned_words(search_text)) {
-        fprintf(stderr, "Error: Search contains restricted words.\n");
-        return false;
+bool fossil_crabql_search_by_key(fossil_crabdb_t* db, const char* key, fossil_crabql_result_t* result) {
+    if (contains_banned_words(key)) {
+        return false;  // Key contains banned words, abort search
     }
 
-    size_t current_size = 0;
-    fossil_crabdb_node_t* node = db->head;
-
-    while (node) {
-        if (node->type == FOSSIL_CRABDB_TYPE_STRING && strstr(node->value, search_text)) {
-            int written = snprintf(result_buffer + current_size, buffer_size - current_size, "%s: %s\n", node->key, node->value);
-            if (written < 0 || (size_t)written >= buffer_size - current_size) return false;
-
-            current_size += written;
-        }
-        node = node->next;
+    const char* value = fossil_crabdb_get_value_by_key(db, key);
+    if (value) {
+        strncpy(result->key, key, FOSSIL_CRABQL_KEY_SIZE);
+        strncpy(result->value, value, FOSSIL_CRABQL_VAL_SIZE);
+        return true;  // Key was found
     }
-    return current_size > 0;
+    return false;  // Key not found
 }
 
-bool fossil_crabdb_query_by_time(fossil_crabdb_t* db, time_t time_criteria, bool newer_than, char* result_buffer, size_t buffer_size) {
-    if (!db || !result_buffer) return false;
-
-    size_t current_size = 0;
-    fossil_crabdb_node_t* node = db->head;
-
-    while (node) {
-        time_t node_time = node->timestamp;
-        if ((newer_than && node_time > time_criteria) || (!newer_than && node_time < time_criteria)) {
-            int written = snprintf(result_buffer + current_size, buffer_size - current_size, "%s\n", node->key);
-            if (written < 0 || (size_t)written >= buffer_size - current_size) return false;
-
-            current_size += written;
-        }
-        node = node->next;
+bool fossil_crabql_search_by_value(fossil_crabdb_t* db, const char* value, fossil_crabql_result_collection_t* collection) {
+    if (contains_banned_words(value)) {
+        return false;  // Value contains banned words, abort search
     }
-    return current_size > 0;
+
+    size_t found_count = fossil_crabdb_find_keys_by_value(db, value, collection->results, collection->capacity);
+    if (found_count > 0) {
+        collection->count = found_count;  // Update the count of results found
+        return true;  // Matching pairs found
+    }
+    return false;  // No matching pairs found
+}
+
+bool fossil_crabql_search_by_pattern(fossil_crabdb_t* db, const char* pattern, fossil_crabql_result_collection_t* collection) {
+    if (contains_banned_words(pattern)) {
+        return false;  // Pattern contains banned words, abort search
+    }
+
+    size_t found_count = fossil_crabdb_find_keys_by_pattern(db, pattern, collection->results, collection->capacity);
+    if (found_count > 0) {
+        collection->count = found_count;  // Update the count of results found
+        return true;  // Matching pairs found
+    }
+    return false;  // No matching pairs found
+}
+
+bool fossil_crabql_search_by_prefix(fossil_crabdb_t* db, const char* prefix, fossil_crabql_result_collection_t* collection) {
+    if (contains_banned_words(prefix)) {
+        return false;  // Prefix contains banned words, abort search
+    }
+
+    size_t found_count = fossil_crabdb_find_keys_by_prefix(db, prefix, collection->results, collection->capacity);
+    if (found_count > 0) {
+        collection->count = found_count;  // Update the count of results found
+        return true;  // Matching pairs found
+    }
+    return false;  // No matching pairs found
+}
+
+bool fossil_crabql_search_by_range(fossil_crabdb_t* db, const char* start_key, const char* end_key, fossil_crabql_result_collection_t* collection) {
+    if (contains_banned_words(start_key) || contains_banned_words(end_key)) {
+        return false;  // Range contains banned words, abort search
+    }
+
+    size_t found_count = fossil_crabdb_find_keys_in_range(db, start_key, end_key, collection->results, collection->capacity);
+    if (found_count > 0) {
+        collection->count = found_count;  // Update the count of results found
+        return true;  // Matching pairs found
+    }
+    return false;  // No matching pairs found
+}
+
+bool fossil_crabql_resize_result_collection(fossil_crabql_result_collection_t* collection, size_t new_capacity) {
+    if (new_capacity <= collection->capacity) {
+        return false;  // New capacity must be larger
+    }
+    
+    fossil_crabql_result_t* new_results = (fossil_crabql_result_t*)realloc(collection->results, new_capacity * sizeof(fossil_crabql_result_t));
+    if (!new_results) {
+        return false;  // Memory allocation failed
+    }
+    
+    collection->results = new_results;  // Update the results pointer
+    collection->capacity = new_capacity;  // Update the capacity
+    return true;  // Resizing successful
 }
