@@ -102,7 +102,11 @@ FOSSIL_TEST(test_fossil_crabdb_delete_non_existing_key) {
 FOSSIL_TEST(test_fossil_crabdb_cleanup_expired) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_insert_with_ttl(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING, 1); // 1 second TTL
-    sleep(2); // Sleep to allow expiration
+    // Delay loop to allow expiration
+    time_t start_time = time(NULL);
+    while (time(NULL) - start_time < 2) {
+        // Busy-wait loop for 2 seconds
+    }
     bool result = fossil_crabdb_cleanup_expired(db);
     ASSUME_ITS_TRUE(result);
     ASSUME_ITS_EQUAL_I32(0, db->node_count);
