@@ -99,28 +99,6 @@ FOSSIL_TEST(test_fossil_crabdb_delete_non_existing_key) {
     fossil_crabdb_destroy(db);
 }
 
-FOSSIL_TEST(test_fossil_crabdb_batch_insert) {
-    fossil_crabdb_t* db = fossil_crabdb_create();
-    const char keys[][FOSSIL_CRABDB_KEY_SIZE] = {"key1", "key2"};
-    const char values[][FOSSIL_CRABDB_VAL_SIZE] = {"value1", "value2"};
-    fossil_crabdb_type_t types[] = {FOSSIL_CRABDB_TYPE_STRING, FOSSIL_CRABDB_TYPE_STRING};
-    bool result = fossil_crabdb_batch_insert(db, keys, values, types, 2);
-    ASSUME_ITS_TRUE(result);
-    ASSUME_ITS_EQUAL_I32(2, db->node_count);
-    fossil_crabdb_destroy(db);
-}
-
-FOSSIL_TEST(test_fossil_crabdb_batch_delete) {
-    fossil_crabdb_t* db = fossil_crabdb_create();
-    fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
-    fossil_crabdb_insert(db, "key2", "value2", FOSSIL_CRABDB_TYPE_STRING);
-    const char keys[][FOSSIL_CRABDB_KEY_SIZE] = {"key1", "key2"};
-    bool result = fossil_crabdb_batch_delete(db, keys, 2);
-    ASSUME_ITS_TRUE(result);
-    ASSUME_ITS_EQUAL_I32(0, db->node_count);
-    fossil_crabdb_destroy(db);
-}
-
 FOSSIL_TEST(test_fossil_crabdb_cleanup_expired) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_insert_with_ttl(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING, 1); // 1 second TTL
@@ -145,7 +123,5 @@ FOSSIL_TEST_GROUP(c_crab_database_tests) {
     ADD_TEST(test_fossil_crabdb_update);
     ADD_TEST(test_fossil_crabdb_delete);
     ADD_TEST(test_fossil_crabdb_delete_non_existing_key);
-    ADD_TEST(test_fossil_crabdb_batch_insert);
-    ADD_TEST(test_fossil_crabdb_batch_delete);
     ADD_TEST(test_fossil_crabdb_cleanup_expired);
 } // end of tests

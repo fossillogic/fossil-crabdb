@@ -140,28 +140,6 @@ bool fossil_crabdb_delete(fossil_crabdb_t* db, const char* key);
  */
 bool fossil_crabdb_select(fossil_crabdb_t* db, const char* key, char* value, size_t value_size);
 
-/* Bulk Operations */
-
-/**
- * @brief Inserts multiple key-value pairs into the CrabDB in a batch operation.
- * @param db A pointer to the CrabDB instance.
- * @param keys An array of keys to be inserted.
- * @param values An array of values to be associated with the keys.
- * @param types An array of types corresponding to each value.
- * @param count The number of key-value pairs to be inserted.
- * @return true if the batch insertion was successful, false otherwise.
- */
-bool fossil_crabdb_batch_insert(fossil_crabdb_t* db, const char keys[][FOSSIL_CRABDB_KEY_SIZE], const char values[][FOSSIL_CRABDB_VAL_SIZE], fossil_crabdb_type_t types[], size_t count);
-
-/**
- * @brief Deletes multiple key-value pairs from the CrabDB in a batch operation.
- * @param db A pointer to the CrabDB instance.
- * @param keys An array of keys to be deleted.
- * @param count The number of keys to be deleted.
- * @return true if the batch deletion was successful, false otherwise.
- */
-bool fossil_crabdb_batch_delete(fossil_crabdb_t* db, const char keys[][FOSSIL_CRABDB_KEY_SIZE], size_t count);
-
 /* Database Utilities */
 
 /**
