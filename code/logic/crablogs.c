@@ -71,15 +71,19 @@ static void log_message(crablog_level_t level, const char* module, const char* m
 
     if (log_format == CRABLOG_FORMAT_JSON) {
         if (log_output == CRABLOG_OUTPUT_FILE && log_file != NULL) {
-            fprintf(log_file, "{\"timestamp\":\"%s\",\"level\":\"%s\",\"module\":\"%s\",\"message\":\"%s\"}\n", timestamp, level_to_string(level), module, message);
+            fprintf(log_file, "{\"timestamp\":\"%s\",\"level\":\"%s\",\"module\":\"%s\",\"message\":\"%s\",\"file\":\"%s\",\"line\":%d,\"function\":\"%s\"}\n", 
+                    timestamp, level_to_string(level), module, message, file ? file : "", line, function ? function : "");
         } else {
-            printf("{\"timestamp\":\"%s\",\"level\":\"%s\",\"module\":\"%s\",\"message\":\"%s\"}\n", timestamp, level_to_string(level), module, message);
+            printf("{\"timestamp\":\"%s\",\"level\":\"%s\",\"module\":\"%s\",\"message\":\"%s\",\"file\":\"%s\",\"line\":%d,\"function\":\"%s\"}\n", 
+                   timestamp, level_to_string(level), module, message, file ? file : "", line, function ? function : "");
         }
     } else {
         if (log_output == CRABLOG_OUTPUT_FILE && log_file != NULL) {
-            fprintf(log_file, "[%s] [%s] [%s] %s\n", timestamp, level_to_string(level), module, message);
+            fprintf(log_file, "[%s] [%s] [%s] %s [%s:%d %s]\n", 
+                    timestamp, level_to_string(level), module, message, file ? file : "", line, function ? function : "");
         } else {
-            printf("[%s] [%s] [%s] %s\n", timestamp, level_to_string(level), module, message);
+            printf("[%s] [%s] [%s] %s [%s:%d %s]\n", 
+                   timestamp, level_to_string(level), module, message, file ? file : "", line, function ? function : "");
         }
     }
 
