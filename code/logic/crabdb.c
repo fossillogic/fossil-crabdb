@@ -127,6 +127,7 @@ bool fossil_crabdb_insert(fossil_crabdb_t* db, const char* key, const char* valu
     }
 
     db->tail = new_node;
+    db->node_count++; // Increment the node count
     return true;
 }
 
@@ -166,6 +167,7 @@ bool fossil_crabdb_delete(fossil_crabdb_t* db, const char* key) {
                 db->tail = current->prev;
             }
             free(current);
+            db->node_count--; // Decrement the node count
             return true;
         }
         current = current->next;
@@ -201,6 +203,7 @@ bool fossil_crabdb_batch_insert(fossil_crabdb_t* db, const char keys[][FOSSIL_CR
         }
     }
 
+    db->node_count += count; // Increment the node count by the number of inserted nodes
     return true;
 }
 
@@ -208,12 +211,14 @@ bool fossil_crabdb_batch_insert(fossil_crabdb_t* db, const char keys[][FOSSIL_CR
 bool fossil_crabdb_batch_delete(fossil_crabdb_t* db, const char keys[][FOSSIL_CRABDB_KEY_SIZE], size_t count) {
     if (!db || !keys) return false;
 
+    size_t deleted_count = 0;
     for (size_t i = 0; i < count; ++i) {
-        if (!fossil_crabdb_delete(db, keys[i])) {
-            return false;
+        if (fossil_crabdb_delete(db, keys[i])) {
+            deleted_count++;
         }
     }
 
+    db->node_count -= deleted_count; // Decrement the node count by the number of deleted nodes
     return true;
 }
 
