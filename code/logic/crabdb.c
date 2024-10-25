@@ -13,6 +13,67 @@
  */
 #include "fossil/crabdb/crabdb.h"
 
+// In a header file, e.g., crabdb.h
+struct fossil_crabdb* backup_current_db_state(struct fossil_crabdb *db) {
+    struct fossil_crabdb* backup = (struct fossil_crabdb*)malloc(sizeof(struct fossil_crabdb));
+    if (!backup) {
+        return NULL;
+    }
+
+    backup->head = backup->tail = NULL;
+    backup->in_transaction = db->in_transaction;
+    backup->logging_enabled = db->logging_enabled;
+
+    struct fossil_crabdb_node* current = db->head;
+    while (current) {
+        fossil_crabdb_insert(backup, current->key, current->value, current->type);
+        current = current->next;
+    }
+
+    return backup;
+}
+
+void persist_changes_to_disk(struct fossil_crabdb *db) {
+    if (db->db_file) {
+        fclose(db->db_file);
+    }
+
+    db->db_file = fopen(db->file_path, "wb");
+    if (!db->db_file) {
+        return;
+    }
+
+    struct fossil_crabdb_node* current = db->head;
+    while (current) {
+        fwrite(&current->type, sizeof(current->type), 1, db->db_file);
+        fwrite(current->key, sizeof(char), FOSSIL_CRABDB_KEY_SIZE, db->db_file);
+        fwrite(current->value, sizeof(char), FOSSIL_CRABDB_VAL_SIZE, db->db_file);
+        current = current->next;
+    }
+
+    fclose(db->db_file);
+}
+
+void restore_from_backup(struct fossil_crabdb *db, struct fossil_crabdb *backup) {
+    struct fossil_crabdb_node* current = db->head;
+    while (current) {
+        struct fossil_crabdb_node* next = current->next;
+        free(current);
+        current = next;
+    }
+
+    db->head = db->tail = NULL;
+    db->in_transaction = backup->in_transaction;
+    db->logging_enabled = backup->logging_enabled;
+
+    current = backup->head;
+    while (current) {
+        fossil_crabdb_insert(db, current->key, current->value, current->type);
+        current = current->next;
+    }
+}
+
+
 /* Create a new database */
 fossil_crabdb_t* fossil_crabdb_create(void) {
     fossil_crabdb_t* db = (fossil_crabdb_t*)malloc(sizeof(fossil_crabdb_t));
