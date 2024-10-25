@@ -294,7 +294,7 @@ bool fossil_crabdb_cleanup_expired(fossil_crabdb_t* db) {
     time_t current_time = time(NULL);
     fossil_crabdb_node_t* current = db->head;
     while (current) {
-        if (current->ttl > 0 && current_time - current->timestamp > current->ttl) {
+        if (current->ttl > 0 && current_time - (uint32_t)current->timestamp > current->ttl) {
             fossil_crabdb_node_t* temp = current;
             current = current->next;
             if (temp->prev) {
