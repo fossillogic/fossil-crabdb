@@ -113,6 +113,63 @@ FOSSIL_TEST(test_fossil_crabdb_cleanup_expired) {
     fossil_crabdb_destroy(db);
 }
 
+FOSSIL_TEST(test_fossil_crabdb_insert_batch) {
+    fossil_crabdb_t* db = fossil_crabdb_create();
+    const char* keys[] = {"key1", "key2", "key3"};
+    const char* values[] = {"value1", "value2", "value3"};
+    bool result = fossil_crabdb_insert_batch(db, keys, values, 3);
+    ASSUME_ITS_TRUE(result);
+    ASSUME_ITS_EQUAL_I32(3, db->node_count);
+    fossil_crabdb_destroy(db);
+}
+
+FOSSIL_TEST(test_fossil_crabdb_update_batch) {
+    fossil_crabdb_t* db = fossil_crabdb_create();
+    fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_insert(db, "key2", "value2", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_insert(db, "key3", "value3", FOSSIL_CRABDB_TYPE_STRING);
+    const char* keys[] = {"key1", "key2", "key3"};
+    const char* values[] = {"value_updated1", "value_updated2", "value_updated3"};
+    bool result = fossil_crabdb_update_batch(db, keys, values, 3);
+    ASSUME_ITS_TRUE(result);
+    char value[FOSSIL_CRABDB_VAL_SIZE];
+    fossil_crabdb_select(db, "key1", value, sizeof(value));
+    ASSUME_ITS_EQUAL_CSTR("value_updated1", value);
+    fossil_crabdb_select(db, "key2", value, sizeof(value));
+    ASSUME_ITS_EQUAL_CSTR("value_updated2", value);
+    fossil_crabdb_select(db, "key3", value, sizeof(value));
+    ASSUME_ITS_EQUAL_CSTR("value_updated3", value);
+    fossil_crabdb_destroy(db);
+}
+
+FOSSIL_TEST(test_fossil_crabdb_select_batch) {
+    fossil_crabdb_t* db = fossil_crabdb_create();
+    fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_insert(db, "key2", "value2", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_insert(db, "key3", "value3", FOSSIL_CRABDB_TYPE_STRING);
+    const char* keys[] = {"key1", "key2", "key3"};
+    char values[3][FOSSIL_CRABDB_VAL_SIZE];
+    size_t value_sizes[3] = {sizeof(values[0]), sizeof(values[1]), sizeof(values[2])};
+    bool result = fossil_crabdb_select_batch(db, keys, values, value_sizes, 3);
+    ASSUME_ITS_TRUE(result);
+    ASSUME_ITS_EQUAL_CSTR("value1", values[0]);
+    ASSUME_ITS_EQUAL_CSTR("value2", values[1]);
+    ASSUME_ITS_EQUAL_CSTR("value3", values[2]);
+    fossil_crabdb_destroy(db);
+}
+
+FOSSIL_TEST(test_fossil_crabdb_delete_batch) {
+    fossil_crabdb_t* db = fossil_crabdb_create();
+    fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_insert(db, "key2", "value2", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_insert(db, "key3", "value3", FOSSIL_CRABDB_TYPE_STRING);
+    const char* keys[] = {"key1", "key2", "key3"};
+    bool result = fossil_crabdb_delete_batch(db, keys, 3);
+    ASSUME_ITS_TRUE(result);
+    ASSUME_ITS_EQUAL_I32(0, db->node_count);
+    fossil_crabdb_destroy(db);
+}
+
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
@@ -128,4 +185,8 @@ FOSSIL_TEST_GROUP(c_crab_database_tests) {
     ADD_TEST(test_fossil_crabdb_delete);
     ADD_TEST(test_fossil_crabdb_delete_non_existing_key);
     ADD_TEST(test_fossil_crabdb_cleanup_expired);
+    ADD_TEST(test_fossil_crabdb_insert_batch);
+    ADD_TEST(test_fossil_crabdb_update_batch);
+    ADD_TEST(test_fossil_crabdb_select_batch);
+    ADD_TEST(test_fossil_crabdb_delete_batch);
 } // end of tests

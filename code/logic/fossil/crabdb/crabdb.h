@@ -197,6 +197,49 @@ bool fossil_crabdb_commit_transaction(fossil_crabdb_t* db);
  */
 bool fossil_crabdb_rollback_transaction(fossil_crabdb_t* db);
 
+/* Database Batch Operations */
+
+/**
+ * @brief Inserts multiple key-value pairs into the CrabDB db.
+ * @param db A pointer to the db.
+ * @param keys An array of keys to insert.
+ * @param values An array of values to insert.
+ * @param types An array of types for the values.
+ * @param count The number of key-value pairs to insert.
+ * @return true if all pairs were inserted successfully, false otherwise.
+ */
+bool fossil_crabdb_insert_batch(fossil_crabdb_t* db, const char** keys, const char** values, fossil_crabdb_type_t* types, size_t count);
+
+/**
+ * @brief Deletes multiple key-value pairs from the CrabDB db.
+ * @param db A pointer to the db.
+ * @param keys An array of keys to delete.
+ * @param count The number of keys to delete.
+ * @return true if all pairs were deleted successfully, false otherwise.
+ */
+bool fossil_crabdb_delete_batch(fossil_crabdb_t* db, const char** keys, size_t count);
+
+/**
+ * @brief Updates multiple key-value pairs in the CrabDB db.
+ * @param db A pointer to the db.
+ * @param keys An array of keys to update.
+ * @param values An array of new values to update.
+ * @param count The number of key-value pairs to update.
+ * @return true if all pairs were updated successfully, false otherwise.
+ */
+bool fossil_crabdb_update_batch(fossil_crabdb_t* db, const char** keys, const char** values, size_t count);
+
+/**
+ * @brief Selects multiple key-value pairs from the CrabDB db.
+ * @param db A pointer to the db.
+ * @param keys An array of keys to select.
+ * @param values A buffer to store the selected values.
+ * @param value_sizes An array of sizes for the value buffers.
+ * @param count The number of key-value pairs to select.
+ * @return true if all pairs were selected successfully, false otherwise.
+ */
+bool fossil_crabdb_select_batch(fossil_crabdb_t* db, const char** keys, char** values, size_t* value_sizes, size_t count);
+
 /* Database Algorihtms */
 
 /**

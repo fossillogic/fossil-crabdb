@@ -248,6 +248,54 @@ bool fossil_crabdb_rollback_transaction(fossil_crabdb_t* db) {
     return true;
 }
 
+bool fossil_crabdb_insert_batch(fossil_crabdb_t* db, const char** keys, const char** values, fossil_crabdb_type_t* types, size_t count) {
+    if (!db || !keys || !values || !types) return false;
+
+    for (size_t i = 0; i < count; i++) {
+        if (!fossil_crabdb_insert(db, keys[i], values[i], types[i])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool fossil_crabdb_delete_batch(fossil_crabdb_t* db, const char** keys, size_t count) {
+    if (!db || !keys) return false;
+
+    for (size_t i = 0; i < count; i++) {
+        if (!fossil_crabdb_delete(db, keys[i])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool fossil_crabdb_update_batch(fossil_crabdb_t* db, const char** keys, const char** values, size_t count) {
+    if (!db || !keys || !values) return false;
+
+    for (size_t i = 0; i < count; i++) {
+        if (!fossil_crabdb_update(db, keys[i], values[i])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool fossil_crabdb_select_batch(fossil_crabdb_t* db, const char** keys, char** values, size_t* value_sizes, size_t count) {
+    if (!db || !keys || !values || !value_sizes) return false;
+
+    for (size_t i = 0; i < count; i++) {
+        if (!fossil_crabdb_select(db, keys[i], values[i], value_sizes[i])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 bool fossil_crabdb_search_by_pattern(fossil_crabdb_t* db, const char* pattern, char* result_buffer, size_t buffer_size) {
     if (!db || !pattern || !result_buffer) return false;
 
