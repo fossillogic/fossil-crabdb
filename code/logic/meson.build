@@ -1,7 +1,7 @@
 dir = include_directories('.')
 
 fossil_crabdb_lib = library('fossil-crabdb',
-    files('crabdb.c', 'crablogs.c'),
+    files('crabdb.c', 'crabql.c', 'crablogs.c'),
     install: true,
     include_directories: dir)
 
