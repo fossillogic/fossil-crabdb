@@ -201,7 +201,7 @@ bool fossil_crabdb_search_by_pattern(fossil_crabdb_t* db, const char* pattern, c
     while (current) {
         if (strstr(current->key, pattern) != NULL) {
             size_t length = snprintf(result_buffer + offset, buffer_size - offset, "%s=%s\n", current->key, current->value);
-            if (length < 0 || length >= buffer_size - offset) {
+            if (length >= buffer_size - offset) {
                 return false;
             }
             offset += length;
@@ -410,7 +410,7 @@ bool fossil_crabdb_execute_crabql(fossil_crabdb_t* db, const char* query, char* 
         fossil_crabdb_node_t* current = db->head;
         while (current) {
             size_t length = snprintf(result_buffer + offset, buffer_size - offset, "%s=%s\n", current->key, current->value);
-            if (length < 0 || length >= buffer_size - offset) {
+            if (length >= buffer_size - offset) {
                 return false;
             }
             offset += length;
