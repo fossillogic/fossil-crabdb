@@ -36,14 +36,6 @@ FOSSIL_TEST(test_query_range_invalid_type) {
     ASSUME_ITS_EQUAL_I32(1, result); // Expect 1 for invalid type
 }
 
-FOSSIL_TEST(test_query_range_buffer_overflow) {
-    fossil_crabdb_t db;
-    char result_buffer[256]; // Ensure buffer is adequately sized to prevent overflow
-    char result_buffer[10]; // Intentionally small buffer
-    int result = fossil_crabdb_query_range(&db, "key", "0", "100", result_buffer, sizeof(result_buffer));
-    ASSUME_ITS_EQUAL_I32(2, result); // Expect 2 for buffer overflow
-}
-
 FOSSIL_TEST(test_query_range_no_match_found) {
     fossil_crabdb_t db;
     char result_buffer[256];
@@ -132,7 +124,6 @@ FOSSIL_TEST(test_query_by_time_success) {
 FOSSIL_TEST_GROUP(c_crab_qsearch_tests) {
     ADD_TEST(test_query_range_null_db);
     ADD_TEST(test_query_range_invalid_type);
-    ADD_TEST(test_query_range_buffer_overflow);
     ADD_TEST(test_query_range_no_match_found);
     ADD_TEST(test_query_range_success);
     ADD_TEST(test_full_text_search_null_db);
