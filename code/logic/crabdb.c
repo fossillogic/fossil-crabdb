@@ -77,21 +77,40 @@ void restore_from_backup(struct fossil_crabdb *db, struct fossil_crabdb *backup)
 /* Create a new database */
 fossil_crabdb_t* fossil_crabdb_create(void) {
     fossil_crabdb_t* db = (fossil_crabdb_t*)malloc(sizeof(fossil_crabdb_t));
+    if (!db) {
+        return NULL;
+    }
+
     db->head = db->tail = NULL;
+    db->in_transaction = false;
+    db->transaction_backup = NULL;
+    db->db_file = NULL;
+    db->file_path = "crabdb.dat";
+    db->logging_enabled = false;
+    db->node_count = 0;
+
     return db;
 }
 
 /* Destroy the database */
 void fossil_crabdb_destroy(fossil_crabdb_t* db) {
-    if (db) {
-        fossil_crabdb_node_t* current = db->head;
-        while (current) {
-            fossil_crabdb_node_t* temp = current;
-            current = current->next;
-            free(temp);
-        }
-        free(db);
+    if (!db) return;
+
+    /* Free all nodes in the db */
+    fossil_crabdb_node_t* current = db->head;
+    while (current) {
+        fossil_crabdb_node_t* next = current->next;
+        free(current);
+        current = next;
     }
+
+    /* Close the db file if open */
+    if (db->db_file) {
+        fclose(db->db_file);
+    }
+
+    /* Free the db */
+    free(db);
 }
 
 /* Insert a new key-value pair */
