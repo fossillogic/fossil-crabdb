@@ -117,7 +117,7 @@ FOSSIL_TEST(test_fossil_crabdb_insert_batch) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     const char* keys[] = {"key1", "key2", "key3"};
     const char* values[] = {"value1", "value2", "value3"};
-    bool result = fossil_crabdb_insert_batch(db, keys, values, FOSSIL_CRABDB_TYPE_STRING, 3);
+    bool result = fossil_crabdb_insert_batch(db, keys, values, &FOSSIL_CRABDB_TYPE_STRING, 3);
     ASSUME_ITS_TRUE(result);
     ASSUME_ITS_EQUAL_I32(3, db->node_count);
     fossil_crabdb_destroy(db);
@@ -147,7 +147,7 @@ FOSSIL_TEST(test_fossil_crabdb_select_batch) {
     fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
     fossil_crabdb_insert(db, "key2", "value2", FOSSIL_CRABDB_TYPE_STRING);
     fossil_crabdb_insert(db, "key3", "value3", FOSSIL_CRABDB_TYPE_STRING);
-    const char* keys[] = {"key1", "key2", "key3"};
+    char* keys[] = {"key1", "key2", "key3"};
     char values[3][FOSSIL_CRABDB_VAL_SIZE];
     size_t value_sizes[3] = {sizeof(values[0]), sizeof(values[1]), sizeof(values[2])};
     bool result = fossil_crabdb_select_batch(db, keys, values, value_sizes, 3);
