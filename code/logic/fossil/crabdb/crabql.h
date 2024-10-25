@@ -41,7 +41,7 @@ int fossil_crabdb_query_by_type(fossil_crabdb_t* db, fossil_crabdb_type_t type, 
  * @param buffer_size The size of the result buffer; must be large enough to hold expected results.
  * @return Error code (0 = success, -1 = null pointer, 1 = invalid type or parse error, 2 = buffer overflow, 3 = no match found).
  */
-int fossil_crabdb_query_range(fossil_crabdb_t* db, const char* key, fossil_crabdb_type_t type, const char* min_value, const char* max_value, char* result_buffer, size_t buffer_size);
+bool fossil_crabdb_query_range(fossil_crabdb_t* db, const char* key, const char* min_value, const char* max_value, char* result_buffer, size_t buffer_size);
 
 /**
  * @brief Allows full-text search on string-type nodes, with sanitization for input validation.
@@ -52,7 +52,7 @@ int fossil_crabdb_query_range(fossil_crabdb_t* db, const char* key, fossil_crabd
  * @param buffer_size The size of the result buffer; must be large enough to hold expected results.
  * @return Error code (0 = success, -1 = null pointer, 1 = invalid text format, 2 = buffer overflow, 3 = no match found).
  */
-int fossil_crabdb_full_text_search(fossil_crabdb_t* db, const char* search_text, bool case_sensitive, char* result_buffer, size_t buffer_size);
+bool fossil_crabdb_full_text_search(fossil_crabdb_t* db, const char* search_text, char* result_buffer, size_t buffer_size);
 
 /**
  * @brief Finds nodes based on time-based criteria, with sanitization to validate the time range.
@@ -63,7 +63,7 @@ int fossil_crabdb_full_text_search(fossil_crabdb_t* db, const char* search_text,
  * @param buffer_size The size of the result buffer; must be large enough to hold expected results.
  * @return Error code (0 = success, -1 = null pointer, 1 = invalid time, 2 = buffer overflow, 3 = no match found).
  */
-int fossil_crabdb_query_by_time(fossil_crabdb_t* db, time_t time_criteria, bool newer_than, char* result_buffer, size_t buffer_size);
+bool fossil_crabdb_query_by_time(fossil_crabdb_t* db, time_t time_criteria, bool newer_than, char* result_buffer, size_t buffer_size);
 
 #ifdef __cplusplus
 }
