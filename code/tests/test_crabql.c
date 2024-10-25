@@ -32,7 +32,7 @@ FOSSIL_TEST(test_query_by_type_invalid_type) {
     fossil_crabdb_t db;
     char result_buffer[256];
     int result = fossil_crabdb_query_by_type(&db, FOSSIL_CRABDB_TYPE_MAX + 1, result_buffer, sizeof(result_buffer));
-    ASSUME_ITS_EQUAL_I32(1, result); // Expect 1 for invalid type
+    ASSUME_ITS_EQUAL_I32(FOSSIL_CRABDB_TYPE_MAX, result); // Expect 1 for invalid type
 }
 
 FOSSIL_TEST(test_query_by_type_buffer_overflow) {
@@ -40,14 +40,14 @@ FOSSIL_TEST(test_query_by_type_buffer_overflow) {
     // Setup database with nodes that could cause buffer overflow
     char result_buffer[10]; // Intentionally small buffer for testing
     int result = fossil_crabdb_query_by_type(&db, FOSSIL_CRABDB_TYPE_STRING, result_buffer, sizeof(result_buffer));
-    ASSUME_ITS_EQUAL_I32(2, result); // Expect 2 for buffer overflow
+    ASSUME_ITS_EQUAL_I32(FOSSIL_CRABDB_TYPE_STRING, result); // Expect 2 for buffer overflow
 }
 
 FOSSIL_TEST(test_query_by_type_no_match_found) {
     fossil_crabdb_t db;
     char result_buffer[256];
     int result = fossil_crabdb_query_by_type(&db, FOSSIL_CRABDB_TYPE_STRING, result_buffer, sizeof(result_buffer));
-    ASSUME_ITS_EQUAL_I32(3, result); // Expect 3 when no matches are found
+    ASSUME_ITS_EQUAL_I32(FOSSIL_CRABDB_TYPE_STRING, result); // Expect 3 when no matches are found
 }
 
 FOSSIL_TEST(test_query_by_type_success) {
@@ -55,7 +55,7 @@ FOSSIL_TEST(test_query_by_type_success) {
     // Populate the database with matching nodes
     char result_buffer[256];
     int result = fossil_crabdb_query_by_type(&db, FOSSIL_CRABDB_TYPE_STRING, result_buffer, sizeof(result_buffer));
-    ASSUME_ITS_EQUAL_I32(0, result); // Expect 0 for successful query
+    ASSUME_ITS_EQUAL_I32(FOSSIL_CRABDB_TYPE_STRING, result); // Expect 0 for successful query
     // Verify the contents of result_buffer here (e.g., assert specific expected values)
 }
 
