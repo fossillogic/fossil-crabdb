@@ -29,5 +29,5 @@
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
 FOSSIL_TEST_GROUP(c_crab_search_tests) {
-    (void)_test_env;
+    (void)test_env;
 } // end of tests
