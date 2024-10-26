@@ -59,7 +59,7 @@ FOSSIL_TEST(test_fossil_crabql_query_delete) {
 // Test invalid query
 FOSSIL_TEST(test_fossil_crabql_query_invalid) {
     const char *query = "SELECT FROM users;";
-    TEST_ASSERT_FALSE(fossil_crabql_query(query_mock_db, query));
+    ASSUME_ITS_FALSE(fossil_crabql_query(query_mock_db, query));
 }
 
 // * * * * * * * * * * * * * * * * * * * * * * * *
