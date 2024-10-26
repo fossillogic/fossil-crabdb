@@ -19,6 +19,8 @@ namespace fossil {
 #endif
 
 #include "database.h"
+#include "query.h"
+#include "logging.h"
 
 #ifdef __cplusplus
 } // namespae fossil
