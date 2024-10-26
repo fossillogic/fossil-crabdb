@@ -13,11 +13,31 @@
  */
 #include "fossil/crabdb/query.h"
 
+char *custom_strdup(const char *str) {
+    if (!str) return NULL;
+
+    size_t len = strlen(str);
+    char *new_str = (char *)malloc(len + 1);
+    if (!new_str) return NULL;
+
+    strcpy(new_str, str);
+    return new_str;
+}
+
 bool fossil_crabql_query(fossil_crabdb_t *db, const char *query) {
     if (!db || !query) return false;
 
     int num_tokens = 0;
-    char **tokens = fossil_crabql_tokenize(db, query, &num_tokens);
+    
+    // Create a modifiable copy of the query
+    char *query_copy = custom_strdup(query);
+    if (!query_copy) {
+        return false;  // Memory allocation failed
+    }
+
+    char **tokens = fossil_crabql_tokenize(db, query_copy, &num_tokens);
+    free(query_copy);  // Free the copy after tokenization
+
     if (!tokens) {
         return false;
     }
@@ -43,7 +63,13 @@ char **fossil_crabql_tokenize(fossil_crabdb_t *db, const char *query, int *num_t
     char *token = strtok((char *)query, " ");
     int count = 0;
     while (token) {
-        tokens[count] = strdup(token);
+        // Ensure not exceeding allocated tokens space
+        if (count >= MIN_BUFFER_SIZE) {
+            // Optionally resize tokens array here
+            break;  // Prevent buffer overflow
+        }
+
+        tokens[count] = custom_strdup(token);
         if (!tokens[count]) {
             for (int i = 0; i < count; i++) {
                 free(tokens[i]);
