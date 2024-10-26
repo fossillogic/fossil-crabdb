@@ -91,24 +91,24 @@ bool fossil_crabql_parse_and_execute(fossil_crabdb_t *db, char **tokens, int num
     // Handle commands based on the first token
     if (strcmp(tokens[0], "SELECT") == 0) {
         if (num_tokens > 1 && strcmp(tokens[1], "BATCH") == 0) {
-            return fossil_crabql_execute_select_batch(db, (const char **)&tokens[2], (char **)&tokens[num_tokens - 2], num_tokens - 2);
+            return fossil_crabql_execute_select_batch(db, (const char **)&tokens[2], (const char **)&tokens[num_tokens - 2], num_tokens - 2);
         }
-        return fossil_crabql_execute_select(db, (char **)&tokens[1], num_tokens - 1);
+        return fossil_crabql_execute_select(db, (const char **)&tokens[1], num_tokens - 1);
     } else if (strcmp(tokens[0], "INSERT") == 0) {
         if (num_tokens > 2 && strcmp(tokens[1], "BATCH") == 0) {
-            return fossil_crabql_execute_insert_batch(db, (const char **)&tokens[2], (char **)&tokens[num_tokens - 2], num_tokens - 2);
+            return fossil_crabql_execute_insert_batch(db, (const char **)&tokens[2], (const char **)&tokens[num_tokens - 2], num_tokens - 2);
         }
-        return fossil_crabql_execute_insert(db, (char **)&tokens[1], num_tokens - 1);
+        return fossil_crabql_execute_insert(db, (const char **)&tokens[1], num_tokens - 1);
     } else if (strcmp(tokens[0], "UPDATE") == 0) {
         if (num_tokens > 2 && strcmp(tokens[1], "BATCH") == 0) {
-            return fossil_crabql_execute_update_batch(db, (const char **)&tokens[2], (char **)&tokens[num_tokens - 2], num_tokens - 2);
+            return fossil_crabql_execute_update_batch(db, (const char **)&tokens[2], (const char **)&tokens[num_tokens - 2], num_tokens - 2);
         }
-        return fossil_crabql_execute_update(db, (char **)&tokens[1], num_tokens - 1);
+        return fossil_crabql_execute_update(db, (const char **)&tokens[1], num_tokens - 1);
     } else if (strcmp(tokens[0], "DELETE") == 0) {
         if (num_tokens > 2 && strcmp(tokens[1], "BATCH") == 0) {
             return fossil_crabql_execute_delete_batch(db, (const char **)&tokens[2], num_tokens - 2);
         }
-        return fossil_crabql_execute_delete(db, (char **)&tokens[1], num_tokens - 1);
+        return fossil_crabql_execute_delete(db, (const char **)&tokens[1], num_tokens - 1);
     } else if (strcmp(tokens[0], "CLEAR") == 0) {
         return fossil_crabql_execute_clear(db);
     } else if (strcmp(tokens[0], "BACKUP") == 0 && num_tokens > 1) {
