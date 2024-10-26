@@ -30,26 +30,6 @@ extern "C" {
 bool fossil_crabql_query(fossil_crabdb_t *db, const char *query);
 
 /**
- * Tokenizes a CrabQL query string into individual tokens.
- * 
- * @param db The database context.
- * @param query The query string to be tokenized.
- * @param num_tokens Pointer to an integer where the number of tokens will be stored.
- * @return An array of strings, each representing a token.
- */
-char **fossil_crabql_tokenize(fossil_crabdb_t *db, const char *query, int *num_tokens);
-
-/**
- * Parses and executes a tokenized CrabQL query.
- * 
- * @param db The database context.
- * @param tokens An array of strings representing the tokens.
- * @param num_tokens The number of tokens in the array.
- * @return true if the query was parsed and executed successfully, false otherwise.
- */
-bool fossil_crabql_parse_and_execute(fossil_crabdb_t *db, char **tokens, int num_tokens);
-
-/**
  * Executes a SELECT statement in CrabQL.
  * 
  * @param db The database context.
