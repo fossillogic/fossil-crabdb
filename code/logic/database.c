@@ -11,7 +11,7 @@
  * Copyright (C) 2024 Fossil Logic. All rights reserved.
  * -----------------------------------------------------------------------------
  */
-#include "fossil/crabdb/crabdb.h"
+#include "fossil/crabdb/database.h"
 
 // In a header file, e.g., crabdb.h
 struct fossil_crabdb* backup_current_db_state(struct fossil_crabdb *db) {
@@ -503,25 +503,4 @@ bool fossil_crabdb_check_integrity(fossil_crabdb_t* db) {
     }
 
     return true;
-}
-
-bool fossil_crabdb_execute_crabql(fossil_crabdb_t* db, const char* query, char* result_buffer, size_t buffer_size) {
-    if (!db || !query || !result_buffer) return false;
-
-    /* Execute the CrabQL query */
-    if (strcmp(query, "SELECT * FROM db") == 0) {
-        size_t offset = 0;
-        fossil_crabdb_node_t* current = db->head;
-        while (current) {
-            size_t length = snprintf(result_buffer + offset, buffer_size - offset, "%s=%s\n", current->key, current->value);
-            if (length >= buffer_size - offset) {
-                return false;
-            }
-            offset += length;
-            current = current->next;
-        }
-        return true;
-    }
-
-    return false;
 }

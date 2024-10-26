@@ -11,7 +11,7 @@
  * Copyright (C) 2024 Fossil Logic. All rights reserved.
  * -----------------------------------------------------------------------------
  */
-#include "fossil/crabdb/crablogs.h"
+#include "fossil/crabdb/logging.h"
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
