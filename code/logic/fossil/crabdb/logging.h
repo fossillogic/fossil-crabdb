@@ -14,7 +14,7 @@
 #ifndef FOSSIL_CRABDB_LOGS_H
 #define FOSSIL_CRABDB_LOGS_H
 
-#include "crabdb.h"
+#include "database.h"
 
 #ifdef __cplusplus
 extern "C" {

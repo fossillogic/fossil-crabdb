@@ -316,18 +316,6 @@ bool fossil_crabdb_disable_logging(fossil_crabdb_t* db);
  */
 bool fossil_crabdb_check_integrity(fossil_crabdb_t* db);
 
-/* Database Serialization */
-
-/**
- * @brief Executes a CrabQL query on the db.
- * @param db A pointer to the db.
- * @param query The CrabQL query to execute.
- * @param result_buffer The buffer to store query results.
- * @param buffer_size The size of the result buffer.
- * @return true if the query was executed successfully, false otherwise.
- */
-bool fossil_crabdb_execute_crabql(fossil_crabdb_t* db, const char* query, char* result_buffer, size_t buffer_size);
-
 #ifdef __cplusplus
 }
 #endif
