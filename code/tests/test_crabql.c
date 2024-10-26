@@ -13,7 +13,7 @@
  */
 #include <fossil/unittest/framework.h> // Includes the Fossil Unit Test Framework
 #include <fossil/mockup/framework.h>   // Includes the Fossil Mockup Framework
-#include <fossil/unittest/assume.h>            // Includes the Fossil Assume Framework
+#include <fossil/unittest/assume.h>    // Includes the Fossil Assume Framework
 
 #include "fossil/crabdb/framework.h"
 
@@ -62,14 +62,63 @@ FOSSIL_TEST(test_fossil_crabql_query_invalid) {
     ASSUME_ITS_FALSE(fossil_crabql_query(query_mock_db, query));
 }
 
+// Test successful LIST command
+FOSSIL_TEST(test_fossil_crabql_query_list) {
+    const char *query = "LIST;";
+    ASSUME_ITS_TRUE(fossil_crabql_query(query_mock_db, query)); // Adjust according to your implementation
+}
+
+// Test successful CLEAR command
+FOSSIL_TEST(test_fossil_crabql_query_clear) {
+    const char *query = "CLEAR;";
+    ASSUME_ITS_TRUE(fossil_crabql_query(query_mock_db, query));
+}
+
+// Test successful BACKUP command
+FOSSIL_TEST(test_fossil_crabql_query_backup) {
+    const char *query = "BACKUP TO 'backup.db';";
+    ASSUME_ITS_TRUE(fossil_crabql_query(query_mock_db, query)); // Ensure backup operation works
+}
+
+// Test successful RESTORE command
+FOSSIL_TEST(test_fossil_crabql_query_restore) {
+    const char *query = "RESTORE FROM 'backup.db';";
+    ASSUME_ITS_TRUE(fossil_crabql_query(query_mock_db, query)); // Ensure restore operation works
+}
+
+// Test successful BEGIN TRANSACTION
+FOSSIL_TEST(test_fossil_crabql_query_begin_transaction) {
+    const char *query = "BEGIN TRANSACTION;";
+    ASSUME_ITS_TRUE(fossil_crabql_query(query_mock_db, query));
+}
+
+// Test successful COMMIT
+FOSSIL_TEST(test_fossil_crabql_query_commit_transaction) {
+    const char *query = "COMMIT;";
+    ASSUME_ITS_TRUE(fossil_crabql_query(query_mock_db, query));
+}
+
+// Test successful ROLLBACK
+FOSSIL_TEST(test_fossil_crabql_query_rollback_transaction) {
+    const char *query = "ROLLBACK;";
+    ASSUME_ITS_TRUE(fossil_crabql_query(query_mock_db, query));
+}
+
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
 FOSSIL_TEST_GROUP(c_crab_query_tests) {
-    ADD_TESTF(test_fossil_crabql_query_select, query_fixture);
     ADD_TESTF(test_fossil_crabql_query_insert, query_fixture);
     ADD_TESTF(test_fossil_crabql_query_update, query_fixture);
+    ADD_TESTF(test_fossil_crabql_query_select, query_fixture);
     ADD_TESTF(test_fossil_crabql_query_delete, query_fixture);
     ADD_TESTF(test_fossil_crabql_query_invalid, query_fixture);
+    ADD_TESTF(test_fossil_crabql_query_list, query_fixture);
+    ADD_TESTF(test_fossil_crabql_query_clear, query_fixture);
+    ADD_TESTF(test_fossil_crabql_query_backup, query_fixture);
+    ADD_TESTF(test_fossil_crabql_query_restore, query_fixture);
+    ADD_TESTF(test_fossil_crabql_query_begin_transaction, query_fixture);
+    ADD_TESTF(test_fossil_crabql_query_commit_transaction, query_fixture);
+    ADD_TESTF(test_fossil_crabql_query_rollback_transaction, query_fixture);
 } // end of tests
