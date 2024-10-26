@@ -70,32 +70,6 @@ bool fossil_crabql_execute_update(fossil_crabdb_t *db, char **tokens, int num_to
 bool fossil_crabql_execute_delete(fossil_crabdb_t *db, char **tokens, int num_tokens);
 
 /**
- * Executes a CLEAR statement in CrabQL.
- * 
- * @param db The database context.
- * @return true if the CLEAR command was executed successfully, false otherwise.
- */
-bool fossil_crabql_execute_clear(fossil_crabdb_t* db);
-
-/**
- * Executes a BACKUP statement in CrabQL.
- * 
- * @param db The database context.
- * @param filename The name of the file to store the backup.
- * @return true if the BACKUP command was executed successfully, false otherwise.
- */
-bool fossil_crabql_execute_backup(fossil_crabdb_t* db, const char* filename);
-
-/**
- * Executes a RESTORE statement in CrabQL.
- * 
- * @param db The database context.
- * @param filename The name of the backup file.
- * @return true if the RESTORE command was executed successfully, false otherwise.
- */
-bool fossil_crabql_execute_restore(fossil_crabdb_t* db, const char* filename);
-
-/**
  * Executes a BEGIN TRANSACTION statement in CrabQL.
  * 
  * @param db The database context.
