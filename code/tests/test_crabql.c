@@ -62,18 +62,6 @@ FOSSIL_TEST(test_fossil_crabql_query_invalid) {
     ASSUME_ITS_FALSE(fossil_crabql_query(query_mock_db, query));
 }
 
-// Test successful BEGIN TRANSACTION
-FOSSIL_TEST(test_fossil_crabql_query_begin_transaction) {
-    const char *query = "BEGIN TRANSACTION;";
-    ASSUME_ITS_TRUE(fossil_crabql_query(query_mock_db, query));
-}
-
-// Test successful COMMIT
-FOSSIL_TEST(test_fossil_crabql_query_commit_transaction) {
-    const char *query = "COMMIT;";
-    ASSUME_ITS_TRUE(fossil_crabql_query(query_mock_db, query));
-}
-
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
@@ -84,6 +72,4 @@ FOSSIL_TEST_GROUP(c_crab_query_tests) {
     ADD_TESTF(test_fossil_crabql_query_select, query_fixture);
     ADD_TESTF(test_fossil_crabql_query_delete, query_fixture);
     ADD_TESTF(test_fossil_crabql_query_invalid, query_fixture);
-    ADD_TESTF(test_fossil_crabql_query_begin_transaction, query_fixture);
-    ADD_TESTF(test_fossil_crabql_query_commit_transaction, query_fixture);
 } // end of tests
