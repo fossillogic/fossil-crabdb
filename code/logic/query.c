@@ -24,33 +24,6 @@ char *custom_strdup(const char *str) {
     return new_str;
 }
 
-bool fossil_crabql_query(fossil_crabdb_t *db, const char *query) {
-    if (!db || !query) return false;
-
-    int num_tokens = 0;
-    
-    // Create a modifiable copy of the query
-    char *query_copy = custom_strdup(query);
-    if (!query_copy) {
-        return false;  // Memory allocation failed
-    }
-
-    char **tokens = fossil_crabql_tokenize(db, query_copy, &num_tokens);
-    free(query_copy);  // Free the copy after tokenization
-
-    if (!tokens) {
-        return false;
-    }
-
-    bool result = fossil_crabql_parse_and_execute(db, tokens, num_tokens);
-    for (int i = 0; i < num_tokens; i++) {
-        free(tokens[i]);
-    }
-    free(tokens);
-
-    return result;
-}
-
 char **fossil_crabql_tokenize(fossil_crabdb_t *db, const char *query, int *num_tokens) {
     if (!db || !query || !num_tokens) return NULL;
 
@@ -111,6 +84,33 @@ bool fossil_crabql_parse_and_execute(fossil_crabdb_t *db, char **tokens, int num
     } else {
         return false;
     }
+}
+
+bool fossil_crabql_query(fossil_crabdb_t *db, const char *query) {
+    if (!db || !query) return false;
+
+    int num_tokens = 0;
+    
+    // Create a modifiable copy of the query
+    char *query_copy = custom_strdup(query);
+    if (!query_copy) {
+        return false;  // Memory allocation failed
+    }
+
+    char **tokens = fossil_crabql_tokenize(db, query_copy, &num_tokens);
+    free(query_copy);  // Free the copy after tokenization
+
+    if (!tokens) {
+        return false;
+    }
+
+    bool result = fossil_crabql_parse_and_execute(db, tokens, num_tokens);
+    for (int i = 0; i < num_tokens; i++) {
+        free(tokens[i]);
+    }
+    free(tokens);
+
+    return result;
 }
 
 bool fossil_crabql_execute_select(fossil_crabdb_t *db, char **tokens, int num_tokens) {
