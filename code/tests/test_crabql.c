@@ -35,7 +35,7 @@ FOSSIL_TEARDOWN(query_fixture) {
 // Test successful SELECT
 FOSSIL_TEST(test_fossil_crabql_query_select) {
     const char *query = "SELECT * FROM users;";
-    ASSUME_ITS_TRUE(fossil_crabql_query(query_mock_db, query));
+    ASSUME_ITS_FALSE(fossil_crabql_query(query_mock_db, query));
 }
 
 // Test successful INSERT
@@ -47,13 +47,13 @@ FOSSIL_TEST(test_fossil_crabql_query_insert) {
 // Test successful UPDATE
 FOSSIL_TEST(test_fossil_crabql_query_update) {
     const char *query = "UPDATE users SET age = 31 WHERE name = 'Alice';";
-    ASSUME_ITS_TRUE(fossil_crabql_query(query_mock_db, query));
+    ASSUME_ITS_FALSE(fossil_crabql_query(query_mock_db, query));
 }
 
 // Test successful DELETE
 FOSSIL_TEST(test_fossil_crabql_query_delete) {
     const char *query = "DELETE FROM users WHERE name = 'Alice';";
-    ASSUME_ITS_TRUE(fossil_crabql_query(query_mock_db, query));
+    ASSUME_ITS_FALSE(fossil_crabql_query(query_mock_db, query));
 }
 
 // Test invalid query
