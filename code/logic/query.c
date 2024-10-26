@@ -96,8 +96,28 @@ bool fossil_crabql_parse_and_execute(fossil_crabdb_t *db, char **tokens, int num
         return fossil_crabql_execute_update(db, tokens, num_tokens);
     } else if (strcmp(tokens[0], "DELETE") == 0) {
         return fossil_crabql_execute_delete(db, tokens, num_tokens);
+    } else if (strcmp(tokens[0], "CLEAR") == 0) {
+        return fossil_crabql_execute_clear(db);
+    } else if (strcmp(tokens[0], "BACKUP") == 0) {
+        return fossil_crabql_execute_backup(db, tokens[1]);  // Assuming the filename is the second token
+    } else if (strcmp(tokens[0], "RESTORE") == 0) {
+        return fossil_crabql_execute_restore(db, tokens[1]);  // Assuming the filename is the second token
+    } else if (strcmp(tokens[0], "BEGIN") == 0 && strcmp(tokens[1], "TRANSACTION") == 0) {
+        return fossil_crabql_execute_begin_transaction(db);
+    } else if (strcmp(tokens[0], "COMMIT") == 0 && strcmp(tokens[1], "TRANSACTION") == 0) {
+        return fossil_crabql_execute_commit_transaction(db);
+    } else if (strcmp(tokens[0], "ROLLBACK") == 0 && strcmp(tokens[1], "TRANSACTION") == 0) {
+        return fossil_crabql_execute_rollback_transaction(db);
+    } else if (strcmp(tokens[0], "INSERT") == 0 && strcmp(tokens[1], "BATCH") == 0) {
+        return fossil_crabql_execute_insert_batch(db, &tokens[2], &tokens[num_tokens - 2], num_tokens - 2);  // Adjust as necessary
+    } else if (strcmp(tokens[0], "DELETE") == 0 && strcmp(tokens[1], "BATCH") == 0) {
+        return fossil_crabql_execute_delete_batch(db, &tokens[2], num_tokens - 2);  // Adjust as necessary
+    } else if (strcmp(tokens[0], "UPDATE") == 0 && strcmp(tokens[1], "BATCH") == 0) {
+        return fossil_crabql_execute_update_batch(db, &tokens[2], &tokens[num_tokens - 2], num_tokens - 2);  // Adjust as necessary
+    } else if (strcmp(tokens[0], "SELECT") == 0 && strcmp(tokens[1], "BATCH") == 0) {
+        return fossil_crabql_execute_select_batch(db, &tokens[2], &tokens[num_tokens - 2], num_tokens - 2);  // Adjust as necessary
     } else {
-        fossil_crabql_log_error("Invalid CrabQL statement.");
+        fossil_crabdb_set_error(db, "Unknown command");
         return false;
     }
 }
@@ -155,6 +175,157 @@ bool fossil_crabql_execute_delete(fossil_crabdb_t *db, char **tokens, int num_to
     if (!fossil_crabdb_delete(db, tokens[1])) {
         fossil_crabql_log_error("Failed to execute DELETE statement.");
         return false;
+    }
+
+    return true;
+}
+
+bool fossil_crabql_execute_clear(fossil_crabdb_t* db) {
+    if (!db) {
+        fossil_crabql_log_error("Invalid CLEAR statement.");
+        return false;
+    }
+
+    if (!fossil_crabdb_clear(db)) {
+        fossil_crabql_log_error("Failed to execute CLEAR statement.");
+        return false;
+    }
+
+    return true;
+}
+
+bool fossil_crabql_execute_backup(fossil_crabdb_t* db, const char* filename) {
+    if (!db || !filename) {
+        fossil_crabql_log_error("Invalid BACKUP statement.");
+        return false;
+    }
+
+    if (!fossil_crabdb_backup(filename, db)) {
+        fossil_crabql_log_error("Failed to execute BACKUP statement.");
+        return false;
+    }
+
+    return true;
+}
+
+bool fossil_crabql_execute_restore(fossil_crabdb_t* db, const char* filename) {
+    if (!db || !filename) {
+        fossil_crabql_log_error("Invalid RESTORE statement.");
+        return false;
+    }
+
+    if (!fossil_crabdb_restore(filename, db)) {
+        fossil_crabql_log_error("Failed to execute RESTORE statement.");
+        return false;
+    }
+
+    return true;
+}
+
+bool fossil_crabql_execute_begin_transaction(fossil_crabdb_t* db) {
+    if (db->in_transaction) {
+        fossil_crabql_log_error("Transaction already in progress.");
+        return false;
+    }
+
+    if (!fossil_crabdb_begin_transaction(db)) {
+        fossil_crabql_log_error("Failed to execute BEGIN TRANSACTION statement.");
+        return false;
+    }
+
+    return true;
+}
+
+bool fossil_crabql_execute_commit_transaction(fossil_crabdb_t* db) {
+    if (!db->in_transaction) {
+        fossil_crabql_log_error("No active transaction.");
+        return false;
+    }
+
+    if (!fossil_crabdb_commit_transaction(db)) {
+        fossil_crabql_log_error("Failed to execute COMMIT TRANSACTION statement.");
+        return false;
+    }
+
+    return true;
+}
+
+bool fossil_crabql_execute_rollback_transaction(fossil_crabdb_t* db) {
+    if (!db->in_transaction) {
+        fossil_crabql_log_error("No active transaction.");
+        return false;
+    }
+
+    if (!fossil_crabdb_rollback_transaction(db)) {
+        fossil_crabql_log_error("Failed to execute ROLLBACK TRANSACTION statement.");
+        return false;
+    }
+
+    return true;
+}
+
+bool fossil_crabql_execute_insert_batch(fossil_crabdb_t* db, const char** keys, const char** values, size_t count) {
+    if (!db || !keys || !values) {
+        fossil_crabql_log_error("Invalid INSERT BATCH statement.");
+        return false;
+    }
+
+    for (size_t i = 0; i < count; i++) {
+        if (!fossil_crabdb_insert(db, keys[i], values[i], FOSSIL_CRABDB_TYPE_STRING)) {
+            fossil_crabql_log_error("Failed to execute INSERT BATCH statement.");
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool fossil_crabql_execute_delete_batch(fossil_crabdb_t* db, const char** keys, size_t count) {
+    if (!db || !keys) {
+        fossil_crabql_log_error("Invalid DELETE BATCH statement.");
+        return false;
+    }
+
+    for (size_t i = 0; i < count; i++) {
+        if (!fossil_crabdb_delete(db, keys[i])) {
+            fossil_crabql_log_error("Failed to execute DELETE BATCH statement.");
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool fossil_crabql_execute_update_batch(fossil_crabdb_t* db, const char** keys, const char** values, size_t count) {
+    if (!db || !keys || !values) {
+        fossil_crabql_log_error("Invalid UPDATE BATCH statement.");
+        return false;
+    }
+
+    for (size_t i = 0; i < count; i++) {
+        if (!fossil_crabdb_update(db, keys[i], values[i])) {
+            fossil_crabql_log_error("Failed to execute UPDATE BATCH statement.");
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool fossil_crabql_execute_select_batch(fossil_crabdb_t* db, const char** keys, char** values, size_t count) {
+    if (!db || !keys || !values) {
+        fossil_crabql_log_error("Invalid SELECT BATCH statement.");
+        return false;
+    }
+
+    for (size_t i = 0; i < count; i++) {
+        char value[FOSSIL_CRABDB_VAL_SIZE];
+        if (!fossil_crabdb_select(db, keys[i], value, sizeof(value))) {
+            fossil_crabql_log_error("Failed to execute SELECT BATCH statement.");
+            return false;
+        }
+
+        strncpy(values[i], value, FOSSIL_CRABDB_VAL_SIZE);
     }
 
     return true;
