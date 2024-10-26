@@ -17,17 +17,59 @@
 
 #include "fossil/crabdb/framework.h"
 
+FOSSIL_FIXTURE(query_fixture);
+fossil_crabdb_t *query_mock_db;
+
+FOSSIL_SETUP(query_fixture) {
+    query_mock_db = fossil_crabdb_create();
+}
+
+FOSSIL_TEARDOWN(query_fixture) {
+    fossil_crabdb_destroy(query_mock_db);
+}
 
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Blue CrabDB Database
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
-// placeholder
+// Test successful SELECT
+FOSSIL_TEST(test_fossil_crabql_query_select) {
+    const char *query = "SELECT * FROM users;";
+    ASSUME_ITS_TRUE(fossil_crabql_query(query_mock_db, query));
+}
+
+// Test successful INSERT
+FOSSIL_TEST(test_fossil_crabql_query_insert) {
+    const char *query = "INSERT INTO users VALUES ('Alice', 30);";
+    ASSUME_ITS_TRUE(fossil_crabql_query(query_mock_db, query));
+}
+
+// Test successful UPDATE
+FOSSIL_TEST(test_fossil_crabql_query_update) {
+    const char *query = "UPDATE users SET age = 31 WHERE name = 'Alice';";
+    ASSUME_ITS_TRUE(fossil_crabql_query(query_mock_db, query));
+}
+
+// Test successful DELETE
+FOSSIL_TEST(test_fossil_crabql_query_delete) {
+    const char *query = "DELETE FROM users WHERE name = 'Alice';";
+    ASSUME_ITS_TRUE(fossil_crabql_query(query_mock_db, query));
+}
+
+// Test invalid query
+FOSSIL_TEST(test_fossil_crabql_query_invalid) {
+    const char *query = "SELECT FROM users;";
+    TEST_ASSERT_FALSE(fossil_crabql_query(query_mock_db, query));
+}
 
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
-FOSSIL_TEST_GROUP(c_crab_search_tests) {
-    (void)test_env;
+FOSSIL_TEST_GROUP(c_crab_query_tests) {
+    ADD_TESTF(test_fossil_crabql_query_select, query_fixture);
+    ADD_TESTF(test_fossil_crabql_query_insert, query_fixture);
+    ADD_TESTF(test_fossil_crabql_query_update, query_fixture);
+    ADD_TESTF(test_fossil_crabql_query_delete, query_fixture);
+    ADD_TESTF(test_fossil_crabql_query_invalid, query_fixture);
 } // end of tests
