@@ -27,56 +27,109 @@
 extern "C" {
 #endif
 
+/* Maximum sizes for sync metadata */
+#define FOSSIL_CRABSYNC_METADATA_SIZE 512
+#define FOSSIL_CRABSYNC_QUEUE_SIZE 100
+
+/* Enumeration for sync statuses */
+typedef enum {
+    FOSSIL_CRABSYNC_STATUS_PENDING,
+    FOSSIL_CRABSYNC_STATUS_SUCCESS,
+    FOSSIL_CRABSYNC_STATUS_FAILED,
+    FOSSIL_CRABSYNC_STATUS_IN_PROGRESS
+} fossil_crabsync_status_t;
+
+/* Structure for synchronization metadata */
+typedef struct fossil_crabsync_metadata {
+    char db_key[FOSSIL_CRABDB_KEY_SIZE];
+    char db_value[FOSSIL_CRABDB_VAL_SIZE];
+    fossil_crabdb_type_t type;
+    time_t sync_timestamp;    // Timestamp for sync operation
+    fossil_crabsync_status_t status; // Current status of the sync operation
+} fossil_crabsync_metadata_t;
+
+/* Structure for CrabSync queue */
+typedef struct fossil_crabsync_queue {
+    fossil_crabsync_metadata_t entries[FOSSIL_CRABSYNC_QUEUE_SIZE];
+    size_t front;  // Index of the front of the queue
+    size_t rear;   // Index of the rear of the queue
+    size_t count;  // Current count of entries
+} fossil_crabsync_queue_t;
+
+/* Structure for CrabSync */
 typedef struct fossil_crabsync {
-    // Mutex for synchronizing access to the database
-#ifdef _WIN32
-    HANDLE mutex;  // Windows-specific mutex
-#else
-    pthread_mutex_t mutex;  // POSIX mutex
-#endif
+    fossil_crabsync_queue_t queue; // Queue for pending sync operations
+    fossil_crabdb_t* source_db;    // Source database to sync from
+    fossil_crabdb_t* target_db;    // Target database to sync to
+    bool syncing_enabled;           // Flag to indicate if syncing is enabled
+    pthread_mutex_t sync_mutex;     // Mutex for thread safety
 } fossil_crabsync_t;
 
-/**
- * @brief Initializes the CrabSync library.
- * 
- * @return true if successful, false otherwise.
- */
-bool fossil_crabsync_initialize(fossil_crabsync_t *sync);
+/* Allocate memory for a new CrabSync instance */
 
 /**
- * @brief Destroys the CrabSync library, cleaning up resources.
- * 
- * @param sync A pointer to the CrabSync instance to destroy.
+ * @brief Creates a new CrabSync instance.
+ * @param source_db A pointer to the source CrabDB instance.
+ * @param target_db A pointer to the target CrabDB instance.
+ * @return A pointer to the newly created CrabSync instance.
  */
-void fossil_crabsync_destroy(fossil_crabsync_t *sync);
+fossil_crabsync_t* fossil_crabsync_create(fossil_crabdb_t* source_db, fossil_crabdb_t* target_db);
 
 /**
- * @brief Locks the synchronization mutex.
- * 
+ * @brief Destroys the given CrabSync instance and frees all associated memory.
+ * @param sync A pointer to the CrabSync instance to be destroyed.
+ */
+void fossil_crabsync_destroy(fossil_crabsync_t* sync);
+
+/* CrabSync Operations */
+
+/**
+ * @brief Adds a new sync operation to the queue.
  * @param sync A pointer to the CrabSync instance.
+ * @param key The key to sync.
+ * @param value The value to sync.
+ * @param type The type of the value.
+ * @return true if the sync operation was added successfully, false otherwise.
  */
-void fossil_crabsync_lock(fossil_crabsync_t *sync);
+bool fossil_crabsync_add(fossil_crabsync_t* sync, const char* key, const char* value, fossil_crabdb_type_t type);
 
 /**
- * @brief Unlocks the synchronization mutex.
- * 
+ * @brief Processes the next sync operation in the queue.
  * @param sync A pointer to the CrabSync instance.
+ * @return true if the sync operation was processed successfully, false otherwise.
  */
-void fossil_crabsync_unlock(fossil_crabsync_t *sync);
+bool fossil_crabsync_process_next(fossil_crabsync_t* sync);
 
 /**
- * @brief Synchronizes the CrabDB data across instances.
- * 
- * @param db A pointer to the CrabDB instance to synchronize.
+ * @brief Syncs all pending operations in the queue.
+ * @param sync A pointer to the CrabSync instance.
+ * @return true if all operations were synced successfully, false otherwise.
  */
-void fossil_crabsync_synchronize(fossil_crabdb_t *db);
+bool fossil_crabsync_sync_all(fossil_crabsync_t* sync);
+
+/* CrabSync Queue Operations */
 
 /**
- * @brief Handles errors during synchronization.
- * 
- * @param error_code The error code to handle.
+ * @brief Initializes the sync queue.
+ * @param queue A pointer to the sync queue.
  */
-void fossil_crabsync_handle_error(int error_code);
+void fossil_crabsync_queue_init(fossil_crabsync_queue_t* queue);
+
+/**
+ * @brief Adds an entry to the sync queue.
+ * @param queue A pointer to the sync queue.
+ * @param entry The metadata entry to add.
+ * @return true if the entry was added successfully, false otherwise.
+ */
+bool fossil_crabsync_queue_enqueue(fossil_crabsync_queue_t* queue, const fossil_crabsync_metadata_t* entry);
+
+/**
+ * @brief Removes an entry from the sync queue.
+ * @param queue A pointer to the sync queue.
+ * @param entry A pointer to store the removed entry.
+ * @return true if the entry was removed successfully, false otherwise.
+ */
+bool fossil_crabsync_queue_dequeue(fossil_crabsync_queue_t* queue, fossil_crabsync_metadata_t* entry);
 
 #ifdef __cplusplus
 }
