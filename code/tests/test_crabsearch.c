@@ -41,7 +41,7 @@ FOSSIL_TEARDOWN(search_fixture) {
 FOSSIL_TEST(test_fossil_crabsearch_search_valid_pattern) {
     char result_buffer[1024];
     size_t match_count = 0;
-    crabsearch_status_t status = fossil_crabsearch_search(search_mock_db, "a*", result_buffer, sizeof(result_buffer), &match_count);
+    crabsearch_status_t status = fossil_crabsearch_search(search_mock_db, "a*", result_buffer, sizeof(result_buffer), &match_count, FORMAT_PLAIN_TEXT);
     ASSUME_ITS_TRUE(status == CRABSEARCH_SUCCESS);
     ASSUME_ITS_EQUAL(match_count, 2); // "apple" and "apricot" should match
 }
@@ -50,7 +50,7 @@ FOSSIL_TEST(test_fossil_crabsearch_search_valid_pattern) {
 FOSSIL_TEST(test_fossil_crabsearch_search_no_matches) {
     char result_buffer[1024];
     size_t match_count = 0;
-    crabsearch_status_t status = fossil_crabsearch_search(search_mock_db, "orange*", result_buffer, sizeof(result_buffer), &match_count);
+    crabsearch_status_t status = fossil_crabsearch_search(search_mock_db, "orange*", result_buffer, sizeof(result_buffer), &match_count, FORMAT_PLAIN_TEXT);
     ASSUME_ITS_TRUE(status == CRABSEARCH_NO_MATCHES);
     ASSUME_ITS_EQUAL(match_count, 0);
 }
@@ -59,7 +59,7 @@ FOSSIL_TEST(test_fossil_crabsearch_search_no_matches) {
 FOSSIL_TEST(test_fossil_crabsearch_search_buffer_overflow) {
     char small_buffer[10]; // Intentionally small buffer
     size_t match_count = 0;
-    crabsearch_status_t status = fossil_crabsearch_search(search_mock_db, "a*", small_buffer, sizeof(small_buffer), &match_count);
+    crabsearch_status_t status = fossil_crabsearch_search(search_mock_db, "a*", small_buffer, sizeof(small_buffer), &match_count, FORMAT_PLAIN_TEXT);
     ASSUME_ITS_TRUE(status == CRABSEARCH_BUFFER_OVERFLOW);
 }
 
@@ -67,7 +67,7 @@ FOSSIL_TEST(test_fossil_crabsearch_search_buffer_overflow) {
 FOSSIL_TEST(test_fossil_crabsearch_search_invalid_db) {
     char result_buffer[1024];
     size_t match_count = 0;
-    crabsearch_status_t status = fossil_crabsearch_search(NULL, "a*", result_buffer, sizeof(result_buffer), &match_count);
+    crabsearch_status_t status = fossil_crabsearch_search(NULL, "a*", result_buffer, sizeof(result_buffer), &match_count, FORMAT_PLAIN_TEXT);
     ASSUME_ITS_TRUE(status == CRABSEARCH_INVALID_PARAM);
 }
 
@@ -75,7 +75,7 @@ FOSSIL_TEST(test_fossil_crabsearch_search_invalid_db) {
 FOSSIL_TEST(test_fossil_crabsearch_search_null_pattern) {
     char result_buffer[1024];
     size_t match_count = 0;
-    crabsearch_status_t status = fossil_crabsearch_search(search_mock_db, NULL, result_buffer, sizeof(result_buffer), &match_count);
+    crabsearch_status_t status = fossil_crabsearch_search(search_mock_db, NULL, result_buffer, sizeof(result_buffer), &match_count, FORMAT_PLAIN_TEXT);
     ASSUME_ITS_TRUE(status == CRABSEARCH_INVALID_PARAM);
 }
 
