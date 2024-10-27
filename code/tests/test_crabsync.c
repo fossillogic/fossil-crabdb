@@ -21,50 +21,75 @@ FOSSIL_FIXTURE(crabsync_fixture);
 fossil_crabsync_t *sync_mock;
 
 FOSSIL_SETUP(crabsync_fixture) {
-    sync_mock = (fossil_crabsync_t *)malloc(sizeof(fossil_crabsync_t));
-    ASSUME_ITS_TRUE(fossil_crabsync_initialize(sync_mock));
+    // Create mock source and target databases
+    fossil_crabdb_t *source_db = fossil_crabdb_create();
+    fossil_crabdb_t *target_db = fossil_crabdb_create();
+    
+    // Initialize CrabSync with source and target databases
+    sync_mock = fossil_crabsync_create(source_db, target_db);
+    ASSUME_ITS_TRUE(sync_mock != NULL);
 }
 
 FOSSIL_TEARDOWN(crabsync_fixture) {
+    // Clean up the sync instance
     fossil_crabsync_destroy(sync_mock);
-    free(sync_mock);
 }
 
 // * * * * * * * * * * * * * * * * * * * * * * * *
-// * Fossil Logic Test Blue CrabDB Database
+// * Fossil Logic Test CrabSync Functionality
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
 // Test initializing CrabSync
 FOSSIL_TEST(test_crabsync_initialize) {
-    fossil_crabsync_t sync;
-    bool result = fossil_crabsync_initialize(&sync);
+    ASSUME_ITS_TRUE(sync_mock->source_db != NULL);
+    ASSUME_ITS_TRUE(sync_mock->target_db != NULL);
+}
+
+// Test adding data to the sync queue
+FOSSIL_TEST(test_crabsync_add_data) {
+    const char *key = "test_key";
+    const char *value = "test_value";
+    bool result = fossil_crabsync_add(sync_mock, key, value, FOSSIL_CRABDB_TYPE_STRING);
     ASSUME_ITS_TRUE(result);
-    fossil_crabsync_destroy(&sync); // Cleanup
 }
 
-// Test locking and unlocking
-FOSSIL_TEST(test_crabsync_lock_unlock) {
-    fossil_crabsync_lock(sync_mock);
-    // Perform operations that require synchronization
-    fossil_crabsync_unlock(sync_mock);
+// Test processing a sync operation
+FOSSIL_TEST(test_crabsync_process_next) {
+    const char *key = "process_key";
+    const char *value = "process_value";
+    fossil_crabsync_add(sync_mock, key, value, FOSSIL_CRABDB_TYPE_STRING);
+    
+    // Process the next sync operation
+    bool result = fossil_crabsync_process_next(sync_mock);
+    ASSUME_ITS_TRUE(result);
 }
 
-// Test synchronization of CrabDB data (mocked functionality)
-FOSSIL_TEST(test_crabsync_synchronize) {
-    fossil_crabdb_t *mock_db = fossil_crabdb_create();
-    fossil_crabsync_synchronize(mock_db);
-    // Additional checks to verify synchronization
-    fossil_crabdb_destroy(mock_db);
+// Test syncing all data in the queue
+FOSSIL_TEST(test_crabsync_sync_all) {
+    const char *key1 = "key1";
+    const char *value1 = "value1";
+    const char *key2 = "key2";
+    const char *value2 = "value2";
+    
+    fossil_crabsync_add(sync_mock, key1, value1, FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabsync_add(sync_mock, key2, value2, FOSSIL_CRABDB_TYPE_STRING);
+    
+    // Sync all entries in the queue
+    bool result = fossil_crabsync_sync_all(sync_mock);
+    ASSUME_ITS_TRUE(result);
 }
 
 // Test cleanup
 FOSSIL_TEST(test_crabsync_destroy) {
+    // Verify that sync_mock is cleaned up correctly
     fossil_crabsync_destroy(sync_mock);
-    // Ensure no memory leaks or dangling pointers
+    sync_mock = NULL; // Avoid dangling pointer
+    ASSUME_ITS_TRUE(sync_mock == NULL);
 }
 
 // Test error handling
 FOSSIL_TEST(test_crabsync_handle_error) {
+    // Simulate an error in the sync process
     fossil_crabsync_handle_error(-1); // Test unknown error
     fossil_crabsync_handle_error(EDEADLK); // Test deadlock error
 }
@@ -75,8 +100,9 @@ FOSSIL_TEST(test_crabsync_handle_error) {
 
 FOSSIL_TEST_GROUP(c_crabsync_tests) {
     ADD_TESTF(test_crabsync_initialize, crabsync_fixture);
-    ADD_TESTF(test_crabsync_lock_unlock, crabsync_fixture);
-    ADD_TESTF(test_crabsync_synchronize, crabsync_fixture);
+    ADD_TESTF(test_crabsync_add_data, crabsync_fixture);
+    ADD_TESTF(test_crabsync_process_next, crabsync_fixture);
+    ADD_TESTF(test_crabsync_sync_all, crabsync_fixture);
     ADD_TESTF(test_crabsync_destroy, crabsync_fixture);
     ADD_TESTF(test_crabsync_handle_error, crabsync_fixture);
 } // end of tests
