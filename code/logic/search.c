@@ -52,7 +52,15 @@ crabsearch_status_t fossil_crabsearch_search(fossil_crabdb_t* db, const char* pa
 
         if (matches_pattern(key, pattern)) {
             // If the key matches the pattern, add it to the result buffer
-            size_t required_size = snprintf(temp_buffer, sizeof(temp_buffer), "%s: %s\n", key, value);
+            size_t required_size;
+            if (format == FORMAT_PLAIN_TEXT) {
+                required_size = snprintf(temp_buffer, sizeof(temp_buffer), "%s: %s\n", key, value);
+            } else if (format == FORMAT_JSON) {
+                required_size = snprintf(temp_buffer, sizeof(temp_buffer), "{\"key\": \"%s\", \"value\": \"%s\"}\n", key, value);
+            } else {
+                return CRABSEARCH_INVALID_PARAM; // Unsupported format
+            }
+
             if (total_matches + required_size < buffer_size) {
                 strcat(result_buffer, temp_buffer); // Append to result buffer
                 total_matches++;
