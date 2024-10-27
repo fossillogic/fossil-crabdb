@@ -43,7 +43,7 @@ FOSSIL_TEST(test_fossil_crabai_predict) {
     char output_buffer[256];
     crabai_model_status_t status = fossil_crabai_predict(ai_mock_db, model_name, input_data, output_buffer, sizeof(output_buffer));
     ASSUME_ITS_TRUE(status == CRABAI_MODEL_SUCCESS);
-    ASSUME_NOT_EQUAL_CSTR(output_buffer[0], '\0'); // Ensure output is not empty
+    ASSUME_NOT_EQUAL_CCHAR(output_buffer[0], '\0'); // Ensure output is not empty
 }
 
 // Test evaluation of the model
@@ -62,7 +62,7 @@ FOSSIL_TEST(test_fossil_crabai_get_insights) {
     char insight_buffer[256];
     crabai_model_status_t status = fossil_crabai_get_insights(ai_mock_db, model_name, insight_query, insight_buffer, sizeof(insight_buffer));
     ASSUME_ITS_TRUE(status == CRABAI_MODEL_SUCCESS);
-    ASSUME_NOT_EQUAL_CSTR(insight_buffer[0], '\0'); // Ensure insights are returned
+    ASSUME_NOT_EQUAL_CCHAR(insight_buffer[0], '\0'); // Ensure insights are returned
 }
 
 // Test invalid model training parameters
