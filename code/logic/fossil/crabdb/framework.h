@@ -20,7 +20,6 @@ namespace fossil {
 
 #include "database.h"
 #include "query.h"
-#include "rest.h"
 #include "sync.h"
 #include "search.h"
 #include "ai.h"

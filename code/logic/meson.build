@@ -3,7 +3,7 @@ dir = include_directories('.')
 dep = [dependency('threads')]
 
 fossil_crabdb_lib = library('fossil-crabdb',
-    files('database.c', 'query.c', 'logging.c', 'ai.c', 'rest.c', 'sync.c', 'search.c'),
+    files('database.c', 'query.c', 'logging.c', 'ai.c', 'sync.c', 'search.c'),
     install: true,
     dependencies: dep,
     include_directories: dir)
