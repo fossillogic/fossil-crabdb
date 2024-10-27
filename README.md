@@ -1,6 +1,6 @@
-# ***Blue CrabDB Database System by Fossil Logic***
+# ***Blue Crab Database System by Fossil Logic***
 
-Blue CrabDB is a comprehensive, platform-independent database system designed to streamline the management and storage of key-value pairs within namespaces. Written in C and C++, Blue CrabDB is built to offer high performance and reliability across various operating systems. The C and C++ components are built using the Meson build system, ensuring efficient development and deployment processes.
+Blue CrabDB is a comprehensive, platform-independent data ecosystem crafted to streamline the management, storage, and intelligent processing of key-value pairs within namespaces. Developed in C and C++, it provides high performance and reliability across various operating systems. At its core is **CrabDB**, a powerful database engine, enhanced by **CrabQL**, a SQL-like query language designed for precise data retrieval and manipulation. The suite also includes **CrabSearch** for fast, relevant full-text search, and **CrabAI** for AI-driven analytics that yield predictive insights and smarter data handling. Additionally, **CrabLogs** offers robust logging for secure transaction tracking, while **CrabREST** provides seamless integration with web applications and microservices through a RESTful API. **CrabSync** ensures reliable synchronization across multiple instances, maintaining data consistency across environments. Altogether, Blue CrabDB’s modules deliver a unified, advanced solution, making it ideal for applications requiring speed, reliability, and sophisticated data capabilities.
 
 ## Key Features
 
