@@ -43,7 +43,7 @@ FOSSIL_TEST(test_fossil_crabsearch_search_valid_pattern) {
     size_t match_count = 0;
     crabsearch_status_t status = fossil_crabsearch_search(search_mock_db, "a*", result_buffer, sizeof(result_buffer), &match_count, FORMAT_PLAIN_TEXT);
     ASSUME_ITS_TRUE(status == CRABSEARCH_SUCCESS);
-    ASSUME_ITS_EQUAL(match_count, 2); // "apple" and "apricot" should match
+    ASSUME_ITS_EQUAL_I32(match_count, 2); // "apple" and "apricot" should match
 }
 
 // Test successful search with no matches
@@ -52,7 +52,7 @@ FOSSIL_TEST(test_fossil_crabsearch_search_no_matches) {
     size_t match_count = 0;
     crabsearch_status_t status = fossil_crabsearch_search(search_mock_db, "orange*", result_buffer, sizeof(result_buffer), &match_count, FORMAT_PLAIN_TEXT);
     ASSUME_ITS_TRUE(status == CRABSEARCH_NO_MATCHES);
-    ASSUME_ITS_EQUAL(match_count, 0);
+    ASSUME_ITS_EQUAL_I32(match_count, 0);
 }
 
 // Test buffer overflow handling
@@ -86,7 +86,7 @@ FOSSIL_TEST(test_fossil_crabsearch_search_multiple_patterns) {
     size_t match_count = 0;
     crabsearch_status_t status = fossil_crabsearch_search_multiple(search_mock_db, patterns, 2, result_buffer, sizeof(result_buffer), &match_count);
     ASSUME_ITS_TRUE(status == CRABSEARCH_SUCCESS);
-    ASSUME_ITS_EQUAL(match_count, 3); // "apple", "banana", "apricot" should match
+    ASSUME_ITS_EQUAL_I32(match_count, 3); // "apple", "banana", "apricot" should match
 }
 
 // Test multiple patterns with no matches
@@ -96,7 +96,7 @@ FOSSIL_TEST(test_fossil_crabsearch_search_multiple_no_matches) {
     size_t match_count = 0;
     crabsearch_status_t status = fossil_crabsearch_search_multiple(search_mock_db, patterns, 2, result_buffer, sizeof(result_buffer), &match_count);
     ASSUME_ITS_TRUE(status == CRABSEARCH_NO_MATCHES);
-    ASSUME_ITS_EQUAL(match_count, 0);
+    ASSUME_ITS_EQUAL_I32(match_count, 0);
 }
 
 // Test invalid parameters for multiple patterns
