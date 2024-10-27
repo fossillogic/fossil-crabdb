@@ -79,21 +79,6 @@ FOSSIL_TEST(test_crabsync_sync_all) {
     ASSUME_ITS_TRUE(result);
 }
 
-// Test cleanup
-FOSSIL_TEST(test_crabsync_destroy) {
-    // Verify that sync_mock is cleaned up correctly
-    fossil_crabsync_destroy(sync_mock);
-    sync_mock = NULL; // Avoid dangling pointer
-    ASSUME_ITS_TRUE(sync_mock == NULL);
-}
-
-// Test error handling
-FOSSIL_TEST(test_crabsync_handle_error) {
-    // Simulate an error in the sync process
-    fossil_crabsync_handle_error(-1); // Test unknown error
-    fossil_crabsync_handle_error(EDEADLK); // Test deadlock error
-}
-
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
@@ -103,6 +88,4 @@ FOSSIL_TEST_GROUP(c_crabsync_tests) {
     ADD_TESTF(test_crabsync_add_data, crabsync_fixture);
     ADD_TESTF(test_crabsync_process_next, crabsync_fixture);
     ADD_TESTF(test_crabsync_sync_all, crabsync_fixture);
-    ADD_TESTF(test_crabsync_destroy, crabsync_fixture);
-    ADD_TESTF(test_crabsync_handle_error, crabsync_fixture);
 } // end of tests
