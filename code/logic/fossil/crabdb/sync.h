@@ -16,11 +16,67 @@
 
 #include "database.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <pthread.h>
+#include <errno.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+typedef struct fossil_crabsync {
+    // Mutex for synchronizing access to the database
+#ifdef _WIN32
+    HANDLE mutex;  // Windows-specific mutex
+#else
+    pthread_mutex_t mutex;  // POSIX mutex
+#endif
+} fossil_crabsync_t;
 
+/**
+ * @brief Initializes the CrabSync library.
+ * 
+ * @return true if successful, false otherwise.
+ */
+bool fossil_crabsync_initialize(fossil_crabsync_t *sync);
+
+/**
+ * @brief Destroys the CrabSync library, cleaning up resources.
+ * 
+ * @param sync A pointer to the CrabSync instance to destroy.
+ */
+void fossil_crabsync_destroy(fossil_crabsync_t *sync);
+
+/**
+ * @brief Locks the synchronization mutex.
+ * 
+ * @param sync A pointer to the CrabSync instance.
+ */
+void fossil_crabsync_lock(fossil_crabsync_t *sync);
+
+/**
+ * @brief Unlocks the synchronization mutex.
+ * 
+ * @param sync A pointer to the CrabSync instance.
+ */
+void fossil_crabsync_unlock(fossil_crabsync_t *sync);
+
+/**
+ * @brief Synchronizes the CrabDB data across instances.
+ * 
+ * @param db A pointer to the CrabDB instance to synchronize.
+ */
+void fossil_crabsync_synchronize(fossil_crabdb_t *db);
+
+/**
+ * @brief Handles errors during synchronization.
+ * 
+ * @param error_code The error code to handle.
+ */
+void fossil_crabsync_handle_error(int error_code);
 
 #ifdef __cplusplus
 }
