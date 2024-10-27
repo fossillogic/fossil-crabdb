@@ -3,7 +3,7 @@ if get_option('with_test').enabled()
 
     test_src = ['unit_runner.c']
     test_cubes = [
-        'crabdb', 'crabql',
+        'crabdb', 'crabql', 'crabrest', 'crabai', 'crabsearch', 'crabsync'
     ]
 
     foreach cube : test_cubes
