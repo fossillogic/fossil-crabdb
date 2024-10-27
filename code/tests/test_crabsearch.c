@@ -24,9 +24,9 @@ FOSSIL_SETUP(search_fixture) {
     search_mock_db = fossil_crabdb_create();
     
     // Populate the mock database with test data
-    fossil_crabdb_insert(search_mock_db, "apple", "A fruit");
-    fossil_crabdb_insert(search_mock_db, "banana", "A yellow fruit");
-    fossil_crabdb_insert(search_mock_db, "apricot", "Another fruit");
+    fossil_crabdb_insert(search_mock_db, "apple", "A fruit", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_insert(search_mock_db, "banana", "A yellow fruit", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_insert(search_mock_db, "apricot", "Another fruit", FOSSIL_CRABDB_TYPE_STRING);
 }
 
 FOSSIL_TEARDOWN(search_fixture) {
