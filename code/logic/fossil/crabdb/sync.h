@@ -62,7 +62,11 @@ typedef struct fossil_crabsync {
     fossil_crabdb_t* source_db;    // Source database to sync from
     fossil_crabdb_t* target_db;    // Target database to sync to
     bool syncing_enabled;           // Flag to indicate if syncing is enabled
-    pthread_mutex_t sync_mutex;     // Mutex for thread safety
+    #ifdef _WIN32
+        HANDLE sync_mutex;              // Mutex for thread safety on Windows
+    #else
+        pthread_mutex_t sync_mutex;     // Mutex for thread safety on POSIX
+    #endif
 } fossil_crabsync_t;
 
 /* Allocate memory for a new CrabSync instance */
