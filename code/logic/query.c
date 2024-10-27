@@ -13,16 +13,7 @@
  */
 #include "fossil/crabdb/query.h"
 
-char *custom_strdup(const char *str) {
-    if (!str) return NULL;
-
-    size_t len = strlen(str);
-    char *new_str = (char *)malloc(len + 1);
-    if (!new_str) return NULL;
-
-    strcpy(new_str, str);
-    return new_str;
-}
+extern char *custom_strdup(const char *str);
 
 char **fossil_crabql_tokenize(fossil_crabdb_t *db, const char *query, int *num_tokens) {
     if (!db || !query || !num_tokens) return NULL;
