@@ -13,6 +13,17 @@
  */
 #include "fossil/crabdb/database.h"
 
+char *custom_strdup(const char *str) {
+    if (!str) return NULL;
+
+    size_t len = strlen(str);
+    char *new_str = (char *)malloc(len + 1);
+    if (!new_str) return NULL;
+
+    strcpy(new_str, str);
+    return new_str;
+}
+
 // In a header file, e.g., crabdb.h
 struct fossil_crabdb* backup_current_db_state(struct fossil_crabdb *db) {
     struct fossil_crabdb* backup = (struct fossil_crabdb*)malloc(sizeof(struct fossil_crabdb));
