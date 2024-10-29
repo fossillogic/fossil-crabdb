@@ -12,6 +12,7 @@
  * -----------------------------------------------------------------------------
  */
 #include "fossil/crabdb/search.h"
+#include <ctype.h>
 
 static bool matches_pattern(const char* key, const char* pattern) {
     // Simple wildcard matching implementation
