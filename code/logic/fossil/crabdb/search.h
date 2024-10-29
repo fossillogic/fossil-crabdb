@@ -23,7 +23,8 @@ extern "C" {
 // Enumeration for search result formats
 typedef enum {
     FORMAT_PLAIN_TEXT,
-    FORMAT_JSON
+    FORMAT_JSON,
+    FORMAT_CSV
 } result_format_t;
 
 // Enumeration for status codes
