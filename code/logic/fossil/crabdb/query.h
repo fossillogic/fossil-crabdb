@@ -20,6 +20,13 @@
 extern "C" {
 #endif
 
+typedef enum crabql_status_t {
+    CRABQL_SUCCESS,
+    CRABQL_INVALID_PARAM,
+    CRABQL_FILE_NOT_FOUND,
+    CRABQL_QUERY_FAILED
+}crabql_status_t;
+
 /**
  * Executes a query in the CrabQL language.
  * 
@@ -92,6 +99,15 @@ bool fossil_crabql_execute_commit_transaction(fossil_crabdb_t* db);
  * @return true if the transaction was rolled back successfully, false otherwise.
  */
 bool fossil_crabql_execute_rollback_transaction(fossil_crabdb_t* db);
+
+/**
+ * Loads queries from a file and executes them.
+ * 
+ * @param db The database context.
+ * @param filename The name of the file containing the queries.
+ * @return CRABQL_SUCCESS if the queries were loaded and executed successfully, an error code otherwise.
+ */
+crabql_status_t fossil_crabql_load_queries_from_file(fossil_crabdb_t *db, const char *filename);
 
 /**
  * Logs an error message.

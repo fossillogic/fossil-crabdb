@@ -203,3 +203,36 @@ void fossil_crabql_log_error(const char *message) {
         fprintf(stderr, "CrabQL Error: %s\n", message);
     }
 }
+
+// Function to load queries from a .crab file
+crabql_status_t fossil_crabql_load_queries_from_file(fossil_crabdb_t *db, const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        return CRABQL_FILE_NOT_FOUND; // File could not be opened
+    }
+
+    char *query_buffer = NULL;
+    size_t buffer_size = 0;
+    while (getline(&query_buffer, &buffer_size, file) != -1) {
+        // Remove trailing whitespace and semicolon
+        size_t len = strlen(query_buffer);
+        if (len > 0 && query_buffer[len - 1] == '\n') {
+            query_buffer[len - 1] = '\0';
+        }
+        if (len > 0 && query_buffer[len - 1] == ';') {
+            query_buffer[len - 1] = '\0'; // Remove the semicolon
+        }
+
+        // Execute the query
+        crabql_status_t status = fossil_crabql_execute(db, query_buffer);
+        if (status != CRABQL_SUCCESS) {
+            free(query_buffer);
+            fclose(file);
+            return status; // Return the error status if execution fails
+        }
+    }
+
+    free(query_buffer);
+    fclose(file);
+    return CRABQL_SUCCESS; // Successfully loaded and executed all queries
+}
