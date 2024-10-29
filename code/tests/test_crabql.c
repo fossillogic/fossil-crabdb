@@ -62,6 +62,52 @@ FOSSIL_TEST(test_fossil_crabql_query_invalid) {
     ASSUME_ITS_FALSE(fossil_crabql_query(query_mock_db, query));
 }
 
+// Test loading queries from a .crab file
+FOSSIL_TEST(test_fossil_crabql_load_queries_from_file) {
+    const char *filename = "test_queries.crab";
+    FILE *file = fopen(filename, "w");
+    ASSUME_NOT_CNULL(file);
+
+    // Sample queries to write to the .crab file
+    fprintf(file, "INSERT INTO users VALUES ('Bob', 25);\n");
+    fprintf(file, "SELECT * FROM users;\n");
+    fprintf(file, "UPDATE users SET age = 26 WHERE name = 'Bob';\n");
+    fprintf(file, "DELETE FROM users WHERE name = 'Bob';\n");
+    fclose(file);
+
+    // Now, load and execute the queries from the .crab file
+    ASSUME_ITS_TRUE(fossil_crabql_load_queries_from_file(query_mock_db, filename));
+
+    // Cleanup the .crab file
+    remove(filename);
+}
+
+// Test loading an invalid .crab file
+FOSSIL_TEST(test_fossil_crabql_load_invalid_queries_from_file) {
+    const char *filename = "invalid_queries.crab";
+    // Attempt to load from a nonexistent file
+    crabql_status_t status = fossil_crabql_load_queries_from_file(query_mock_db, filename);
+    ASSUME_ITS_TRUE(status == CRABQL_FILE_NOT_FOUND);
+}
+
+// Test loading a .crab file with invalid queries
+FOSSIL_TEST(test_fossil_crabql_load_invalid_queries) {
+    const char *filename = "invalid_syntax_queries.crab";
+    FILE *file = fopen(filename, "w");
+    ASSUME_NOT_CNULL(file);
+
+    // Invalid queries to write to the .crab file
+    fprintf(file, "SELECT FROM users;\n");
+    fprintf(file, "INSERT INTO users VALUES ('Charlie');\n"); // Missing age
+    fclose(file);
+
+    // Load and expect failure due to invalid queries
+    ASSUME_ITS_FALSE(fossil_crabql_load_queries_from_file(query_mock_db, filename));
+
+    // Cleanup the .crab file
+    remove(filename);
+}
+
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
@@ -72,4 +118,7 @@ FOSSIL_TEST_GROUP(c_crab_query_tests) {
     ADD_TESTF(test_fossil_crabql_query_select, query_fixture);
     ADD_TESTF(test_fossil_crabql_query_delete, query_fixture);
     ADD_TESTF(test_fossil_crabql_query_invalid, query_fixture);
+    ADD_TESTF(test_fossil_crabql_load_queries_from_file, query_fixture);
+    ADD_TESTF(test_fossil_crabql_load_invalid_queries_from_file, query_fixture);
+    ADD_TESTF(test_fossil_crabql_load_invalid_queries, query_fixture);
 } // end of tests
