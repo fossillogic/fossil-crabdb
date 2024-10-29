@@ -22,7 +22,7 @@ namespace fossil {
 #include "query.h"
 #include "sync.h"
 #include "search.h"
-#include "ai.h"
+#include "sci.h"
 #include "logging.h"
 
 #ifdef __cplusplus
