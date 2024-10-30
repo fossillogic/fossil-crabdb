@@ -579,4 +579,186 @@ bool fossil_crabdb_check_integrity(fossil_crabdb_t* db);
 }
 #endif
 
+#ifdef __cplusplus
+#include <string>
+
+namespace fossil {
+
+class CrabDB {
+public:
+    CrabDB() {
+        db_ = fossil_crabdb_create();
+    }
+
+    ~CrabDB() {
+        fossil_crabdb_destroy(db_);
+    }
+
+    bool create_table(const std::string& table_name) {
+        return fossil_crabdb_create_table(db_, table_name.c_str());
+    }
+
+    bool delete_table(const std::string& table_name) {
+        return fossil_crabdb_delete_table(db_, table_name.c_str());
+    }
+
+    bool table_exists(const std::string& table_name) {
+        return fossil_crabdb_table_exists(db_, table_name.c_str());
+    }
+
+    size_t count_keys() {
+        return fossil_crabdb_count_keys(db_);
+    }
+
+    bool insert(const std::string& key, const std::string& value, fossil_crabdb_type_t type) {
+        return fossil_crabdb_insert(db_, key.c_str(), value.c_str(), type);
+    }
+
+    bool update(const std::string& key, const std::string& value) {
+        return fossil_crabdb_update(db_, key.c_str(), value.c_str());
+    }
+
+    bool delete_key(const std::string& key) {
+        return fossil_crabdb_delete(db_, key.c_str());
+    }
+
+    bool select(const std::string& key, std::string& value) {
+        char buffer[FOSSIL_CRABDB_VAL_SIZE];
+        bool result = fossil_crabdb_select(db_, key.c_str(), buffer, sizeof(buffer));
+        if (result) {
+            value = buffer;
+        }
+        return result;
+    }
+
+    bool list(std::string& list_buffer) {
+        char buffer[MIN_BUFFER_SIZE];
+        bool result = fossil_crabdb_list(db_, buffer, sizeof(buffer));
+        if (result) {
+            list_buffer = buffer;
+        }
+        return result;
+    }
+
+    bool clear() {
+        return fossil_crabdb_clear(db_);
+    }
+
+    bool drop() {
+        return fossil_crabdb_drop(db_);
+    }
+
+    bool insert_into_table(const std::string& table_name, const std::string& key, const std::string& value, fossil_crabdb_type_t type) {
+        return fossil_crabdb_insert_into_table(db_, table_name.c_str(), key.c_str(), value.c_str(), type);
+    }
+
+    bool update_table(const std::string& table_name, const std::string& key, const std::string& value) {
+        return fossil_crabdb_update_table(db_, table_name.c_str(), key.c_str(), value.c_str());
+    }
+
+    bool delete_from_table(const std::string& table_name, const std::string& key) {
+        return fossil_crabdb_delete_from_table(db_, table_name.c_str(), key.c_str());
+    }
+
+    bool select_from_table(const std::string& table_name, const std::string& key, std::string& value) {
+        char buffer[FOSSIL_CRABDB_VAL_SIZE];
+        bool result = fossil_crabdb_select_from_table(db_, table_name.c_str(), key.c_str(), buffer, sizeof(buffer));
+        if (result) {
+            value = buffer;
+        }
+        return result;
+    }
+
+    bool list_table(const std::string& table_name, std::string& list_buffer) {
+        char buffer[MIN_BUFFER_SIZE];
+        bool result = fossil_crabdb_list_table(db_, table_name.c_str(), buffer, sizeof(buffer));
+        if (result) {
+            list_buffer = buffer;
+        }
+        return result;
+    }
+
+    bool clear_table(const std::string& table_name) {
+        return fossil_crabdb_clear_table(db_, table_name.c_str());
+    }
+
+    bool drop_table(const std::string& table_name) {
+        return fossil_crabdb_drop_table(db_, table_name.c_str());
+    }
+
+    bool backup(const std::string& filename) {
+        return fossil_crabdb_backup(filename.c_str(), db_);
+    }
+
+    bool restore(const std::string& filename) {
+        return fossil_crabdb_restore(filename.c_str(), db_);
+    }
+
+    unsigned int get_version() {
+        return fossil_crabdb_get_version(db_);
+    }
+
+    bool restore_version(unsigned int version) {
+        return fossil_crabdb_restore_version(db_, version);
+    }
+
+    bool begin_transaction() {
+        return fossil_crabdb_begin_transaction(db_);
+    }
+
+    bool commit_transaction() {
+        return fossil_crabdb_commit_transaction(db_);
+    }
+
+    bool rollback_transaction() {
+        return fossil_crabdb_rollback_transaction(db_);
+    }
+
+    bool begin_transaction_table(const std::string& table_name) {
+        return fossil_crabdb_begin_transaction_table(db_, table_name.c_str());
+    }
+
+    bool commit_transaction_table(const std::string& table_name) {
+        return fossil_crabdb_commit_transaction_table(db_, table_name.c_str());
+    }
+
+    bool rollback_transaction_table(const std::string& table_name) {
+        return fossil_crabdb_rollback_transaction_table(db_, table_name.c_str());
+    }
+
+    bool insert_with_ttl(const std::string& key, const std::string& value, fossil_crabdb_type_t type, unsigned int ttl) {
+        return fossil_crabdb_insert_with_ttl(db_, key.c_str(), value.c_str(), type, ttl);
+    }
+
+    bool cleanup_expired() {
+        return fossil_crabdb_cleanup_expired(db_);
+    }
+
+    bool insert_with_ttl_into_table(const std::string& table_name, const std::string& key, const std::string& value, fossil_crabdb_type_t type, unsigned int ttl) {
+        return fossil_crabdb_insert_with_ttl_into_table(db_, table_name.c_str(), key.c_str(), value.c_str(), type, ttl);
+    }
+
+    bool cleanup_expired_table(const std::string& table_name) {
+        return fossil_crabdb_cleanup_expired_table(db_, table_name.c_str());
+    }
+
+    bool enable_logging(const std::string& log_filename) {
+        return fossil_crabdb_enable_logging(db_, log_filename.c_str());
+    }
+
+    bool disable_logging() {
+        return fossil_crabdb_disable_logging(db_);
+    }
+
+    bool check_integrity() {
+        return fossil_crabdb_check_integrity(db_);
+    }
+
+private:
+    fossil_crabdb_t* db_;
+};
+
+} // namespace fossil
+#endif
+
 #endif /* FOSSIL_CRABDB_FRAMEWORK_H */
