@@ -130,13 +130,13 @@ bool fossil_crabql_execute_select(fossil_crabdb_t *db, char **tokens, int num_to
 
     // Check for WHERE clause and operators
     if (num_tokens > 4 && strcmp(tokens[3], "WHERE") == 0) {
-        char *field = tokens[4];
+        char *field = tokens[1]; // Use the field from the SELECT statement
         char *operator = tokens[5];
         char *comp_value = tokens[6];
 
         // Only print if condition matches
         if (evaluate_condition(value, operator, comp_value)) {
-            printf("%s=%s\n", tokens[1], value);
+            printf("%s=%s\n", field, value);
         } else {
             printf("No matching records.\n");
         }
