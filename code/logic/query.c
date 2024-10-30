@@ -15,6 +15,23 @@
 
 extern char *custom_strdup(const char *str);
 
+// Function to evaluate simple conditions with comparison operators
+bool evaluate_condition(const char *field_value, const char *operator, const char *value) {
+    int field_num = atoi(field_value);
+    int comp_value = atoi(value);
+
+    if (strcmp(operator, ">") == 0) return field_num > comp_value;
+    if (strcmp(operator, "<") == 0) return field_num < comp_value;
+    if (strcmp(operator, ">=") == 0) return field_num >= comp_value;
+    if (strcmp(operator, "<=") == 0) return field_num <= comp_value;
+    if (strcmp(operator, "!=") == 0) return field_num != comp_value;
+    if (strcmp(operator, "=") == 0) return field_num == comp_value;
+    if (strcmp(operator, "AND") == 0) return field_num && comp_value;
+    if (strcmp(operator, "OR") == 0) return field_num || comp_value;
+    
+    return false; // Unsupported operator
+}
+
 char **fossil_crabql_tokenize(fossil_crabdb_t *db, const char *query, int *num_tokens) {
     if (!db || !query || !num_tokens) return NULL;
 
@@ -48,7 +65,6 @@ char **fossil_crabql_tokenize(fossil_crabdb_t *db, const char *query, int *num_t
     *num_tokens = count;
     return tokens;
 }
-
 
 bool fossil_crabql_parse_and_execute(fossil_crabdb_t *db, char **tokens, int num_tokens) {
     if (!db || !tokens || num_tokens < 1) return false;
@@ -99,6 +115,7 @@ bool fossil_crabql_query(fossil_crabdb_t *db, const char *query) {
     return result;
 }
 
+// Execute SELECT with operator support
 bool fossil_crabql_execute_select(fossil_crabdb_t *db, char **tokens, int num_tokens) {
     if (!db || !tokens || num_tokens < 4) {
         fossil_crabql_log_error("Invalid SELECT statement.");
@@ -111,36 +128,27 @@ bool fossil_crabql_execute_select(fossil_crabdb_t *db, char **tokens, int num_to
         return false;
     }
 
-    printf("%s=%s\n", tokens[1], value);
+    // Check for WHERE clause and operators
+    if (num_tokens > 4 && strcmp(tokens[3], "WHERE") == 0) {
+        char *field = tokens[4];
+        char *operator = tokens[5];
+        char *comp_value = tokens[6];
+
+        // Only print if condition matches
+        if (evaluate_condition(value, operator, comp_value)) {
+            printf("%s=%s\n", tokens[1], value);
+        } else {
+            printf("No matching records.\n");
+        }
+    } else {
+        // No WHERE clause
+        printf("%s=%s\n", tokens[1], value);
+    }
+
     return true;
 }
 
-bool fossil_crabql_execute_select(fossil_crabdb_t *db, char **tokens, int num_tokens, int where_index) {
-    if (!db || !tokens || num_tokens < 2) return false;
-
-    // Basic SELECT without WHERE clause
-    if (where_index == -1) {
-        // Implement select logic here
-        return true;
-    } else {
-        // Handle WHERE clause logic, e.g., field operator value
-        char *field = tokens[where_index + 1];
-        char *operator = tokens[where_index + 2];
-        char *value = tokens[where_index + 3];
-
-        // Apply the condition (e.g., equality check)
-        char current_value[FOSSIL_CRABDB_VAL_SIZE];
-        fossil_crabdb_select(db, field, current_value, sizeof(current_value));
-
-        if (strcmp(operator, "=") == 0 && strcmp(current_value, value) == 0) {
-            printf("%s = %s\n", field, current_value);
-            return true;
-        }
-        // Additional operators can be handled here
-        return false;
-    }
-}
-
+// Execute INSERT (no changes needed here for operators)
 bool fossil_crabql_execute_insert(fossil_crabdb_t *db, char **tokens, int num_tokens) {
     if (!db || !tokens || num_tokens < 4) {
         fossil_crabql_log_error("Invalid INSERT statement.");
@@ -155,15 +163,39 @@ bool fossil_crabql_execute_insert(fossil_crabdb_t *db, char **tokens, int num_to
     return true;
 }
 
+// Execute UPDATE with operator support
 bool fossil_crabql_execute_update(fossil_crabdb_t *db, char **tokens, int num_tokens) {
-    if (!db || !tokens || num_tokens < 4) {
+    if (!db || !tokens || num_tokens < 6) {
         fossil_crabql_log_error("Invalid UPDATE statement.");
         return false;
     }
 
-    if (!fossil_crabdb_update(db, tokens[1], tokens[3])) {
-        fossil_crabql_log_error("Failed to execute UPDATE statement.");
+    char value[FOSSIL_CRABDB_VAL_SIZE];
+    if (!fossil_crabdb_select(db, tokens[1], value, sizeof(value))) {
+        fossil_crabql_log_error("Failed to fetch value for UPDATE condition.");
         return false;
+    }
+
+    // Check for WHERE clause and evaluate conditions
+    if (strcmp(tokens[4], "WHERE") == 0) {
+        char *operator = tokens[5];
+        char *comp_value = tokens[6];
+
+        if (evaluate_condition(value, operator, comp_value)) {
+            // Update only if the condition matches
+            if (!fossil_crabdb_update(db, tokens[1], tokens[3])) {
+                fossil_crabql_log_error("Failed to execute UPDATE statement.");
+                return false;
+            }
+        } else {
+            printf("No records matched for update.\n");
+        }
+    } else {
+        // Perform unconditional update if no WHERE clause
+        if (!fossil_crabdb_update(db, tokens[1], tokens[3])) {
+            fossil_crabql_log_error("Failed to execute UPDATE statement.");
+            return false;
+        }
     }
 
     return true;
@@ -257,7 +289,7 @@ crabql_status_t fossil_crabql_load_queries_from_file(fossil_crabdb_t *db, const 
             *query_end = '\0'; // Terminate the current query
             // Execute the current query segment if it has content
             if (*query_start != '\0') {
-                status = fossil_crabql_execute(db, query_start);
+                status = fossil_crabql_query(db, query_start);
                 if (status != CRABQL_SUCCESS) {
                     free(query_buffer);
                     fclose(file);
@@ -269,7 +301,7 @@ crabql_status_t fossil_crabql_load_queries_from_file(fossil_crabdb_t *db, const 
 
         // Execute any remaining query in the buffer after the last semicolon
         if (*query_start != '\0') {
-            status = fossil_crabql_execute(db, query_start);
+            status = fossil_crabql_query(db, query_start);
             if (status != CRABQL_SUCCESS) {
                 free(query_buffer);
                 fclose(file);
