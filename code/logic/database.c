@@ -175,9 +175,9 @@ bool fossil_crabdb_delete_table(fossil_crabdb_t* db, const char* table_name) {
             }
 
             /* Free all rows in the table */
-            fossil_crabdb_row_t* row = current->rows;
+            fossil_crabdb_node_t* row = current->rows;
             while (row) {
-                fossil_crabdb_row_t* next = row->next;
+                fossil_crabdb_node_t* next = row->next;
                 free(row);
                 row = next;
             }
@@ -349,18 +349,14 @@ bool fossil_crabdb_list_table(fossil_crabdb_t* db, const char* table_name, char*
     while (current) {
         if (strcmp(current->table_name, table_name) == 0) {
             /* List all rows in the table */
-            fossil_crabdb_row_t* row = current->rows;
+            fossil_crabdb_node_t* row = current->rows;
             size_t offset = 0;
             while (row) {
-                fossil_crabdb_node_t* current_node = row->values;
-                while (current_node) {
-                    size_t length = snprintf(list_buffer + offset, buffer_size - offset, "%s=%s\n", current_node->key, current_node->value);
-                    if (length >= buffer_size - offset) {
-                        return false;
-                    }
-                    offset += length;
-                    current_node = current_node->next;
+                size_t length = snprintf(list_buffer + offset, buffer_size - offset, "%s=%s\n", row->key, row->value);
+                if (length >= buffer_size - offset) {
+                    return false;
                 }
+                offset += length;
                 row = row->next;
             }
             return true;
@@ -379,9 +375,9 @@ bool fossil_crabdb_clear_table(fossil_crabdb_t* db, const char* table_name) {
     while (current) {
         if (strcmp(current->table_name, table_name) == 0) {
             /* Free all rows in the table */
-            fossil_crabdb_row_t* row = current->rows;
+            fossil_crabdb_node_t* row = current->rows;
             while (row) {
-                fossil_crabdb_row_t* next = row->next;
+                fossil_crabdb_node_t* next = row->next;
                 free(row);
                 row = next;
             }
@@ -410,9 +406,9 @@ bool fossil_crabdb_drop_table(fossil_crabdb_t* db, const char* table_name) {
             }
 
             /* Free all rows in the table */
-            fossil_crabdb_row_t* row = current->rows;
+            fossil_crabdb_node_t* row = current->rows;
             while (row) {
-                fossil_crabdb_row_t* next = row->next;
+                fossil_crabdb_node_t* next = row->next;
                 free(row);
                 row = next;
             }
