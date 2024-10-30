@@ -270,11 +270,10 @@ crabql_status_t fossil_crabql_load_queries_from_file(fossil_crabdb_t *db, const 
         return CRABQL_FILE_NOT_FOUND; // File could not be opened
     }
 
-    char *query_buffer = NULL;
-    size_t buffer_size = 0;
+    char query_buffer[1024]; // Fixed buffer size
     crabql_status_t status = CRABQL_SUCCESS;
 
-    while (getline(&query_buffer, &buffer_size, file) != -1) {
+    while (fgets(query_buffer, sizeof(query_buffer), file) != NULL) {
         // Strip trailing newline and whitespace
         size_t len = strlen(query_buffer);
         while (len > 0 && (query_buffer[len - 1] == '\n' || query_buffer[len - 1] == ' ')) {
@@ -291,7 +290,6 @@ crabql_status_t fossil_crabql_load_queries_from_file(fossil_crabdb_t *db, const 
             if (*query_start != '\0') {
                 status = fossil_crabql_query(db, query_start);
                 if (status != CRABQL_SUCCESS) {
-                    free(query_buffer);
                     fclose(file);
                     return status; // Stop on first execution failure
                 }
@@ -303,14 +301,12 @@ crabql_status_t fossil_crabql_load_queries_from_file(fossil_crabdb_t *db, const 
         if (*query_start != '\0') {
             status = fossil_crabql_query(db, query_start);
             if (status != CRABQL_SUCCESS) {
-                free(query_buffer);
                 fclose(file);
                 return status; // Stop on first execution failure
             }
         }
     }
 
-    free(query_buffer);
     fclose(file);
     return CRABQL_SUCCESS; // Successfully loaded and executed all queries
 }
