@@ -361,7 +361,7 @@ FOSSIL_TEST(test_fossil_crabdb_batch_update_table) {
     fossil_crabdb_insert(db, "table1.key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
     const char* keys[] = {"table1.key1", "table1.key2"};
     const char* values[] = {"new_value1", "new_value2"}; // Update existing and new key
-    bool result = fossil_crabdb_update_batch(db, keys, values, 2); // One exists, one doesn't
+    fossil_crabdb_update_batch(db, keys, values, 2); // One exists, one doesn't
     char value[FOSSIL_CRABDB_VAL_SIZE];
     fossil_crabdb_select(db, "table1.key1", value, sizeof(value));
     ASSUME_ITS_EQUAL_CSTR("new_value1", value); // Verify updated value
