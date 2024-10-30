@@ -12,6 +12,7 @@
  * -----------------------------------------------------------------------------
  */
 #include "fossil/crabdb/search.h"
+#include <ctype.h>
 
 static bool matches_pattern(const char* key, const char* pattern) {
     // Simple wildcard matching implementation
@@ -34,8 +35,25 @@ static bool matches_pattern(const char* key, const char* pattern) {
     return *key == '\0'; // Match only if we reached the end of the key
 }
 
+static bool is_valid_pattern(const char* pattern) {
+    // Check if the pattern is non-empty and contains only valid characters
+    if (!pattern || *pattern == '\0') return false;
+
+    while (*pattern) {
+        if (!isalnum(*pattern) && *pattern != '*' && *pattern != '?' && *pattern != '[' && *pattern != ']') {
+            return false; // Invalid character found
+        }
+        pattern++;
+    }
+    return true; // All characters are valid
+}
+
 crabsearch_status_t fossil_crabsearch_search(fossil_crabdb_t* db, const char* pattern, char* result_buffer, size_t buffer_size, size_t* match_count, result_format_t format) {
     if (!db || !pattern || !result_buffer || !match_count) {
+        return CRABSEARCH_INVALID_PARAM; // Check for valid parameters
+    }
+
+    if (!is_valid_pattern(pattern)) {
         return CRABSEARCH_INVALID_PARAM; // Check for valid parameters
     }
 
@@ -57,6 +75,9 @@ crabsearch_status_t fossil_crabsearch_search(fossil_crabdb_t* db, const char* pa
                 required_size = snprintf(temp_buffer, sizeof(temp_buffer), "%s: %s\n", key, value);
             } else if (format == FORMAT_JSON) {
                 required_size = snprintf(temp_buffer, sizeof(temp_buffer), "{\"key\": \"%s\", \"value\": \"%s\"}\n", key, value);
+            } else if (format == FORMAT_CSV) {
+                // Handle CSV output
+                required_size = snprintf(temp_buffer, sizeof(temp_buffer), "\"%s\",\"%s\"\n", key, value);
             } else {
                 return CRABSEARCH_INVALID_PARAM; // Unsupported format
             }
@@ -86,7 +107,7 @@ crabsearch_status_t fossil_crabsearch_search_multiple(fossil_crabdb_t* db, const
 
     for (size_t i = 0; i < num_patterns; i++) {
         size_t match_count_temp;
-        crabsearch_status_t status = fossil_crabsearch_search(db, patterns[i], result_buffer, buffer_size, &match_count_temp, FORMAT_PLAIN_TEXT);
+        crabsearch_status_t status = fossil_crabsearch_search(db, patterns[i], result_buffer, buffer_size, &match_count_temp, FORMAT_PLAIN_TEXT); // Default to plain text
         if (status == CRABSEARCH_SUCCESS) {
             total_matches += match_count_temp; // Accumulate total matches
         } else if (status == CRABSEARCH_BUFFER_OVERFLOW) {
