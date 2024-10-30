@@ -246,7 +246,7 @@ FOSSIL_TEST(test_fossil_crabdb_count_keys) {
 // Test case for handling invalid data types
 FOSSIL_TEST(test_fossil_crabdb_invalid_data_type) {
     fossil_crabdb_t* db = fossil_crabdb_create();
-    bool result = fossil_crabdb_insert(db, "key1", "value1", -1); // Invalid type
+    bool result = fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_INVALID); // Invalid type
     ASSUME_ITS_FALSE(result); // Should fail due to invalid type
     fossil_crabdb_destroy(db);
 }
