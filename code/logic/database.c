@@ -952,7 +952,10 @@ bool fossil_crabdb_update_table_batch(fossil_crabdb_t* db, const char* table_nam
         if (strcmp(current->table_name, table_name) == 0) {
             for (size_t i = 0; i < count; i++) {
                 if (!fossil_crabdb_update_table(db, table_name, keys[i], values[i])) {
-                    return false;
+                    // Handle non-existing keys by inserting them
+                    if (!fossil_crabdb_insert_into_table(db, table_name, keys[i], values[i], FOSSIL_CRABDB_TYPE_STRING)) {
+                        return false;
+                    }
                 }
             }
             return true;
