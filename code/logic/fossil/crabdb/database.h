@@ -374,17 +374,6 @@ bool fossil_crabdb_update_batch(fossil_crabdb_t* db, const char** keys, const ch
 bool fossil_crabdb_select_batch(fossil_crabdb_t* db, const char** keys, char** values, size_t* value_sizes, size_t count);
 
 /**
- * @brief Selects multiple key-value pairs from the CrabDB db.
- * @param db A pointer to the db.
- * @param keys An array of keys to select.
- * @param values A buffer to store the selected values.
- * @param value_sizes An array of sizes for the value buffers.
- * @param count The number of key-value pairs to select.
- * @return true if all pairs were selected successfully, false otherwise.
- */
-bool fossil_crabdb_select_batch(fossil_crabdb_t* db, const char** keys, char** values, size_t* value_sizes, size_t count);
-
-/**
  * @brief Inserts multiple key-value pairs into the CrabDB db in a single transaction.
  * @param db A pointer to the db.
  * @param keys An array of keys to insert.

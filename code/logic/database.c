@@ -761,11 +761,20 @@ bool fossil_crabdb_commit_transaction_table(fossil_crabdb_t* db, const char* tab
         return false; // No active transaction
     }
 
-    // Commit the transaction by writing changes to disk
-    persist_changes_to_disk(db);
-    db->in_transaction = false;
-    free(db->transaction_backup); // Clear the backup as it's no longer needed
-    return true;
+    // Check if the table exists
+    fossil_crabdb_table_t* current = db->tables;
+    while (current) {
+        if (strcmp(current->table_name, table_name) == 0) {
+            // Commit the transaction by writing changes to disk
+            persist_changes_to_disk(db);
+            db->in_transaction = false;
+            free(db->transaction_backup); // Clear the backup as it's no longer needed
+            return true;
+        }
+        current = current->next;
+    }
+
+    return false; // Table not found
 }
 
 bool fossil_crabdb_rollback_transaction_table(fossil_crabdb_t* db, const char* table_name) {
@@ -773,11 +782,20 @@ bool fossil_crabdb_rollback_transaction_table(fossil_crabdb_t* db, const char* t
         return false; // No active transaction
     }
 
-    // Roll back to the backed-up state
-    restore_from_backup(db, db->transaction_backup);
-    db->in_transaction = false;
-    free(db->transaction_backup); // Clear the backup
-    return true;
+    // Check if the table exists
+    fossil_crabdb_table_t* current = db->tables;
+    while (current) {
+        if (strcmp(current->table_name, table_name) == 0) {
+            // Roll back to the backed-up state
+            restore_from_backup(db, db->transaction_backup);
+            db->in_transaction = false;
+            free(db->transaction_backup); // Clear the backup
+            return true;
+        }
+        current = current->next;
+    }
+
+    return false; // Table not found
 }
 
 bool fossil_crabdb_insert_batch(fossil_crabdb_t* db, const char** keys, const char** values, fossil_crabdb_type_t* types, size_t count) {
@@ -809,18 +827,6 @@ bool fossil_crabdb_update_batch(fossil_crabdb_t* db, const char** keys, const ch
 
     for (size_t i = 0; i < count; i++) {
         if (!fossil_crabdb_update(db, keys[i], values[i])) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-bool fossil_crabdb_select_batch(fossil_crabdb_t* db, const char** keys, char** values, size_t* value_sizes, size_t count) {
-    if (!db || !keys || !values || !value_sizes) return false;
-
-    for (size_t i = 0; i < count; i++) {
-        if (!fossil_crabdb_select(db, keys[i], values[i], value_sizes[i])) {
             return false;
         }
     }
