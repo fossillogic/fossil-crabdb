@@ -189,7 +189,7 @@ FOSSIL_TEST(test_fossil_crabdb_update_null_value) {
 // Test case for deleting with NULL key
 FOSSIL_TEST(test_fossil_crabdb_delete_null_key) {
     fossil_crabdb_t* db = fossil_crabdb_create();
-    bool result = fossil_crabdb_delete(NULL);
+    bool result = fossil_crabdb_delete(NULL, NULL);
     ASSUME_ITS_FALSE(result); // Deleting with NULL key should fail
     fossil_crabdb_destroy(db);
 }
@@ -229,7 +229,7 @@ FOSSIL_TEST(test_fossil_crabdb_select_insufficient_buffer) {
     char value[5]; // Insufficient buffer
     bool result = fossil_crabdb_select(db, "key1", value, sizeof(value));
     ASSUME_ITS_TRUE(result); // Should succeed, but may not null-terminate
-    ASSUME_ITS_NOT_EQUAL_CSTR("value1", value); // Should not equal due to buffer overflow
+    ASSUME_NOT_EQUAL_CSTR("value1", value); // Should not equal due to buffer overflow
     fossil_crabdb_destroy(db);
 }
 
@@ -345,7 +345,7 @@ FOSSIL_TEST(test_fossil_crabdb_batch_insert_table) {
     fossil_crabdb_create_table(db, "table1");
     const char* keys[] = {"table1.key1", "table1.key2", "table1.key3"};
     const char* values[] = {"value1", "value2", "value3"};
-    bool result = fossil_crabdb_insert_batch(db, keys, values, 3); // Should succeed
+    bool result = fossil_crabdb_insert_batch(db, keys, values, FOSSIL_CRABDB_TYPE_STRING, 3); // Should succeed
     ASSUME_ITS_TRUE(result);
     char value[FOSSIL_CRABDB_VAL_SIZE];
     fossil_crabdb_select(db, "table1.key1", value, sizeof(value));
