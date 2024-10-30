@@ -33,6 +33,7 @@ extern "C" {
 
 /* Enumeration for data types */
 typedef enum {
+    FOSSIL_CRABDB_TYPE_INVALID = -1,
     FOSSIL_CRABDB_TYPE_INT8,
     FOSSIL_CRABDB_TYPE_INT16,
     FOSSIL_CRABDB_TYPE_INT32,

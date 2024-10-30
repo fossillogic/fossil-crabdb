@@ -217,6 +217,10 @@ size_t fossil_crabdb_count_keys(fossil_crabdb_t* db) {
 bool fossil_crabdb_insert(fossil_crabdb_t* db, const char* key, const char* value, fossil_crabdb_type_t type) {
     if (!db || !key || !value) return false;
 
+    if (type == FOSSIL_CRABDB_TYPE_INVALID) {
+        return false;
+    }
+
     /* Check if the key already exists and update if needed */
     fossil_crabdb_node_t* current = db->head;
     while (current) {
@@ -264,7 +268,7 @@ bool fossil_crabdb_update(fossil_crabdb_t* db, const char* key, const char* valu
         current = current->next;
     }
 
-    return false;
+    return false; // Key does not exist
 }
 
 /* Delete a key-value pair */
@@ -844,7 +848,7 @@ bool fossil_crabdb_update_batch(fossil_crabdb_t* db, const char** keys, const ch
 
     for (size_t i = 0; i < count; i++) {
         if (!fossil_crabdb_update(db, keys[i], values[i])) {
-            return false;
+            return false; // Fail if any update fails
         }
     }
 
