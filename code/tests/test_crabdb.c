@@ -345,7 +345,8 @@ FOSSIL_TEST(test_fossil_crabdb_batch_insert_table) {
     fossil_crabdb_create_table(db, "table1");
     const char* keys[] = {"table1.key1", "table1.key2", "table1.key3"};
     const char* values[] = {"value1", "value2", "value3"};
-    bool result = fossil_crabdb_insert_batch(db, keys, values, FOSSIL_CRABDB_TYPE_STRING, 3); // Should succeed
+    fossil_crabdb_type_t types[] = {FOSSIL_CRABDB_TYPE_STRING, FOSSIL_CRABDB_TYPE_STRING, FOSSIL_CRABDB_TYPE_STRING};
+    bool result = fossil_crabdb_insert_batch(db, keys, values, types, 3); // Should succeed
     ASSUME_ITS_TRUE(result);
     char value[FOSSIL_CRABDB_VAL_SIZE];
     fossil_crabdb_select(db, "table1.key1", value, sizeof(value));
