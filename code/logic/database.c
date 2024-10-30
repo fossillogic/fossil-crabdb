@@ -192,6 +192,27 @@ bool fossil_crabdb_delete_table(fossil_crabdb_t* db, const char* table_name) {
     return false;
 }
 
+bool fossil_crabdb_table_exists(fossil_crabdb_t* db, const char* table_name) {
+    if (!db || !table_name) return false;
+
+    /* Check if the table exists */
+    fossil_crabdb_table_t* current = db->tables;
+    while (current) {
+        if (strcmp(current->table_name, table_name) == 0) {
+            return true;
+        }
+        current = current->next;
+    }
+
+    return false;
+}
+
+size_t fossil_crabdb_count_keys(fossil_crabdb_t* db) {
+    if (!db) return 0;
+
+    return db->node_count;
+}
+
 /* Insert a new key-value pair */
 bool fossil_crabdb_insert(fossil_crabdb_t* db, const char* key, const char* value, fossil_crabdb_type_t type) {
     if (!db || !key || !value) return false;

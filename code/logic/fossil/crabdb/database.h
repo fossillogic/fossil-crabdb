@@ -128,6 +128,21 @@ bool fossil_crabdb_create_table(fossil_crabdb_t* db, const char* table_name);
  */
 bool fossil_crabdb_delete_table(fossil_crabdb_t* db, const char* table_name);
 
+/**
+ * @brief Checks if a table exists in the CrabDB.
+ * @param db A pointer to the CrabDB instance.
+ * @param table_name The name of the table to check.
+ * @return true if the table exists, false otherwise.
+ */
+bool fossil_crabdb_table_exists(fossil_crabdb_t* db, const char* table_name);
+
+/**
+ * @brief Counts the number of keys in the CrabDB.
+ * @param db A pointer to the CrabDB instance.
+ * @return The number of keys in the database.
+ */
+size_t fossil_crabdb_count_keys(fossil_crabdb_t* db);
+
 /* CRUD Operations */
 
 /**
