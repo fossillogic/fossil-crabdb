@@ -11,30 +11,44 @@
  * Copyright (C) 2024 Fossil Logic. All rights reserved.
  * -----------------------------------------------------------------------------
  */
-#include <fossil/unittest/framework.h> // Includes the Fossil Unit Test Framework
-#include <fossil/mockup/framework.h>   // Includes the Fossil Mockup Framework
-#include <fossil/unittest/assume.h>            // Includes the Fossil Assume Framework
+#include <fossil/test/framework.h>
 
 #include "fossil/crabdb/framework.h"
 
+// * * * * * * * * * * * * * * * * * * * * * * * *
+// * Fossil Logic Test Utilities
+// * * * * * * * * * * * * * * * * * * * * * * * *
+// Setup steps for things like test fixtures and
+// mock objects are set here.
+// * * * * * * * * * * * * * * * * * * * * * * * *
+
+FOSSIL_TEST_SUITE(c_crabdb_fixture);
+
+FOSSIL_SETUP(c_crabdb_fixture) {
+    // Setup the test fixture
+}
+
+FOSSIL_TEARDOWN(c_crabdb_fixture) {
+    // Teardown the test fixture
+}
 
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Blue CrabDB Database
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
-FOSSIL_TEST(test_fossil_crabdb_create) {
+FOSSIL_TEST_CASE(c_test_crabdb_create) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     ASSUME_NOT_CNULL(db);
     ASSUME_ITS_EQUAL_I32(0, db->node_count);
     fossil_crabdb_destroy(db);
 }
 
-FOSSIL_TEST(test_fossil_crabdb_destroy) {
+FOSSIL_TEST_CASE(c_test_crabdb_destroy) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_destroy(db); // Ensure no crash or memory leak
 }
 
-FOSSIL_TEST(test_fossil_crabdb_insert) {
+FOSSIL_TEST_CASE(c_test_crabdb_insert) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     bool result = fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
     ASSUME_ITS_TRUE(result);
@@ -42,7 +56,7 @@ FOSSIL_TEST(test_fossil_crabdb_insert) {
     fossil_crabdb_destroy(db);
 }
 
-FOSSIL_TEST(test_fossil_crabdb_insert_duplicate_key) {
+FOSSIL_TEST_CASE(c_test_crabdb_insert_duplicate_key) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
     bool result = fossil_crabdb_insert(db, "key1", "value2", FOSSIL_CRABDB_TYPE_STRING); // Should fail or update
@@ -54,7 +68,7 @@ FOSSIL_TEST(test_fossil_crabdb_insert_duplicate_key) {
     fossil_crabdb_destroy(db);
 }
 
-FOSSIL_TEST(test_fossil_crabdb_select_existing_key) {
+FOSSIL_TEST_CASE(c_test_crabdb_select_existing_key) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
     char value[FOSSIL_CRABDB_VAL_SIZE];
@@ -64,7 +78,7 @@ FOSSIL_TEST(test_fossil_crabdb_select_existing_key) {
     fossil_crabdb_destroy(db);
 }
 
-FOSSIL_TEST(test_fossil_crabdb_select_non_existing_key) {
+FOSSIL_TEST_CASE(c_test_crabdb_select_non_existing_key) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     char value[FOSSIL_CRABDB_VAL_SIZE];
     bool result = fossil_crabdb_select(db, "non_existing_key", value, sizeof(value));
@@ -72,7 +86,7 @@ FOSSIL_TEST(test_fossil_crabdb_select_non_existing_key) {
     fossil_crabdb_destroy(db);
 }
 
-FOSSIL_TEST(test_fossil_crabdb_update) {
+FOSSIL_TEST_CASE(c_test_crabdb_update) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
     bool result = fossil_crabdb_update(db, "key1", "value_updated");
@@ -83,7 +97,7 @@ FOSSIL_TEST(test_fossil_crabdb_update) {
     fossil_crabdb_destroy(db);
 }
 
-FOSSIL_TEST(test_fossil_crabdb_delete) {
+FOSSIL_TEST_CASE(c_test_crabdb_delete) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
     bool result = fossil_crabdb_delete(db, "key1");
@@ -92,14 +106,14 @@ FOSSIL_TEST(test_fossil_crabdb_delete) {
     fossil_crabdb_destroy(db);
 }
 
-FOSSIL_TEST(test_fossil_crabdb_delete_non_existing_key) {
+FOSSIL_TEST_CASE(c_test_crabdb_delete_non_existing_key) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     bool result = fossil_crabdb_delete(db, "non_existing_key");
     ASSUME_ITS_FALSE(result); // Should return false
     fossil_crabdb_destroy(db);
 }
 
-FOSSIL_TEST(test_fossil_crabdb_cleanup_expired) {
+FOSSIL_TEST_CASE(c_test_crabdb_cleanup_expired) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_insert_with_ttl(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING, 1); // 1 second TTL
     // Delay loop to allow expiration
@@ -113,7 +127,7 @@ FOSSIL_TEST(test_fossil_crabdb_cleanup_expired) {
     fossil_crabdb_destroy(db);
 }
 
-FOSSIL_TEST(test_fossil_crabdb_update_batch) {
+FOSSIL_TEST_CASE(c_test_crabdb_update_batch) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
     fossil_crabdb_insert(db, "key2", "value2", FOSSIL_CRABDB_TYPE_STRING);
@@ -132,7 +146,7 @@ FOSSIL_TEST(test_fossil_crabdb_update_batch) {
     fossil_crabdb_destroy(db);
 }
 
-FOSSIL_TEST(test_fossil_crabdb_delete_batch) {
+FOSSIL_TEST_CASE(c_test_crabdb_delete_batch) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
     fossil_crabdb_insert(db, "key2", "value2", FOSSIL_CRABDB_TYPE_STRING);
@@ -145,7 +159,7 @@ FOSSIL_TEST(test_fossil_crabdb_delete_batch) {
 }
 
 // Test case for inserting NULL key
-FOSSIL_TEST(test_fossil_crabdb_insert_null_key) {
+FOSSIL_TEST_CASE(c_test_crabdb_insert_null_key) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     bool result = fossil_crabdb_insert(db, NULL, "value1", FOSSIL_CRABDB_TYPE_STRING);
     ASSUME_ITS_FALSE(result); // Inserting NULL key should fail
@@ -153,7 +167,7 @@ FOSSIL_TEST(test_fossil_crabdb_insert_null_key) {
 }
 
 // Test case for inserting with NULL value
-FOSSIL_TEST(test_fossil_crabdb_insert_null_value) {
+FOSSIL_TEST_CASE(c_test_crabdb_insert_null_value) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     bool result = fossil_crabdb_insert(db, "key1", NULL, FOSSIL_CRABDB_TYPE_STRING);
     ASSUME_ITS_FALSE(result); // Inserting NULL value should fail
@@ -161,7 +175,7 @@ FOSSIL_TEST(test_fossil_crabdb_insert_null_value) {
 }
 
 // Test case for selecting with NULL key
-FOSSIL_TEST(test_fossil_crabdb_select_null_key) {
+FOSSIL_TEST_CASE(c_test_crabdb_select_null_key) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     char value[FOSSIL_CRABDB_VAL_SIZE];
     bool result = fossil_crabdb_select(db, NULL, value, sizeof(value));
@@ -170,7 +184,7 @@ FOSSIL_TEST(test_fossil_crabdb_select_null_key) {
 }
 
 // Test case for updating a NULL key
-FOSSIL_TEST(test_fossil_crabdb_update_null_key) {
+FOSSIL_TEST_CASE(c_test_crabdb_update_null_key) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     bool result = fossil_crabdb_update(db, NULL, "new_value");
     ASSUME_ITS_FALSE(result); // Updating NULL key should fail
@@ -178,7 +192,7 @@ FOSSIL_TEST(test_fossil_crabdb_update_null_key) {
 }
 
 // Test case for updating with NULL value
-FOSSIL_TEST(test_fossil_crabdb_update_null_value) {
+FOSSIL_TEST_CASE(c_test_crabdb_update_null_value) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
     bool result = fossil_crabdb_update(db, "key1", NULL);
@@ -187,7 +201,7 @@ FOSSIL_TEST(test_fossil_crabdb_update_null_value) {
 }
 
 // Test case for deleting with NULL key
-FOSSIL_TEST(test_fossil_crabdb_delete_null_key) {
+FOSSIL_TEST_CASE(c_test_crabdb_delete_null_key) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     bool result = fossil_crabdb_delete(NULL, NULL);
     ASSUME_ITS_FALSE(result); // Deleting with NULL key should fail
@@ -195,7 +209,7 @@ FOSSIL_TEST(test_fossil_crabdb_delete_null_key) {
 }
 
 // Test case for concurrent access handling (basic)
-FOSSIL_TEST(test_fossil_crabdb_concurrent_access) {
+FOSSIL_TEST_CASE(c_test_crabdb_concurrent_access) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     // Simulate concurrent inserts (this is a simplification; real concurrent tests would use threads)
     bool result1 = fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
@@ -209,7 +223,7 @@ FOSSIL_TEST(test_fossil_crabdb_concurrent_access) {
 }
 
 // Test case for inserting large data
-FOSSIL_TEST(test_fossil_crabdb_insert_large_data) {
+FOSSIL_TEST_CASE(c_test_crabdb_insert_large_data) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     char large_value[FOSSIL_CRABDB_VAL_SIZE];
     memset(large_value, 'A', sizeof(large_value) - 1);
@@ -223,7 +237,7 @@ FOSSIL_TEST(test_fossil_crabdb_insert_large_data) {
 }
 
 // Test case for selecting with insufficient buffer size
-FOSSIL_TEST(test_fossil_crabdb_select_insufficient_buffer) {
+FOSSIL_TEST_CASE(c_test_crabdb_select_insufficient_buffer) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
     char value[5]; // Insufficient buffer
@@ -234,7 +248,7 @@ FOSSIL_TEST(test_fossil_crabdb_select_insufficient_buffer) {
 }
 
 // Test case for checking total count of keys
-FOSSIL_TEST(test_fossil_crabdb_count_keys) {
+FOSSIL_TEST_CASE(c_test_crabdb_count_keys) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     ASSUME_ITS_EQUAL_I32(0, fossil_crabdb_count_keys(db)); // Initially should be 0
     fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
@@ -244,7 +258,7 @@ FOSSIL_TEST(test_fossil_crabdb_count_keys) {
 }
 
 // Test case for handling invalid data types
-FOSSIL_TEST(test_fossil_crabdb_invalid_data_type) {
+FOSSIL_TEST_CASE(c_test_crabdb_invalid_data_type) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     bool result = fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_INVALID); // Invalid type
     ASSUME_ITS_FALSE(result); // Should fail due to invalid type
@@ -252,7 +266,7 @@ FOSSIL_TEST(test_fossil_crabdb_invalid_data_type) {
 }
 
 // Test case for batch update with invalid data
-FOSSIL_TEST(test_fossil_crabdb_update_batch_invalid_data) {
+FOSSIL_TEST_CASE(c_test_crabdb_update_batch_invalid_data) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
     const char* keys[] = {"key1", "key2", "key_invalid"};
@@ -263,7 +277,7 @@ FOSSIL_TEST(test_fossil_crabdb_update_batch_invalid_data) {
 }
 
 // Test case for batch delete with non-existing keys
-FOSSIL_TEST(test_fossil_crabdb_delete_batch_non_existing_keys) {
+FOSSIL_TEST_CASE(c_test_crabdb_delete_batch_non_existing_keys) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     const char* keys[] = {"non_existing_key1", "non_existing_key2"};
     bool result = fossil_crabdb_delete_batch(db, keys, 2); // All non-existing
@@ -272,7 +286,7 @@ FOSSIL_TEST(test_fossil_crabdb_delete_batch_non_existing_keys) {
 }
 
 // Test case for creating a new table
-FOSSIL_TEST(test_fossil_crabdb_create_table) {
+FOSSIL_TEST_CASE(c_test_crabdb_create_table) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     bool result = fossil_crabdb_create_table(db, "table1");
     ASSUME_ITS_TRUE(result); // Creating a new table should succeed
@@ -280,7 +294,7 @@ FOSSIL_TEST(test_fossil_crabdb_create_table) {
 }
 
 // Test case for creating a table with a duplicate name
-FOSSIL_TEST(test_fossil_crabdb_create_duplicate_table) {
+FOSSIL_TEST_CASE(c_test_crabdb_create_duplicate_table) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_create_table(db, "table1");
     bool result = fossil_crabdb_create_table(db, "table1"); // Duplicate creation should fail
@@ -289,7 +303,7 @@ FOSSIL_TEST(test_fossil_crabdb_create_duplicate_table) {
 }
 
 // Test case for deleting a table
-FOSSIL_TEST(test_fossil_crabdb_delete_table) {
+FOSSIL_TEST_CASE(c_test_crabdb_delete_table) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_create_table(db, "table1");
     bool result = fossil_crabdb_delete_table(db, "table1");
@@ -298,7 +312,7 @@ FOSSIL_TEST(test_fossil_crabdb_delete_table) {
 }
 
 // Test case for deleting a non-existing table
-FOSSIL_TEST(test_fossil_crabdb_delete_non_existing_table) {
+FOSSIL_TEST_CASE(c_test_crabdb_delete_non_existing_table) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     bool result = fossil_crabdb_delete_table(db, "non_existing_table"); // Should fail
     ASSUME_ITS_FALSE(result);
@@ -306,7 +320,7 @@ FOSSIL_TEST(test_fossil_crabdb_delete_non_existing_table) {
 }
 
 // Test case for selecting from a table
-FOSSIL_TEST(test_fossil_crabdb_select_from_table) {
+FOSSIL_TEST_CASE(c_test_crabdb_select_from_table) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_create_table(db, "table1");
     fossil_crabdb_insert(db, "table1.key1", "value1", FOSSIL_CRABDB_TYPE_STRING); // Use table-prefixed keys
@@ -318,7 +332,7 @@ FOSSIL_TEST(test_fossil_crabdb_select_from_table) {
 }
 
 // Test case for selecting from a non-existing table
-FOSSIL_TEST(test_fossil_crabdb_select_non_existing_table) {
+FOSSIL_TEST_CASE(c_test_crabdb_select_non_existing_table) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     char value[FOSSIL_CRABDB_VAL_SIZE];
     bool result = fossil_crabdb_select(db, "non_existing_table.key1", value, sizeof(value)); // Should fail
@@ -327,7 +341,7 @@ FOSSIL_TEST(test_fossil_crabdb_select_non_existing_table) {
 }
 
 // Test case for updating a record in a table
-FOSSIL_TEST(test_fossil_crabdb_update_table_record) {
+FOSSIL_TEST_CASE(c_test_crabdb_update_table_record) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_create_table(db, "table1");
     fossil_crabdb_insert(db, "table1.key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
@@ -340,7 +354,7 @@ FOSSIL_TEST(test_fossil_crabdb_update_table_record) {
 }
 
 // Test case for batch insert into a table
-FOSSIL_TEST(test_fossil_crabdb_batch_insert_table) {
+FOSSIL_TEST_CASE(c_test_crabdb_batch_insert_table) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_create_table(db, "table1");
     const char* keys[] = {"table1.key1", "table1.key2", "table1.key3"};
@@ -355,7 +369,7 @@ FOSSIL_TEST(test_fossil_crabdb_batch_insert_table) {
 }
 
 // Test case for batch update in a table
-FOSSIL_TEST(test_fossil_crabdb_batch_update_table) {
+FOSSIL_TEST_CASE(c_test_crabdb_batch_update_table) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_create_table(db, "table1");
     fossil_crabdb_insert(db, "table1.key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
@@ -369,7 +383,7 @@ FOSSIL_TEST(test_fossil_crabdb_batch_update_table) {
 }
 
 // Test case for checking table existence
-FOSSIL_TEST(test_fossil_crabdb_table_exists) {
+FOSSIL_TEST_CASE(c_test_crabdb_table_exists) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_create_table(db, "table1");
     bool exists = fossil_crabdb_table_exists(db, "table1"); // Check existence
@@ -378,7 +392,7 @@ FOSSIL_TEST(test_fossil_crabdb_table_exists) {
 }
 
 // Test case for checking non-existing table
-FOSSIL_TEST(test_fossil_crabdb_non_existing_table) {
+FOSSIL_TEST_CASE(c_test_crabdb_non_existing_table) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     bool exists = fossil_crabdb_table_exists(db, "non_existing_table"); // Should return false
     ASSUME_ITS_FALSE(exists);
@@ -389,41 +403,43 @@ FOSSIL_TEST(test_fossil_crabdb_non_existing_table) {
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
-FOSSIL_TEST_GROUP(c_crab_database_tests) {    
-    ADD_TEST(test_fossil_crabdb_create);
-    ADD_TEST(test_fossil_crabdb_destroy);
-    ADD_TEST(test_fossil_crabdb_insert);
-    ADD_TEST(test_fossil_crabdb_insert_duplicate_key);
-    ADD_TEST(test_fossil_crabdb_select_existing_key);
-    ADD_TEST(test_fossil_crabdb_select_non_existing_key);
-    ADD_TEST(test_fossil_crabdb_update);
-    ADD_TEST(test_fossil_crabdb_delete);
-    ADD_TEST(test_fossil_crabdb_delete_non_existing_key);
-    ADD_TEST(test_fossil_crabdb_cleanup_expired);
-    ADD_TEST(test_fossil_crabdb_update_batch);
-    ADD_TEST(test_fossil_crabdb_delete_batch);
-    ADD_TEST(test_fossil_crabdb_insert_null_key);
-    ADD_TEST(test_fossil_crabdb_insert_null_value);
-    ADD_TEST(test_fossil_crabdb_select_null_key);
-    ADD_TEST(test_fossil_crabdb_update_null_key);
-    ADD_TEST(test_fossil_crabdb_update_null_value);
-    ADD_TEST(test_fossil_crabdb_delete_null_key);
-    ADD_TEST(test_fossil_crabdb_concurrent_access);
-    ADD_TEST(test_fossil_crabdb_insert_large_data);
-    ADD_TEST(test_fossil_crabdb_select_insufficient_buffer);
-    ADD_TEST(test_fossil_crabdb_count_keys);
-    ADD_TEST(test_fossil_crabdb_invalid_data_type);
-    ADD_TEST(test_fossil_crabdb_update_batch_invalid_data);
-    ADD_TEST(test_fossil_crabdb_delete_batch_non_existing_keys);
-    ADD_TEST(test_fossil_crabdb_create_table);
-    ADD_TEST(test_fossil_crabdb_create_duplicate_table);
-    ADD_TEST(test_fossil_crabdb_delete_table);
-    ADD_TEST(test_fossil_crabdb_delete_non_existing_table);
-    ADD_TEST(test_fossil_crabdb_select_from_table);
-    ADD_TEST(test_fossil_crabdb_select_non_existing_table);
-    ADD_TEST(test_fossil_crabdb_update_table_record);
-    ADD_TEST(test_fossil_crabdb_batch_insert_table);
-    ADD_TEST(test_fossil_crabdb_batch_update_table);
-    ADD_TEST(test_fossil_crabdb_table_exists);
-    ADD_TEST(test_fossil_crabdb_non_existing_table);
+FOSSIL_TEST_CASE_GROUP(c_crab_database_tests) {    
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_create);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_destroy);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_insert);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_insert_duplicate_key);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_select_existing_key);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_select_non_existing_key);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_update);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_delete);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_delete_non_existing_key);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_cleanup_expired);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_update_batch);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_delete_batch);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_insert_null_key);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_insert_null_value);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_select_null_key);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_update_null_key);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_update_null_value);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_delete_null_key);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_concurrent_access);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_insert_large_data);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_select_insufficient_buffer);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_count_keys);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_invalid_data_type);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_update_batch_invalid_data);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_delete_batch_non_existing_keys);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_create_table);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_create_duplicate_table);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_delete_table);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_delete_non_existing_table);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_select_from_table);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_select_non_existing_table);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_update_table_record);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_batch_insert_table);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_batch_update_table);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_table_exists);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_non_existing_table);
+
+    FOSSIL_TEST_REGISTER(c_crabdb_fixture);
 } // end of tests
