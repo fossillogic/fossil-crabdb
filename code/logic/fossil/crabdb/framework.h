@@ -14,18 +14,10 @@
 #ifndef FOSSIL_CRABDB_FRAMEWORK_H
 #define FOSSIL_CRABDB_FRAMEWORK_H
 
-#ifdef __cplusplus
-namespace fossil {
-#endif
-
 #include "database.h"
 #include "query.h"
 #include "sync.h"
 #include "search.h"
 #include "logging.h"
-
-#ifdef __cplusplus
-} // namespae fossil
-#endif
 
 #endif /* FOSSIL_CRABDB_FRAMEWORK_H */
