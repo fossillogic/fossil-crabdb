@@ -146,7 +146,7 @@ FOSSIL_TEST_CASE(cpp_test_crabql_query_delete_with_operators) {
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
-FOSSIL_TEST_CASE_GROUP(cpp_crab_query_tests) {
+FOSSIL_TEST_GROUP(cpp_crab_query_tests) {
     FOSSIL_TEST_ADD(cpp_query_fixture, cpp_test_crabql_query_insert);
     FOSSIL_TEST_ADD(cpp_query_fixture, cpp_test_crabql_query_update);
     FOSSIL_TEST_ADD(cpp_query_fixture, cpp_test_crabql_query_select);

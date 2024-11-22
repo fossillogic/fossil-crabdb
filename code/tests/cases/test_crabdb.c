@@ -403,7 +403,7 @@ FOSSIL_TEST_CASE(c_test_crabdb_non_existing_table) {
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
-FOSSIL_TEST_CASE_GROUP(c_crab_database_tests) {    
+FOSSIL_TEST_GROUP(c_crab_database_tests) {    
     FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_create);
     FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_destroy);
     FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_insert);

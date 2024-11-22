@@ -81,7 +81,7 @@ FOSSIL_TEST_CASE(cpp_test_crabsyncpp_syncpp_all) {
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
-FOSSIL_TEST_CASE_GROUP(cpp_crabsyncpp_tests) {
+FOSSIL_TEST_GROUP(cpp_crabsyncpp_tests) {
     FOSSIL_TEST_ADD(cpp_crabsyncpp_fixture, cpp_test_crabsyncpp_initialize);
     FOSSIL_TEST_ADD(cpp_crabsyncpp_fixture, cpp_test_crabsyncpp_add_data);
     FOSSIL_TEST_ADD(cpp_crabsyncpp_fixture, cpp_test_crabsyncpp_process_next);

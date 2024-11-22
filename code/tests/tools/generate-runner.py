@@ -9,7 +9,7 @@ class TestRunnerGenerator:
 
     def find_test_groups(self):
         test_groups = set()
-        pattern = r"FOSSIL_TEST_CASE_GROUP\((\w+)\)"
+        pattern = r"FOSSIL_TEST_GROUP\((\w+)\)"
 
         # Walk through files in the specified directory, 'cases'
         for root, _, files in os.walk(self.directory):

@@ -117,7 +117,7 @@ FOSSIL_TEST_CASE(c_test_crabsearch_search_multiple_invalid_params) {
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
-FOSSIL_TEST_CASE_GROUP(c_crab_search_tests) {
+FOSSIL_TEST_GROUP(c_crab_search_tests) {
     FOSSIL_TEST_ADD(c_search_fixture, c_test_crabsearch_search_valid_pattern);
     FOSSIL_TEST_ADD(c_search_fixture, c_test_crabsearch_search_no_matches);
     FOSSIL_TEST_ADD(c_search_fixture, c_test_crabsearch_search_buffer_overflow);
