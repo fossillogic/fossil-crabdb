@@ -36,7 +36,7 @@ class TestRunnerGenerator:
 
         # Declare test group externs
         extern_test_groups = "\n".join(
-            [f"FOSSIL_TEST_CASE_EXPORT({group});" for group in test_groups]
+            [f"FOSSIL_TEST_EXPORT({group});" for group in test_groups]
         )
 
         # Prepare runner content
@@ -45,18 +45,18 @@ class TestRunnerGenerator:
 // * Fossil Logic Test Runner
 // * * * * * * * * * * * * * * * * * * * * * * * *
 int main(int argc, char **argv) {
-    FOSSIL_TEST_CASE_START(argc, argv);\n"""
+    FOSSIL_TEST_START(argc, argv);\n"""
 
         # Import test groups in the main function
         import_test_groups = "\n".join(
-            [f"    FOSSIL_TEST_CASE_IMPORT({group});" for group in test_groups]
+            [f"    FOSSIL_TEST_IMPORT({group});" for group in test_groups]
         )
 
         # Complete with footer
         footer = """\n
-    FOSSIL_TEST_CASE_RUN();
-    FOSSIL_TEST_CASE_SUMMARY();
-    FOSSIL_TEST_CASE_END();
+    FOSSIL_TEST_RUN();
+    FOSSIL_TEST_SUMMARY();
+    FOSSIL_TEST_END();
 } // end of main
 """
 
