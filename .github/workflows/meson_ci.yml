@@ -5,16 +5,20 @@ on:
     paths:
       - "**.c"
       - "**.h"
-      - "**.kt"
+      - "**.cpp"
+      - "**.hpp"
       - "**.py"
-      - "meson.**"
+      - "**.build"
+      - "**.options"
   pull_request:
     paths:
       - "**.c"
       - "**.h"
-      - "**.kt"
+      - "**.cpp"
+      - "**.hpp"
       - "**.py"
-      - "meson.**"
+      - "**.build"
+      - "**.options"
 
 jobs:
   build_msvc:

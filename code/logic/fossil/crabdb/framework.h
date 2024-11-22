@@ -20,4 +20,5 @@
 #include "search.h"
 #include "logging.h"
 
+
 #endif /* FOSSIL_CRABDB_FRAMEWORK_H */
