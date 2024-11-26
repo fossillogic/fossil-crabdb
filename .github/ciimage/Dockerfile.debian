@@ -14,9 +14,6 @@ RUN apt-get update && \
     g++ \
     gdb \
     llvm \
-    gobjc \
-    gobjc++ \
-    libobjc-8-dev \
     libstdc++-8-dev \
     rustc \
     cargo \
@@ -27,8 +24,8 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Meson, Ninja, and Cython using pip
-RUN python3 -m pip install --no-cache-dir meson ninja
+# Install Meson and Ninja
+RUN python3 -m pip install --no-cache-dir meson ninja==1.10.2
 
 # Set environment variables
 ENV CC=/usr/bin/clang
