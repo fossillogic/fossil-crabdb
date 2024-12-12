@@ -20,46 +20,81 @@
 extern "C" {
 #endif
 
-// Enumeration for search result formats
-typedef enum {
-    FORMAT_PLAIN_TEXT,
-    FORMAT_JSON,
-    FORMAT_CSV
-} result_format_t;
-
-// Enumeration for status codes
-typedef enum {
-    CRABSEARCH_SUCCESS,
-    CRABSEARCH_INVALID_PARAM,
-    CRABSEARCH_BUFFER_OVERFLOW,
-    CRABSEARCH_NO_MATCHES,
-} crabsearch_status_t;
+// *****************************************************************************
+// Search operations
+// *****************************************************************************
 
 /**
- * @brief Searches for key-value pairs in the CrabDB database that match a wildcard pattern.
+ * Search for a key in the database.
+ *
+ * This function checks if a key exists in the database.
  * 
- * @param db A pointer to the database to search in.
- * @param pattern The wildcard pattern to match keys.
- * @param result_buffer The buffer to store the matching key-value pairs.
- * @param buffer_size The size of the result buffer.
- * @param match_count Pointer to store the number of matches found.
- * @param format The format for the result output.
- * @return crabsearch_status_t Status code indicating success or error.
+ * @param key The key to search for.
+ * 
+ * @return true if the key is found, false otherwise.
  */
-crabsearch_status_t fossil_crabsearch_search(fossil_crabdb_t* db, const char* pattern, char* result_buffer, size_t buffer_size, size_t* match_count, result_format_t format);
+bool fossil_crabsearch_key_exists(const char *key);
 
 /**
- * @brief Searches for key-value pairs in the CrabDB database that match multiple wildcard patterns.
+ * Search for entries with a value that matches a given pattern.
+ *
+ * This function performs a search for values that match a specific pattern.
+ * It can be used for partial string matching or matching a range of values.
  * 
- * @param db A pointer to the database to search in.
- * @param patterns An array of wildcard patterns to match keys.
- * @param num_patterns The number of patterns in the array.
- * @param result_buffer The buffer to store the matching key-value pairs.
- * @param buffer_size The size of the result buffer.
- * @param match_count Pointer to store the total number of matches found.
- * @return crabsearch_status_t Status code indicating success or error.
+ * @param pattern The pattern to search for in values.
+ * @param count A pointer to store the number of entries matching the pattern.
+ * 
+ * @return An array of keys that match the pattern, or NULL if no matches are found.
+ *         The caller is responsible for freeing this array.
  */
-crabsearch_status_t fossil_crabsearch_search_multiple(fossil_crabdb_t* db, const char** patterns, size_t num_patterns, char* result_buffer, size_t buffer_size, size_t* match_count);
+char **fossil_crabsearch_values_by_pattern(const char *pattern, size_t *count);
+
+/**
+ * Search for all keys in the database whose values match a given pattern.
+ *
+ * @param pattern The pattern to search for.
+ * @param count A pointer to store the number of matching keys.
+ * 
+ * @return An array of keys that match the value pattern.
+ */
+char **fossil_crabsearch_keys_by_pattern(const char *pattern, size_t *count);
+
+/**
+ * Search for a value in the database by key.
+ *
+ * This function searches for a key in the database and returns the associated value.
+ * If the key is not found, it returns NULL.
+ *
+ * @param key The key to search for.
+ * @param value_size A pointer to store the size of the value.
+ * 
+ * @return A pointer to the value associated with the key, or NULL if the key is not found.
+ */
+void *fossil_crabsearch_value_by_key(const char *key, size_t *value_size);
+
+/**
+ * Search for a key in the database using a case-insensitive match.
+ *
+ * This function checks if a key exists in the database, ignoring case.
+ *
+ * @param key The key to search for (case-insensitive).
+ * 
+ * @return true if the key is found (case-insensitive), false otherwise.
+ */
+bool fossil_crabsearch_key_exists_case_insensitive(const char *key);
+
+/**
+ * Perform a search for multiple keys with a common prefix.
+ *
+ * This function checks if any keys in the database start with the given prefix.
+ * 
+ * @param prefix The prefix to search for.
+ * @param count A pointer to store the number of matching keys.
+ * 
+ * @return An array of keys starting with the specified prefix.
+ *         The caller is responsible for freeing this array.
+ */
+char **fossil_crabsearch_keys_by_prefix(const char *prefix, size_t *count);
 
 #ifdef __cplusplus
 }

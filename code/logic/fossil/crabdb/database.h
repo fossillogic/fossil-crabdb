@@ -26,739 +26,263 @@
 extern "C" {
 #endif
 
-/* Maximum sizes for keys and values */
-#define FOSSIL_CRABDB_VAL_SIZE 256
-#define FOSSIL_CRABDB_KEY_SIZE 1024
-#define MIN_BUFFER_SIZE 256  // Example minimum size, adjust based on needs
+/**
+ * The following types help illustrate a database structure that takes the form
+ * of a book, which is a common and easily understandable metaphor. Each entry
+ * in the database is like a page in the book, and the entire database is like
+ * a collection of these pages.
+ * 
+ * - fossil_crabdb_entry_t: Represents an entry in the database, holding a key-value pair.
+ * - fossil_crabdb_page_t: Represents a node in the doubly linked list, containing an entry and pointers to the next and previous nodes.
+ * - fossil_crabdb_book_t: Represents the entire database, maintaining pointers to the head and tail of the list and the number of elements.
+ */
 
-/* Enumeration for data types */
-typedef enum {
-    FOSSIL_CRABDB_TYPE_INVALID = -1,
-    FOSSIL_CRABDB_TYPE_INT8,
-    FOSSIL_CRABDB_TYPE_INT16,
-    FOSSIL_CRABDB_TYPE_INT32,
-    FOSSIL_CRABDB_TYPE_INT64,
-    FOSSIL_CRABDB_TYPE_UINT8,
-    FOSSIL_CRABDB_TYPE_UINT16,
-    FOSSIL_CRABDB_TYPE_UINT32,
-    FOSSIL_CRABDB_TYPE_UINT64,
-    FOSSIL_CRABDB_TYPE_OCTAL8,
-    FOSSIL_CRABDB_TYPE_OCTAL16,
-    FOSSIL_CRABDB_TYPE_OCTAL32,
-    FOSSIL_CRABDB_TYPE_OCTAL64,
-    FOSSIL_CRABDB_TYPE_HEX8,
-    FOSSIL_CRABDB_TYPE_HEX16,
-    FOSSIL_CRABDB_TYPE_HEX32,
-    FOSSIL_CRABDB_TYPE_HEX64,
-    FOSSIL_CRABDB_TYPE_BIN8,
-    FOSSIL_CRABDB_TYPE_BIN16,
-    FOSSIL_CRABDB_TYPE_BIN32,
-    FOSSIL_CRABDB_TYPE_BIN64,
-    FOSSIL_CRABDB_TYPE_FLOAT,
-    FOSSIL_CRABDB_TYPE_DOUBLE,
-    FOSSIL_CRABDB_TYPE_STRING,
-    FOSSIL_CRABDB_TYPE_BOOL,
-    FOSSIL_CRABDB_TYPE_CHAR,
-    FOSSIL_CRABDB_TYPE_NULL
-} fossil_crabdb_type_t;
+/**
+ * @brief Represents an entry in the fossil_crabdb database.
+ * 
+ * This structure holds a key-value pair where the key is a null-terminated string
+ * and the value is a pointer to the data with its size specified.
+ */
+typedef struct {
+    char *key;                // Null-terminated string for the key.
+    void *value;              // Pointer to the value.
+    size_t value_size;        // Size of the value in bytes.
+} fossil_crabdb_entry_t;
 
-/* Structure for CrabDB node */
+/**
+ * @brief Represents a node in the doubly linked list used by fossil_crabdb.
+ * 
+ * Each node contains an entry and pointers to the next and previous nodes
+ * in the list, allowing traversal in both directions.
+ */
 typedef struct fossil_crabdb_node {
-    char key[FOSSIL_CRABDB_KEY_SIZE];
-    char value[FOSSIL_CRABDB_VAL_SIZE];
-    fossil_crabdb_type_t type;
-    time_t timestamp;  // Timestamp for the node
-    unsigned int ttl;  // Time-To-Live for the node in seconds
-    struct fossil_crabdb_node* prev;
-    struct fossil_crabdb_node* next;
-} fossil_crabdb_node_t;
-
-typedef struct fossil_crabdb_row {
-    fossil_crabdb_node_t* values; // Linked list of nodes representing columns
-    struct fossil_crabdb_row* next; // Pointer to the next row
-} fossil_crabdb_row_t;
-
-typedef struct fossil_crabdb_table {
-    char table_name[FOSSIL_CRABDB_KEY_SIZE]; // Name of the table
-    fossil_crabdb_node_t* rows; // Pointer to the first row (linked list of nodes)
-    size_t row_count; // Number of rows in the table
-    struct fossil_crabdb_table* next; // For linking multiple tables
-} fossil_crabdb_table_t;
-
-/* Structure for CrabDB */
-typedef struct fossil_crabdb {
-    fossil_crabdb_node_t* head;  // Pointer to the first node in the deque
-    fossil_crabdb_node_t* tail;  // Pointer to the last node in the deque
-    fossil_crabdb_table_t* tables; // Pointer to the first table in the list
-
-    bool in_transaction;         // Flag indicating if a transaction is active
-    struct fossil_crabdb* transaction_backup; // Backup of the database state for rollback during transactions
-
-    FILE* db_file;               // Pointer to the persistent .crabdb file
-    char* file_path;             // Path to the .crabdb file
-    bool logging_enabled;         // Flag indicating if logging is enabled
-
-    size_t node_count;           // Number of nodes (key-value pairs) in the database
-} fossil_crabdb_t;
-
-
-/* Database Management */
+    fossil_crabdb_entry_t entry;     // Data stored in the node.
+    struct fossil_crabdb_node *next; // Pointer to the next node.
+    struct fossil_crabdb_node *prev; // Pointer to the previous node.
+} fossil_crabdb_page_t;
 
 /**
- * @brief Creates a new CrabDB instance.
- * @return A pointer to the newly created CrabDB instance.
+ * @brief Represents a deque (double-ended queue) in the fossil_crabdb database.
+ * 
+ * This structure maintains pointers to the head and tail of the doubly linked list
+ * and keeps track of the number of elements in the deque.
  */
-fossil_crabdb_t* fossil_crabdb_create(void);
+typedef struct {
+    fossil_crabdb_page_t *head;      // Pointer to the first node.
+    fossil_crabdb_page_t *tail;      // Pointer to the last node.
+    size_t size;                     // Number of elements in the deque.
+} fossil_crabdb_book_t;
+
+// *****************************************************************************
+// Create and destroy
+// *****************************************************************************
 
 /**
- * @brief Destroys the given CrabDB instance and frees all associated memory.
- * @param db A pointer to the CrabDB instance to be destroyed.
- */
-void fossil_crabdb_destroy(fossil_crabdb_t* db);
-
-/**
- * @brief Opens a CrabDB file for reading and writing.
+ * Initialize the database.
+ *
  * @param filename The name of the file to open.
- * @return A pointer to the CrabDB instance.
+ * 
+ * @note The file must have a .crabdb extension.
+ * 
+ * @warning This function must be called before any other database functions.
  */
-bool fossil_crabdb_create_table(fossil_crabdb_t* db, const char* table_name);
+void fossil_crabdb_open(const char *filename);
 
 /**
- * @brief Closes the CrabDB file.
- * @param db A pointer to the CrabDB instance.
+ * Cleanup resources and close the database.
+ * 
+ * This function will free all memory allocated for the database.
+ * 
+ * @note This function must be called before the program exits.
+ * 
+ * @warning Do not call this function if the database is still in use.
  */
-bool fossil_crabdb_delete_table(fossil_crabdb_t* db, const char* table_name);
+void fossil_crabdb_close(void);
+
+// *****************************************************************************
+// classic CRUD operations
+// *****************************************************************************
 
 /**
- * @brief Checks if a table exists in the CrabDB.
- * @param db A pointer to the CrabDB instance.
- * @param table_name The name of the table to check.
- * @return true if the table exists, false otherwise.
+ * Create a key-value pair.
+ *
+ * @param key The key to store the value under.
+ * @param value The value to store.
+ * @param value_size The size of the value in bytes.
  */
-bool fossil_crabdb_table_exists(fossil_crabdb_t* db, const char* table_name);
+void fossil_crabdb_create(const char *key, const void *value, size_t value_size);
 
 /**
- * @brief Counts the number of keys in the CrabDB.
- * @param db A pointer to the CrabDB instance.
- * @return The number of keys in the database.
+ * Read a value by key.
+ *
+ * @param key The key to search for.
+ * @param value_size A pointer to store the size of the value.
+ * 
+ * @return A pointer to the value.
  */
-size_t fossil_crabdb_count_keys(fossil_crabdb_t* db);
-
-/* CRUD Operations */
+void *fossil_crabdb_read(const char *key, size_t *value_size);
 
 /**
- * @brief Inserts a new key-value pair into the CrabDB.
- * @param db A pointer to the CrabDB instance.
- * @param key The key to be inserted.
- * @param value The value to be associated with the key.
- * @param type The type of the value.
- * @return true if the insertion was successful, false otherwise.
+ * Update a key-value pair.
+ *
+ * @param key The key to update.
+ * @param new_value The new value to store.
+ * @param value_size The size of the new value in bytes.
  */
-bool fossil_crabdb_insert(fossil_crabdb_t* db, const char* key, const char* value, fossil_crabdb_type_t type);
+void fossil_crabdb_update(const char *key, const void *new_value, size_t value_size);
 
 /**
- * @brief Updates the value associated with the given key in the CrabDB.
- * @param db A pointer to the CrabDB instance.
- * @param key The key whose value is to be updated.
- * @param value The new value to be associated with the key.
- * @return true if the update was successful, false otherwise.
+ * Delete a key-value pair.
+ *
+ * @param key The key to delete.
  */
-bool fossil_crabdb_update(fossil_crabdb_t* db, const char* key, const char* value);
+void fossil_crabdb_delete(const char *key);
+
+// *****************************************************************************
+// batch CRUD operations
+// *****************************************************************************
 
 /**
- * @brief Deletes the key-value pair associated with the given key from the CrabDB.
- * @param db A pointer to the CrabDB instance.
- * @param key The key to be deleted.
- * @return true if the deletion was successful, false otherwise.
+ * Batch create key-value pairs.
+ *
+ * @param entries An array of entries to create.
+ * @param count The number of entries in the array.
  */
-bool fossil_crabdb_delete(fossil_crabdb_t* db, const char* key);
+void fossil_crabdb_batch_create(const fossil_crabdb_entry_t *entries, size_t count);
 
 /**
- * @brief Selects the value associated with the given key from the CrabDB.
- * @param db A pointer to the CrabDB instance.
- * @param key The key whose value is to be selected.
- * @param value A buffer to store the selected value.
- * @param value_size The size of the buffer.
- * @return true if the selection was successful, false otherwise.
+ * Batch read values by key.
+ *
+ * @param keys An array of keys to search for.
+ * @param count The number of keys in the array.
+ * @param values A pointer to store the array of values.
+ * @param value_sizes A pointer to store the array of value sizes.
  */
-bool fossil_crabdb_select(fossil_crabdb_t* db, const char* key, char* value, size_t value_size);
+void fossil_crabdb_batch_read(const char **keys, size_t count, void ***values, size_t **value_sizes);
 
 /**
- * @brief Lists all key-value pairs in the CrabDB.
- * @param db A pointer to the CrabDB instance.
- * @param list_buffer A buffer to store the list of key-value pairs.
- * @param buffer_size The size of the buffer.
- * @return true if the listing was successful, false otherwise.
+ * Batch update key-value pairs.
+ *
+ * @param entries An array of entries to update.
+ * @param count The number of entries in the array.
  */
-bool fossil_crabdb_list(fossil_crabdb_t* db, char* list_buffer, size_t buffer_size);
+void fossil_crabdb_batch_update(const fossil_crabdb_entry_t *entries, size_t count);
 
 /**
- * @brief Clears all key-value pairs from the CrabDB.
- * @param db A pointer to the CrabDB instance.
- * @return true if the clearing was successful, false otherwise.
- */
-bool fossil_crabdb_clear(fossil_crabdb_t* db);
-
-/**
- * @brief Drops the CrabDB and deletes the associated file.
- * @param db A pointer to the CrabDB instance.
- * @return true if the CrabDB was dropped successfully, false otherwise.
- */
-bool fossil_crabdb_drop(fossil_crabdb_t* db);
-
-/**
- * @brief Inserts a new key-value pair into the CrabDB.
- * @param db A pointer to the CrabDB instance.
- * @param key The key to be inserted.
- * @param value The value to be associated with the key.
- * @param type The type of the value.
- * @return true if the insertion was successful, false otherwise.
- */
-bool fossil_crabdb_insert_into_table(fossil_crabdb_t* db, const char* table_name, const char* key, const char* value, fossil_crabdb_type_t type);
-
-/**
- * @brief Updates the value associated with the given key in the CrabDB.
- * @param db A pointer to the CrabDB instance.
- * @param key The key whose value is to be updated.
- * @param value The new value to be associated with the key.
- * @return true if the update was successful, false otherwise.
- */
-bool fossil_crabdb_update_table(fossil_crabdb_t* db, const char* table_name, const char* key, const char* value);
-
-/**
- * @brief Deletes the key-value pair associated with the given key from the CrabDB.
- * @param db A pointer to the CrabDB instance.
- * @param key The key to be deleted.
- * @return true if the deletion was successful, false otherwise.
- */
-bool fossil_crabdb_delete_from_table(fossil_crabdb_t* db, const char* table_name, const char* key);
-
-/**
- * @brief Selects the value associated with the given key from the CrabDB.
- * @param db A pointer to the CrabDB instance.
- * @param key The key whose value is to be selected.
- * @param value A buffer to store the selected value.
- * @param value_size The size of the buffer.
- * @return true if the selection was successful, false otherwise.
- */
-bool fossil_crabdb_select_from_table(fossil_crabdb_t* db, const char* table_name, const char* key, char* value, size_t value_size);
-
-/**
- * @brief Lists all key-value pairs in the CrabDB.
- * @param db A pointer to the CrabDB instance.
- * @param list_buffer A buffer to store the list of key-value pairs.
- * @param buffer_size The size of the buffer.
- * @return true if the listing was successful, false otherwise.
- */
-bool fossil_crabdb_list_table(fossil_crabdb_t* db, const char* table_name, char* list_buffer, size_t buffer_size);
-
-/**
- * @brief Clears all key-value pairs from the CrabDB.
- * @param db A pointer to the CrabDB instance.
- * @return true if the clearing was successful, false otherwise.
- */
-bool fossil_crabdb_clear_table(fossil_crabdb_t* db, const char* table_name);
-
-/**
- * @brief Drops the CrabDB and deletes the associated file.
- * @param db A pointer to the CrabDB instance.
- * @return true if the CrabDB was dropped successfully, false otherwise.
- */
-bool fossil_crabdb_drop_table(fossil_crabdb_t* db, const char* table_name);
-
-/* Database File Operations */
-
-/**
- * @brief Backs up the CrabDB to a file.
- * @param filename The name of the file to store the backup.
- * @param db A pointer to the CrabDB instance.
- * @return true if the backup was successful, false otherwise.
- */
-bool fossil_crabdb_backup(const char* filename, fossil_crabdb_t* db);
-
-/**
- * @brief Restores the CrabDB from a backup file.
- * @param filename The name of the backup file.
- * @param db A pointer to the CrabDB instance.
- * @return true if the restoration was successful, false otherwise.
- */
-bool fossil_crabdb_restore(const char* filename, fossil_crabdb_t* db);
-
-/**
- * @brief Gets the version of the CrabDB db.
- * @param db A pointer to the db.
- * @return The current version number of the db.
- */
-unsigned int fossil_crabdb_get_version(fossil_crabdb_t* db);
-
-/**
- * @brief Restores the CrabDB db to a previous version.
- * @param db A pointer to the db.
- * @param version The version number to restore to.
- * @return true if the db was restored successfully, false otherwise.
- */
-bool fossil_crabdb_restore_version(fossil_crabdb_t* db, unsigned int version);
-
-/* Database transactions */
-
-/**
- * @brief Begins a new transaction in the CrabDB db.
- * @param db A pointer to the db.
- * @return true if the transaction started successfully, false otherwise.
- */
-bool fossil_crabdb_begin_transaction(fossil_crabdb_t* db);
-
-/**
- * @brief Commits the current transaction in the CrabDB db.
- * @param db A pointer to the db.
- * @return true if the transaction was committed successfully, false otherwise.
- */
-bool fossil_crabdb_commit_transaction(fossil_crabdb_t* db);
-
-/**
- * @brief Rolls back the current transaction in the CrabDB db.
- * @param db A pointer to the db.
- * @return true if the transaction was rolled back successfully, false otherwise.
- */
-bool fossil_crabdb_rollback_transaction(fossil_crabdb_t* db);
-
-/**
- * @brief Begins a new transaction in the CrabDB db for a specific table.
- * @param db A pointer to the db.
- * @param table_name The name of the table to begin the transaction for.
- * @return true if the transaction started successfully, false otherwise.
- */
-bool fossil_crabdb_begin_transaction_table(fossil_crabdb_t* db, const char* table_name);
-
-/**
- * @brief Commits the current transaction in the CrabDB db for a specific table.
- * @param db A pointer to the db.
- * @param table_name The name of the table to commit the transaction for.
- * @return true if the transaction was committed successfully, false otherwise.
- */
-bool fossil_crabdb_commit_transaction_table(fossil_crabdb_t* db, const char* table_name);
-
-/**
- * @brief Rolls back the current transaction in the CrabDB db for a specific table.
- * @param db A pointer to the db.
- * @param table_name The name of the table to roll back the transaction for.
- * @return true if the transaction was rolled back successfully, false otherwise.
- */
-bool fossil_crabdb_rollback_transaction_table(fossil_crabdb_t* db, const char* table_name);
-
-/* Database Batch Operations */
-
-/**
- * @brief Inserts multiple key-value pairs into the CrabDB db.
- * @param db A pointer to the db.
- * @param keys An array of keys to insert.
- * @param values An array of values to insert.
- * @param types An array of types for the values.
- * @param count The number of key-value pairs to insert.
- * @return true if all pairs were inserted successfully, false otherwise.
- */
-bool fossil_crabdb_insert_batch(fossil_crabdb_t* db, const char** keys, const char** values, fossil_crabdb_type_t* types, size_t count);
-
-/**
- * @brief Deletes multiple key-value pairs from the CrabDB db.
- * @param db A pointer to the db.
+ * Batch delete key-value pairs.
+ *
  * @param keys An array of keys to delete.
- * @param count The number of keys to delete.
- * @return true if all pairs were deleted successfully, false otherwise.
+ * @param count The number of keys in the array.
  */
-bool fossil_crabdb_delete_batch(fossil_crabdb_t* db, const char** keys, size_t count);
+void fossil_crabdb_batch_delete(const char **keys, size_t count);
+
+// *****************************************************************************
+// Algorithic operations
+// *****************************************************************************
 
 /**
- * @brief Updates multiple key-value pairs in the CrabDB db.
- * @param db A pointer to the db.
- * @param keys An array of keys to update.
- * @param values An array of new values to update.
- * @param count The number of key-value pairs to update.
- * @return true if all pairs were updated successfully, false otherwise.
+ * Search for entries by a partial key match.
+ *
+ * @param partial_key The partial key to search for.
+ * @param count A pointer to store the number of matching entries.
+ * 
+ * @return An array of matching entries.
  */
-bool fossil_crabdb_update_batch(fossil_crabdb_t* db, const char** keys, const char** values, size_t count);
+fossil_crabdb_entry_t *fossil_crabdb_search(const char *partial_key, size_t *count);
 
 /**
- * @brief Selects multiple key-value pairs from the CrabDB db.
- * @param db A pointer to the db.
- * @param keys An array of keys to select.
- * @param values A buffer to store the selected values.
- * @param value_sizes An array of sizes for the value buffers.
- * @param count The number of key-value pairs to select.
- * @return true if all pairs were selected successfully, false otherwise.
+ * Sort the database entries by key.
+ * 
+ * This function will sort the entries in ascending order based on their keys.
  */
-bool fossil_crabdb_select_batch(fossil_crabdb_t* db, const char** keys, char** values, size_t* value_sizes, size_t count);
+void fossil_crabdb_sort(void);
 
 /**
- * @brief Inserts multiple key-value pairs into the CrabDB db in a single transaction.
- * @param db A pointer to the db.
- * @param keys An array of keys to insert.
- * @param values An array of values to insert.
- * @param types An array of types for the values.
- * @param count The number of key-value pairs to insert.
- * @return true if all pairs were inserted successfully, false otherwise.
+ * Filter entries by a custom predicate function.
+ *
+ * @param predicate The predicate function to apply to each entry.
+ * @param count A pointer to store the number of matching entries.
+ * 
+ * @return An array of entries that match the predicate.
  */
-bool fossil_crabdb_list_batch(fossil_crabdb_t* db, const char** keys, char** values, size_t* value_sizes, size_t count);
+fossil_crabdb_entry_t *fossil_crabdb_filter(bool (*predicate)(const fossil_crabdb_entry_t *), size_t *count);
+
+// *****************************************************************************
+// Utility declarations
+// *****************************************************************************
 
 /**
- * @brief Deletes multiple key-value pairs from the CrabDB db in a single transaction.
- * @param db A pointer to the db.
- * @param keys An array of keys to delete.
- * @param count The number of keys to delete.
- * @return true if all pairs were deleted successfully, false otherwise.
+ * Count the number of entries in the database.
+ * 
+ * @return The number of entries in the database.
  */
-bool fossil_crabdb_clear_batch(fossil_crabdb_t* db, const char** keys, size_t count);
+size_t fossil_crabdb_count(void);
 
 /**
- * @brief Updates multiple key-value pairs in the CrabDB db in a single transaction.
- * @param db A pointer to the db.
- * @param keys An array of keys to update.
- * @param values An array of new values to update.
- * @param count The number of key-value pairs to update.
- * @return true if all pairs were updated successfully, false otherwise.
+ * Get a value by key.
+ *
+ * @param key The key to search for.
+ * @param value_size A pointer to store the size of the value.
+ * 
+ * @return A pointer to the value.
  */
-bool fossil_crabdb_drop_batch(fossil_crabdb_t* db, const char** keys, size_t count);
+void *fossil_crabdb_get(const char *key, size_t *value_size);
 
 /**
- * @brief Inserts multiple key-value pairs into the CrabDB db in a single transaction.
- * @param db A pointer to the db.
- * @param keys An array of keys to insert.
- * @param values An array of values to insert.
- * @param types An array of types for the values.
- * @param count The number of key-value pairs to insert.
- * @return true if all pairs were inserted successfully, false otherwise.
+ * Check if a key exists in the database.
+ *
+ * @param key The key to search for.
+ * 
+ * @return True if the key exists, false otherwise.
  */
-bool fossil_crabdb_insert_into_table_batch(fossil_crabdb_t* db, const char* table_name, const char** keys, const char** values, fossil_crabdb_type_t* types, size_t count);
+bool fossil_crabdb_key_exists(const char *key);
 
 /**
- * @brief Deletes multiple key-value pairs from the CrabDB db in a single transaction.
- * @param db A pointer to the db.
- * @param keys An array of keys to delete.
- * @param count The number of keys to delete.
- * @return true if all pairs were deleted successfully, false otherwise.
+ * Get a list of all keys in the database.
+ *
+ * @param count A pointer to store the number of keys.
+ * 
+ * @return An array of keys.
  */
-bool fossil_crabdb_delete_from_table_batch(fossil_crabdb_t* db, const char* table_name, const char** keys, size_t count);
+char **fossil_crabdb_list_keys(size_t *count);
 
 /**
- * @brief Updates multiple key-value pairs in the CrabDB db in a single transaction.
- * @param db A pointer to the db.
- * @param keys An array of keys to update.
- * @param values An array of new values to update.
- * @param count The number of key-value pairs to update.
- * @return true if all pairs were updated successfully, false otherwise.
+ * Clear all entries in the database.
+ * 
+ * This function will free all memory allocated for the database.
+ * 
+ * @warning This function will delete all data in the database.
+ * 
+ * @note This function is useful for testing and cleanup.
  */
-bool fossil_crabdb_update_table_batch(fossil_crabdb_t* db, const char* table_name, const char** keys, const char** values, size_t count);
+void fossil_crabdb_clear(void);
+
+// *****************************************************************************
+// encode and decoding
+// *****************************************************************************
 
 /**
- * @brief Selects multiple key-value pairs from the CrabDB db in a single transaction.
- * @param db A pointer to the db.
- * @param keys An array of keys to select.
- * @param values A buffer to store the selected values.
- * @param value_sizes An array of sizes for the value buffers.
- * @param count The number of key-value pairs to select.
- * @return true if all pairs were selected successfully, false otherwise.
+ * Encode data to the CrabDB format.
+ *
+ * @param key The key to encode.
+ * @param value The value to encode.
+ * @param value_size The size of the value in bytes.
+ * @param file The file to write the encoded data to.
  */
-bool fossil_crabdb_select_from_table_batch(fossil_crabdb_t* db, const char* table_name, const char** keys, char** values, size_t* value_sizes, size_t count);
+void fossil_crabdb_encode(const char *key, const void *value, size_t value_size, FILE *file);
 
 /**
- * @brief Lists all key-value pairs in the CrabDB db in a single transaction.
- * @param db A pointer to the db.
- * @param list_buffer A buffer to store the list of key-value pairs.
- * @param buffer_size The size of the buffer.
- * @return true if the listing was successful, false otherwise.
+ * Decode data from the CrabDB format.
+ *
+ * @param file The file to read the encoded data from.
+ * @param key A pointer to store the decoded key.
+ * @param value A pointer to store the decoded value.
+ * @param value_size A pointer to store the size of the decoded value.
  */
-bool fossil_crabdb_list_table_batch(fossil_crabdb_t* db, const char* table_name, const char** keys, char** values, size_t* value_sizes, size_t count);
-
-/**
- * @brief Clears all key-value pairs from the CrabDB db in a single transaction.
- * @param db A pointer to the db.
- * @return true if the clearing was successful, false otherwise.
- */
-bool fossil_crabdb_clear_table_batch(fossil_crabdb_t* db, const char* table_name, const char** keys, size_t count);
-
-/**
- * @brief Drops the CrabDB db and deletes the associated file in a single transaction.
- * @param db A pointer to the db.
- * @return true if the db was dropped successfully, false otherwise.
- */
-bool fossil_crabdb_drop_table_batch(fossil_crabdb_t* db, const char* table_name, const char** keys, size_t count);
-
-/* Database Algorihtms */
-
-/**
- * @brief Searches for key-value pairs in the CrabDB db that match a wildcard pattern.
- * @param db A pointer to the db to search in.
- * @param pattern The wildcard pattern to match keys.
- * @param result_buffer The buffer to store the matching key-value pairs.
- * @param buffer_size The size of the result buffer.
- * @return true if matching pairs were found, false otherwise.
- */
-bool fossil_crabdb_search_by_pattern(fossil_crabdb_t* db, const char* pattern, char* result_buffer, size_t buffer_size);
-
-/**
- * @brief Sorts the key-value pairs in the CrabDB db by key.
- * @param db A pointer to the db to sort.
- * @return true if the sorting was successful, false otherwise.
- */
-bool fossil_crabdb_sort_by_key(fossil_crabdb_t* db);
-
-/**
- * @brief Sorts the key-value pairs in the CrabDB db by value.
- * @param db A pointer to the db to sort.
- * @return true if the sorting was successful, false otherwise.
- */
-bool fossil_crabdb_sort_by_value(fossil_crabdb_t* db);
-
-/* TTL Operations */
-
-/**
- * @brief Inserts a key-value pair into the db with a TTL (Time-To-Live).
- * @param db A pointer to the db.
- * @param key The key of the pair.
- * @param value The value of the pair.
- * @param type The type of the value.
- * @param ttl The time-to-live in seconds.
- * @return true if the pair was inserted successfully, false otherwise.
- */
-bool fossil_crabdb_insert_with_ttl(fossil_crabdb_t* db, const char* key, const char* value, fossil_crabdb_type_t type, unsigned int ttl);
-
-/**
- * @brief Cleans up expired entries in the db.
- * @param db A pointer to the db.
- * @return true if expired entries were cleaned up successfully, false otherwise.
- */
-bool fossil_crabdb_cleanup_expired(fossil_crabdb_t* db);
-
-/**
- * @brief Inserts a key-value pair into a table with a TTL (Time-To-Live).
- * @param db A pointer to the db.
- * @param table_name The name of the table.
- * @param key The key of the pair.
- * @param value The value of the pair.
- * @param type The type of the value.
- * @param ttl The time-to-live in seconds.
- * @return true if the pair was inserted successfully, false otherwise.
- */
-bool fossil_crabdb_insert_with_ttl_into_table(fossil_crabdb_t* db, const char* table_name, const char* key, const char* value, fossil_crabdb_type_t type, unsigned int ttl);
-
-/**
- * @brief Cleans up expired entries in a table.
- * @param db A pointer to the db.
- * @param table_name The name of the table.
- * @return true if expired entries were cleaned up successfully, false otherwise.
- */
-bool fossil_crabdb_cleanup_expired_table(fossil_crabdb_t* db, const char* table_name);
-
-/* Database Logging */
-
-/**
- * @brief Enables logging for CrabDB operations.
- * @param db A pointer to the db.
- * @param log_filename The file to log operations to.
- * @return true if logging was enabled successfully, false otherwise.
- */
-bool fossil_crabdb_enable_logging(fossil_crabdb_t* db, const char* log_filename);
-
-/**
- * @brief Disables logging for CrabDB operations.
- * @param db A pointer to the db.
- * @return true if logging was disabled successfully, false otherwise.
- */
-bool fossil_crabdb_disable_logging(fossil_crabdb_t* db);
-
-/* Database Integrity Check */
-
-/**
- * @brief Performs a data integrity check on the CrabDB db.
- * @param db A pointer to the db.
- * @return true if the db passed the integrity check, false otherwise.
- */
-bool fossil_crabdb_check_integrity(fossil_crabdb_t* db);
+void fossil_crabdb_decode(FILE *file, char *key, void **value, size_t *value_size);
 
 #ifdef __cplusplus
 }
-#endif
-
-#ifdef __cplusplus
-#include <string>
-
-namespace fossil {
-
-class CrabDB {
-public:
-    CrabDB() {
-        db_ = fossil_crabdb_create();
-    }
-
-    ~CrabDB() {
-        fossil_crabdb_destroy(db_);
-    }
-
-    bool create_table(const std::string& table_name) {
-        return fossil_crabdb_create_table(db_, table_name.c_str());
-    }
-
-    bool delete_table(const std::string& table_name) {
-        return fossil_crabdb_delete_table(db_, table_name.c_str());
-    }
-
-    bool table_exists(const std::string& table_name) {
-        return fossil_crabdb_table_exists(db_, table_name.c_str());
-    }
-
-    size_t count_keys() {
-        return fossil_crabdb_count_keys(db_);
-    }
-
-    bool insert(const std::string& key, const std::string& value, fossil_crabdb_type_t type) {
-        return fossil_crabdb_insert(db_, key.c_str(), value.c_str(), type);
-    }
-
-    bool update(const std::string& key, const std::string& value) {
-        return fossil_crabdb_update(db_, key.c_str(), value.c_str());
-    }
-
-    bool delete_key(const std::string& key) {
-        return fossil_crabdb_delete(db_, key.c_str());
-    }
-
-    bool select(const std::string& key, std::string& value) {
-        char buffer[FOSSIL_CRABDB_VAL_SIZE];
-        bool result = fossil_crabdb_select(db_, key.c_str(), buffer, sizeof(buffer));
-        if (result) {
-            value = buffer;
-        }
-        return result;
-    }
-
-    bool list(std::string& list_buffer) {
-        char buffer[MIN_BUFFER_SIZE];
-        bool result = fossil_crabdb_list(db_, buffer, sizeof(buffer));
-        if (result) {
-            list_buffer = buffer;
-        }
-        return result;
-    }
-
-    bool clear() {
-        return fossil_crabdb_clear(db_);
-    }
-
-    bool drop() {
-        return fossil_crabdb_drop(db_);
-    }
-
-    bool insert_into_table(const std::string& table_name, const std::string& key, const std::string& value, fossil_crabdb_type_t type) {
-        return fossil_crabdb_insert_into_table(db_, table_name.c_str(), key.c_str(), value.c_str(), type);
-    }
-
-    bool update_table(const std::string& table_name, const std::string& key, const std::string& value) {
-        return fossil_crabdb_update_table(db_, table_name.c_str(), key.c_str(), value.c_str());
-    }
-
-    bool delete_from_table(const std::string& table_name, const std::string& key) {
-        return fossil_crabdb_delete_from_table(db_, table_name.c_str(), key.c_str());
-    }
-
-    bool select_from_table(const std::string& table_name, const std::string& key, std::string& value) {
-        char buffer[FOSSIL_CRABDB_VAL_SIZE];
-        bool result = fossil_crabdb_select_from_table(db_, table_name.c_str(), key.c_str(), buffer, sizeof(buffer));
-        if (result) {
-            value = buffer;
-        }
-        return result;
-    }
-
-    bool list_table(const std::string& table_name, std::string& list_buffer) {
-        char buffer[MIN_BUFFER_SIZE];
-        bool result = fossil_crabdb_list_table(db_, table_name.c_str(), buffer, sizeof(buffer));
-        if (result) {
-            list_buffer = buffer;
-        }
-        return result;
-    }
-
-    bool clear_table(const std::string& table_name) {
-        return fossil_crabdb_clear_table(db_, table_name.c_str());
-    }
-
-    bool drop_table(const std::string& table_name) {
-        return fossil_crabdb_drop_table(db_, table_name.c_str());
-    }
-
-    bool backup(const std::string& filename) {
-        return fossil_crabdb_backup(filename.c_str(), db_);
-    }
-
-    bool restore(const std::string& filename) {
-        return fossil_crabdb_restore(filename.c_str(), db_);
-    }
-
-    unsigned int get_version() {
-        return fossil_crabdb_get_version(db_);
-    }
-
-    bool restore_version(unsigned int version) {
-        return fossil_crabdb_restore_version(db_, version);
-    }
-
-    bool begin_transaction() {
-        return fossil_crabdb_begin_transaction(db_);
-    }
-
-    bool commit_transaction() {
-        return fossil_crabdb_commit_transaction(db_);
-    }
-
-    bool rollback_transaction() {
-        return fossil_crabdb_rollback_transaction(db_);
-    }
-
-    bool begin_transaction_table(const std::string& table_name) {
-        return fossil_crabdb_begin_transaction_table(db_, table_name.c_str());
-    }
-
-    bool commit_transaction_table(const std::string& table_name) {
-        return fossil_crabdb_commit_transaction_table(db_, table_name.c_str());
-    }
-
-    bool rollback_transaction_table(const std::string& table_name) {
-        return fossil_crabdb_rollback_transaction_table(db_, table_name.c_str());
-    }
-
-    bool insert_with_ttl(const std::string& key, const std::string& value, fossil_crabdb_type_t type, unsigned int ttl) {
-        return fossil_crabdb_insert_with_ttl(db_, key.c_str(), value.c_str(), type, ttl);
-    }
-
-    bool cleanup_expired() {
-        return fossil_crabdb_cleanup_expired(db_);
-    }
-
-    bool insert_with_ttl_into_table(const std::string& table_name, const std::string& key, const std::string& value, fossil_crabdb_type_t type, unsigned int ttl) {
-        return fossil_crabdb_insert_with_ttl_into_table(db_, table_name.c_str(), key.c_str(), value.c_str(), type, ttl);
-    }
-
-    bool cleanup_expired_table(const std::string& table_name) {
-        return fossil_crabdb_cleanup_expired_table(db_, table_name.c_str());
-    }
-
-    bool enable_logging(const std::string& log_filename) {
-        return fossil_crabdb_enable_logging(db_, log_filename.c_str());
-    }
-
-    bool disable_logging() {
-        return fossil_crabdb_disable_logging(db_);
-    }
-
-    bool check_integrity() {
-        return fossil_crabdb_check_integrity(db_);
-    }
-
-private:
-    fossil_crabdb_t* db_;
-};
-
-} // namespace fossil
 #endif
 
 #endif /* FOSSIL_CRABDB_FRAMEWORK_H */
