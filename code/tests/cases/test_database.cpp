@@ -50,7 +50,7 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_destroy) {
 
 FOSSIL_TEST_CASE(cpp_test_crabdb_insert) {
     fossil_crabdb_t* db = fossil_crabdb_create();
-    bool result = fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    bool result = fossil_crabdb_create("key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
     ASSUME_ITS_TRUE(result);
     ASSUME_ITS_EQUAL_I32(1, db->node_count);
     fossil_crabdb_destroy(db);
@@ -58,8 +58,8 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_insert) {
 
 FOSSIL_TEST_CASE(cpp_test_crabdb_insert_duplicate_key) {
     fossil_crabdb_t* db = fossil_crabdb_create();
-    fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
-    bool result = fossil_crabdb_insert(db, "key1", "value2", FOSSIL_CRABDB_TYPE_STRING); // Should fail or update
+    fossil_crabdb_create("key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    bool result = fossil_crabdb_create("key1", "value2", FOSSIL_CRABDB_TYPE_STRING); // Should fail or update
     ASSUME_ITS_TRUE(result); // Assuming it updates; change to ASSUME_ITS_FALSE if not.
     ASSUME_ITS_EQUAL_I32(1, db->node_count);
     char value[FOSSIL_CRABDB_VAL_SIZE];
@@ -70,7 +70,7 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_insert_duplicate_key) {
 
 FOSSIL_TEST_CASE(cpp_test_crabdb_select_existing_key) {
     fossil_crabdb_t* db = fossil_crabdb_create();
-    fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_create("key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
     char value[FOSSIL_CRABDB_VAL_SIZE];
     bool result = fossil_crabdb_select(db, "key1", value, sizeof(value));
     ASSUME_ITS_TRUE(result);
@@ -88,7 +88,7 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_select_non_existing_key) {
 
 FOSSIL_TEST_CASE(cpp_test_crabdb_update) {
     fossil_crabdb_t* db = fossil_crabdb_create();
-    fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_create("key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
     bool result = fossil_crabdb_update(db, "key1", "value_updated");
     ASSUME_ITS_TRUE(result);
     char value[FOSSIL_CRABDB_VAL_SIZE];
@@ -99,7 +99,7 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_update) {
 
 FOSSIL_TEST_CASE(cpp_test_crabdb_delete) {
     fossil_crabdb_t* db = fossil_crabdb_create();
-    fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_create("key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
     bool result = fossil_crabdb_delete(db, "key1");
     ASSUME_ITS_TRUE(result);
     ASSUME_ITS_EQUAL_I32(0, db->node_count);
@@ -129,9 +129,9 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_cleanup_expired) {
 
 FOSSIL_TEST_CASE(cpp_test_crabdb_update_batch) {
     fossil_crabdb_t* db = fossil_crabdb_create();
-    fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
-    fossil_crabdb_insert(db, "key2", "value2", FOSSIL_CRABDB_TYPE_STRING);
-    fossil_crabdb_insert(db, "key3", "value3", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_create("key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_create("key2", "value2", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_create("key3", "value3", FOSSIL_CRABDB_TYPE_STRING);
     const char* keys[] = {"key1", "key2", "key3"};
     const char* values[] = {"value_updated1", "value_updated2", "value_updated3"};
     bool result = fossil_crabdb_update_batch(db, keys, values, 3);
@@ -148,9 +148,9 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_update_batch) {
 
 FOSSIL_TEST_CASE(cpp_test_crabdb_delete_batch) {
     fossil_crabdb_t* db = fossil_crabdb_create();
-    fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
-    fossil_crabdb_insert(db, "key2", "value2", FOSSIL_CRABDB_TYPE_STRING);
-    fossil_crabdb_insert(db, "key3", "value3", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_create("key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_create("key2", "value2", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_create("key3", "value3", FOSSIL_CRABDB_TYPE_STRING);
     const char* keys[] = {"key1", "key2", "key3"};
     bool result = fossil_crabdb_delete_batch(db, keys, 3);
     ASSUME_ITS_TRUE(result);
@@ -161,7 +161,7 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_delete_batch) {
 // Test case for inserting NULL key
 FOSSIL_TEST_CASE(cpp_test_crabdb_insert_null_key) {
     fossil_crabdb_t* db = fossil_crabdb_create();
-    bool result = fossil_crabdb_insert(db, NULL, "value1", FOSSIL_CRABDB_TYPE_STRING);
+    bool result = fossil_crabdb_create(NULL, "value1", FOSSIL_CRABDB_TYPE_STRING);
     ASSUME_ITS_FALSE(result); // Inserting NULL key should fail
     fossil_crabdb_destroy(db);
 }
@@ -169,7 +169,7 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_insert_null_key) {
 // Test case for inserting with NULL value
 FOSSIL_TEST_CASE(cpp_test_crabdb_insert_null_value) {
     fossil_crabdb_t* db = fossil_crabdb_create();
-    bool result = fossil_crabdb_insert(db, "key1", NULL, FOSSIL_CRABDB_TYPE_STRING);
+    bool result = fossil_crabdb_create("key1", NULL, FOSSIL_CRABDB_TYPE_STRING);
     ASSUME_ITS_FALSE(result); // Inserting NULL value should fail
     fossil_crabdb_destroy(db);
 }
@@ -194,7 +194,7 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_update_null_key) {
 // Test case for updating with NULL value
 FOSSIL_TEST_CASE(cpp_test_crabdb_update_null_value) {
     fossil_crabdb_t* db = fossil_crabdb_create();
-    fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_create("key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
     bool result = fossil_crabdb_update(db, "key1", NULL);
     ASSUME_ITS_FALSE(result); // Updating with NULL value should fail
     fossil_crabdb_destroy(db);
@@ -212,8 +212,8 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_delete_null_key) {
 FOSSIL_TEST_CASE(cpp_test_crabdb_concurrent_access) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     // Simulate concurrent inserts (this is a simplification; real concurrent tests would use threads)
-    bool result1 = fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
-    bool result2 = fossil_crabdb_insert(db, "key1", "value2", FOSSIL_CRABDB_TYPE_STRING); // Should update
+    bool result1 = fossil_crabdb_create("key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    bool result2 = fossil_crabdb_create("key1", "value2", FOSSIL_CRABDB_TYPE_STRING); // Should update
     ASSUME_ITS_TRUE(result1);
     ASSUME_ITS_TRUE(result2);
     char value[FOSSIL_CRABDB_VAL_SIZE];
@@ -228,7 +228,7 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_insert_large_data) {
     char large_value[FOSSIL_CRABDB_VAL_SIZE];
     memset(large_value, 'A', sizeof(large_value) - 1);
     large_value[sizeof(large_value) - 1] = '\0'; // Ensure null-terminated
-    bool result = fossil_crabdb_insert(db, "large_key", large_value, FOSSIL_CRABDB_TYPE_STRING);
+    bool result = fossil_crabdb_create("large_key", large_value, FOSSIL_CRABDB_TYPE_STRING);
     ASSUME_ITS_TRUE(result);
     char value[FOSSIL_CRABDB_VAL_SIZE];
     fossil_crabdb_select(db, "large_key", value, sizeof(value));
@@ -239,7 +239,7 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_insert_large_data) {
 // Test case for selecting with insufficient buffer size
 FOSSIL_TEST_CASE(cpp_test_crabdb_select_insufficient_buffer) {
     fossil_crabdb_t* db = fossil_crabdb_create();
-    fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_create("key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
     char value[5]; // Insufficient buffer
     bool result = fossil_crabdb_select(db, "key1", value, sizeof(value));
     ASSUME_ITS_TRUE(result); // Should succeed, but may not null-terminate
@@ -251,8 +251,8 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_select_insufficient_buffer) {
 FOSSIL_TEST_CASE(cpp_test_crabdb_count_keys) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     ASSUME_ITS_EQUAL_I32(0, fossil_crabdb_count_keys(db)); // Initially should be 0
-    fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
-    fossil_crabdb_insert(db, "key2", "value2", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_create("key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_create("key2", "value2", FOSSIL_CRABDB_TYPE_STRING);
     ASSUME_ITS_EQUAL_I32(2, fossil_crabdb_count_keys(db)); // Should be 2
     fossil_crabdb_destroy(db);
 }
@@ -260,7 +260,7 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_count_keys) {
 // Test case for handling invalid data types
 FOSSIL_TEST_CASE(cpp_test_crabdb_invalid_data_type) {
     fossil_crabdb_t* db = fossil_crabdb_create();
-    bool result = fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_INVALID); // Invalid type
+    bool result = fossil_crabdb_create("key1", "value1", FOSSIL_CRABDB_TYPE_INVALID); // Invalid type
     ASSUME_ITS_FALSE(result); // Should fail due to invalid type
     fossil_crabdb_destroy(db);
 }
@@ -268,7 +268,7 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_invalid_data_type) {
 // Test case for batch update with invalid data
 FOSSIL_TEST_CASE(cpp_test_crabdb_update_batch_invalid_data) {
     fossil_crabdb_t* db = fossil_crabdb_create();
-    fossil_crabdb_insert(db, "key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_create("key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
     const char* keys[] = {"key1", "key2", "key_invalid"};
     const char* values[] = {"new_value1", "new_value2", "new_value_invalid"};
     bool result = fossil_crabdb_update_batch(db, keys, values, 3); // One invalid key
@@ -323,7 +323,7 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_delete_non_existing_table) {
 FOSSIL_TEST_CASE(cpp_test_crabdb_select_from_table) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_create_table(db, "table1");
-    fossil_crabdb_insert(db, "table1.key1", "value1", FOSSIL_CRABDB_TYPE_STRING); // Use table-prefixed keys
+    fossil_crabdb_create("table1.key1", "value1", FOSSIL_CRABDB_TYPE_STRING); // Use table-prefixed keys
     char value[FOSSIL_CRABDB_VAL_SIZE];
     bool result = fossil_crabdb_select(db, "table1.key1", value, sizeof(value));
     ASSUME_ITS_TRUE(result); // Selecting from the table should succeed
@@ -344,7 +344,7 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_select_non_existing_table) {
 FOSSIL_TEST_CASE(cpp_test_crabdb_update_table_record) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_create_table(db, "table1");
-    fossil_crabdb_insert(db, "table1.key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_create("table1.key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
     bool result = fossil_crabdb_update(db, "table1.key1", "new_value1"); // Update should succeed
     ASSUME_ITS_TRUE(result);
     char value[FOSSIL_CRABDB_VAL_SIZE];
@@ -372,7 +372,7 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_batch_insert_table) {
 FOSSIL_TEST_CASE(cpp_test_crabdb_batch_update_table) {
     fossil_crabdb_t* db = fossil_crabdb_create();
     fossil_crabdb_create_table(db, "table1");
-    fossil_crabdb_insert(db, "table1.key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
+    fossil_crabdb_create("table1.key1", "value1", FOSSIL_CRABDB_TYPE_STRING);
     const char* keys[] = {"table1.key1", "table1.key2"};
     const char* values[] = {"new_value1", "new_value2"}; // Update existing and new key
     fossil_crabdb_update_batch(db, keys, values, 2); // One exists, one doesn't
