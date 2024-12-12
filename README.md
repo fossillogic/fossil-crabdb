@@ -1,14 +1,13 @@
-# ***Blue Crab Database System by Fossil Logic***
+# ***Blue Crab Database by Fossil Logic***
 
-Blue CrabDB is a comprehensive, platform-independent data ecosystem crafted to streamline the management, storage, and intelligent processing of key-value pairs within namespaces. Developed in C and C++, it provides high performance and reliability across various operating systems. At its core is **CrabDB**, a powerful database engine, enhanced by **CrabQL**, a SQL-like query language designed for precise data retrieval and manipulation. The suite also includes, and **CrabSearch** for fast, relevant full-text search. Additionally, **CrabLogs** offers robust logging for secure transaction tracking, while **CrabSync** ensures reliable synchronization across multiple instances, maintaining data consistency across environments. Altogether, Blue CrabDB’s modules deliver a unified, advanced solution, making it ideal for applications requiring speed, reliability, and sophisticated data capabilities.
+CrabDB is a lightweight, portable key-value database designed to provide fast and efficient data storage in a simple, easy-to-use format. Inspired by the metaphor of a book, CrabDB organizes data as pages in a book, where each page represents an entry in the database. This structure makes it intuitive to understand and interact with, while maintaining high performance for both small and large datasets.
 
-# Key Features
-
-1. **Cross-Platform Compatibility**: Ensures consistent performance and functionality across Windows, macOS, Linux, and other major platforms, making it versatile for a wide range of applications.
-2. **Modular Design**: Features a collection of powerful components, including **CrabDB**, **CrabQL**, **CrabSearch**, **CrabLogs**, **CrabSync**, and more. Each module can be easily integrated and customized to meet specific project needs, offering flexibility for different use cases.
-3. **Efficient Build Systems**: Utilizes the Meson build system for C and C++ components, enabling fast build times and a user-friendly syntax that enhances the developer experience.
-4. **High Performance**: Written in C and C++ for optimized performance and resource efficiency, making Blue CrabDB ideal for high-demand desktop and embedded applications.
-5. **Extensive Documentation and Examples**: Accompanied by comprehensive documentation and sample code for each module, simplifying the development process and accelerating the onboarding of new users.
+## Key Features:
+- **Portable**: Designed to be platform-independent, CrabDB works seamlessly across different operating systems, allowing you to store and manage data with minimal dependencies.
+- **Book-Like Structure**: The database's organization is inspired by a book, where each entry is like a page in a book. This simple, yet powerful structure makes it easy to conceptualize and manage key-value pairs.
+- **Search and Lookup**: Quickly search and retrieve values by key with efficient lookup operations, making it ideal for use in a wide range of applications, from small utilities to larger systems.
+- **Simple API**: The database API is designed to be straightforward and easy to use, with a focus on simplicity and readability. Whether you're storing data for a small project or a larger system, CrabDB's API is intuitive enough for anyone to get started quickly.
+- **Efficient Memory Management**: With a focus on performance, CrabDB minimizes memory usage while maintaining fast access times and stable behavior, even with a growing dataset.
 
 ## Prerequisites
 
