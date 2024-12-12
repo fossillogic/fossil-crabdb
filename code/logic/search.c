@@ -12,109 +12,97 @@
  * -----------------------------------------------------------------------------
  */
 #include "fossil/crabdb/search.h"
-#include <ctype.h>
 
-static bool matches_pattern(const char* key, const char* pattern) {
-    // Simple wildcard matching implementation
-    while (*pattern) {
-        if (*pattern == '*') {
-            // Skip '*' and check for the following character
-            pattern++;
-            if (*pattern == '\0') {
-                return true; // Match if the pattern ends with '*'
-            }
-            while (*key && *key != *pattern) {
-                key++; // Skip characters in key until a match
-            }
-        } else if (*key != *pattern) {
-            return false; // Characters do not match
-        }
-        key++;
-        pattern++;
+char *custom_strdup(const char *str) {
+    size_t len = strlen(str);
+    char *copy = (char *)malloc(len + 1);
+    if (!copy) {
+        fprintf(stderr, "Failed to allocate memory for the string copy.\n");
+        exit(EXIT_FAILURE);
     }
-    return *key == '\0'; // Match only if we reached the end of the key
+    strcpy(copy, str);
+    return copy;
 }
 
-static bool is_valid_pattern(const char* pattern) {
-    // Check if the pattern is non-empty and contains only valid characters
-    if (!pattern || *pattern == '\0') return false;
+// *****************************************************************************
+// Search operations
+// *****************************************************************************
 
-    while (*pattern) {
-        if (!isalnum(*pattern) && *pattern != '*' && *pattern != '?' && *pattern != '[' && *pattern != ']') {
-            return false; // Invalid character found
-        }
-        pattern++;
-    }
-    return true; // All characters are valid
+bool fossil_crabsearch_key_exists(const char *key) {
+    return fossil_crabdb_key_exists(key);
 }
 
-crabsearch_status_t fossil_crabsearch_search(fossil_crabdb_t* db, const char* pattern, char* result_buffer, size_t buffer_size, size_t* match_count, result_format_t format) {
-    if (!db || !pattern || !result_buffer || !match_count) {
-        return CRABSEARCH_INVALID_PARAM; // Check for valid parameters
-    }
-
-    if (!is_valid_pattern(pattern)) {
-        return CRABSEARCH_INVALID_PARAM; // Check for valid parameters
-    }
-
-    size_t total_matches = 0;
-    char temp_buffer[256]; // Temporary buffer for individual results
-    // Reset the result buffer
-    memset(result_buffer, 0, buffer_size);
-
-    fossil_crabdb_node_t* current_node = db->head; // Start from the head of the linked list
-
-    while (current_node != NULL) {
-        const char* key = current_node->key; // Get the key
-        const char* value = current_node->value; // Get the value
-
-        if (matches_pattern(key, pattern)) {
-            // If the key matches the pattern, add it to the result buffer
-            size_t required_size;
-            if (format == FORMAT_PLAIN_TEXT) {
-                required_size = snprintf(temp_buffer, sizeof(temp_buffer), "%s: %s\n", key, value);
-            } else if (format == FORMAT_JSON) {
-                required_size = snprintf(temp_buffer, sizeof(temp_buffer), "{\"key\": \"%s\", \"value\": \"%s\"}\n", key, value);
-            } else if (format == FORMAT_CSV) {
-                // Handle CSV output
-                required_size = snprintf(temp_buffer, sizeof(temp_buffer), "\"%s\",\"%s\"\n", key, value);
-            } else {
-                return CRABSEARCH_INVALID_PARAM; // Unsupported format
-            }
-
-            if (total_matches + required_size < buffer_size) {
-                strcat(result_buffer, temp_buffer); // Append to result buffer
-                total_matches++;
-            } else {
-                return CRABSEARCH_BUFFER_OVERFLOW; // Buffer overflow
-            }
-        }
-        current_node = current_node->next; // Move to the next node
-    }
-
-    *match_count = total_matches; // Store the number of matches found
-    return total_matches > 0 ? CRABSEARCH_SUCCESS : CRABSEARCH_NO_MATCHES;
+char **fossil_crabsearch_values_by_pattern(const char *pattern, size_t *count) {
+    return fossil_crabdb_search(pattern, count);
 }
 
-crabsearch_status_t fossil_crabsearch_search_multiple(fossil_crabdb_t* db, const char** patterns, size_t num_patterns, char* result_buffer, size_t buffer_size, size_t* match_count) {
-    if (!db || !patterns || num_patterns == 0 || !result_buffer || !match_count) {
-        return CRABSEARCH_INVALID_PARAM; // Check for valid parameters
+char **fossil_crabsearch_keys_by_pattern(const char *pattern, size_t *count) {
+    return fossil_crabdb_list_keys(count);
+}
+
+void *fossil_crabsearch_value_by_key(const char *key, size_t *value_size) {
+    return fossil_crabdb_get(key, value_size);
+}
+
+bool fossil_crabsearch_key_exists_case_insensitive(const char *key) {
+    size_t count;
+    char **keys = fossil_crabdb_list_keys(&count);
+    if (!keys) {
+        return false;
     }
 
-    size_t total_matches = 0;
-    // Reset the result buffer
-    memset(result_buffer, 0, buffer_size);
-
-    for (size_t i = 0; i < num_patterns; i++) {
-        size_t match_count_temp;
-        crabsearch_status_t status = fossil_crabsearch_search(db, patterns[i], result_buffer, buffer_size, &match_count_temp, FORMAT_PLAIN_TEXT); // Default to plain text
-        if (status == CRABSEARCH_SUCCESS) {
-            total_matches += match_count_temp; // Accumulate total matches
-        } else if (status == CRABSEARCH_BUFFER_OVERFLOW) {
-            return CRABSEARCH_BUFFER_OVERFLOW; // Buffer overflow
+    for (size_t i = 0; i < count; i++) {
+        if (strncmp(keys[i], key, strlen(key)) == 0) {
+            free(keys);
+            return true;
         }
     }
 
-    *match_count = total_matches; // Store the total number of matches found
-    return total_matches > 0 ? CRABSEARCH_SUCCESS : CRABSEARCH_NO_MATCHES;
+    free(keys);
+    return false;
+}
+
+char **fossil_crabsearch_keys_by_prefix(const char *prefix, size_t *count) {
+    size_t prefix_len = strlen(prefix);
+    size_t total_count = 0;
+    size_t capacity = 10;
+    char **matches = (char **)malloc(capacity * sizeof(char *));
+    if (!matches) {
+        fprintf(stderr, "Failed to allocate memory for the matches.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    size_t i = 0;
+    size_t j = 0;
+    size_t key_count;
+    char **keys = fossil_crabdb_list_keys(&key_count);
+    if (!keys) {
+        free(matches);
+        return NULL;
+    }
+
+    for (i = 0; i < key_count; i++) {
+        if (strncmp(keys[i], prefix, prefix_len) == 0) {
+            if (total_count >= capacity) {
+                capacity *= 2;
+                char **temp = (char **)realloc(matches, capacity * sizeof(char *));
+                if (!temp) {
+                    fprintf(stderr, "Failed to reallocate memory for the matches.\n");
+                    exit(EXIT_FAILURE);
+                }
+                matches = temp;
+            }
+            matches[j] = custom_strdup(keys[i]);
+            if (!matches[j]) {
+                fprintf(stderr, "Failed to allocate memory for the match.\n");
+                exit(EXIT_FAILURE);
+            }
+            j++;
+            total_count++;
+        }
+    }
+
+    free(keys);
+    *count = total_count;
+    return matches;
 }
