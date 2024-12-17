@@ -13,382 +13,353 @@
  */
 #include "fossil/crabdb/database.h"
 
+// Lookup table for valid strings corresponding to each tofu type.
+static char *_CRABDB_TYPE_ID[] = {
+    "i8",
+    "i16",
+    "i32",
+    "i64",
+    "u8",
+    "u16",
+    "u32",
+    "u64",
+    "hex",
+    "octal",
+    "binary",
+    "float",
+    "double",
+    "wstr",
+    "cstr",
+    "cchar",
+    "wchar",
+    "bool",
+    "size",
+    "date",
+    "any",
+    "null"
+};
+
+static fossil_crabdb_transaction_t *active_transaction = NULL; // Current active transaction
+
 static fossil_crabdb_book_t *db = NULL;
 
 // *****************************************************************************
-// Create and destroy
+// Helper Functions
 // *****************************************************************************
 
-// Initialize the database.
-void fossil_crabdb_open(const char *filename) {
-    // Check if the file has a .crabdb extension
-    const char *ext = strrchr(filename, '.');
-    if (!ext || strcmp(ext, ".crabdb") != 0) {
-        fprintf(stderr, "Invalid file extension. Expected a .crabdb file.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    db = (fossil_crabdb_book_t *)malloc(sizeof(fossil_crabdb_book_t));
-    if (!db) {
-        fprintf(stderr, "Failed to allocate memory for the database.\n");
-        exit(EXIT_FAILURE);
-    }
-    db->head = db->tail = NULL;
-    db->size = 0;
-
-    FILE *file = fopen(filename, "rb");
-    if (!file) {
-        fprintf(stderr, "Failed to open the database file.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    char key[256];
-    void *value;
-    size_t value_size;
-    while (!feof(file)) {
-        fossil_crabdb_decode(file, key, &value, &value_size);
-        fossil_crabdb_create(key, value, value_size);
-        free(value);
-    }
-
-    fclose(file);
-}
-
-// Cleanup resources and close the database.
-void fossil_crabdb_close(void) {
-    fossil_crabdb_page_t *current = db->head;
-    while (current) {
-        fossil_crabdb_page_t *next = current->next;
-        free(current->entry.key);
-        free(current->entry.value);
-        free(current);
-        current = next;
-    }
-    free(db);
-}
-
-// *****************************************************************************
-// CRUD operations
-// *****************************************************************************
-
-// Create a key-value pair.
-void fossil_crabdb_create(const char *key, const void *value, size_t value_size) {
-    fossil_crabdb_page_t *node = (fossil_crabdb_page_t *)malloc(sizeof(fossil_crabdb_page_t));
-    if (!node) {
-        fprintf(stderr, "Failed to allocate memory for the node.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    node->entry.key = custom_strdup(key);
-    if (!node->entry.key) {
-        fprintf(stderr, "Failed to allocate memory for the key.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    node->entry.value = malloc(value_size);
-    if (!node->entry.value) {
-        fprintf(stderr, "Failed to allocate memory for the value.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    memcpy(node->entry.value, value, value_size);
-    node->entry.value_size = value_size;
-
-    node->next = NULL;
-    node->prev = db->tail;
-
-    if (db->tail) {
-        db->tail->next = node;
-    } else {
-        db->head = node;
-    }
-
-    db->tail = node;
-    db->size++;
-}
-
-// Read a value by key.
-void *fossil_crabdb_read(const char *key, size_t *value_size) {
-    fossil_crabdb_page_t *current = db->head;
-    while (current) {
-        if (strcmp(current->entry.key, key) == 0) {
-            *value_size = current->entry.value_size;
-            void *value = malloc(*value_size);
-            if (!value) {
-                fprintf(stderr, "Failed to allocate memory for the value.\n");
-                exit(EXIT_FAILURE);
-            }
-            memcpy(value, current->entry.value, *value_size);
-            return value;
-        }
-        current = current->next;
-    }
-    return NULL;
-}
-
-// Update a key-value pair.
-void fossil_crabdb_update(const char *key, const void *new_value, size_t value_size) {
-    fossil_crabdb_page_t *current = db->head;
-    while (current) {
-        if (strcmp(current->entry.key, key) == 0) {
-            free(current->entry.value);
-            current->entry.value = malloc(value_size);
-            if (!current->entry.value) {
-                fprintf(stderr, "Failed to allocate memory for the value.\n");
-                exit(EXIT_FAILURE);
-            }
-            memcpy(current->entry.value, new_value, value_size);
-            current->entry.value_size = value_size;
-            return;
-        }
-        current = current->next;
-    }
-}
-
-// Delete a key-value pair.
-void fossil_crabdb_delete(const char *key) {
-    fossil_crabdb_page_t *current = db->head;
-    while (current) {
-        if (strcmp(current->entry.key, key) == 0) {
-            if (current->prev) {
-                current->prev->next = current->next;
-            } else {
-                db->head = current->next;
-            }
-
-            if (current->next) {
-                current->next->prev = current->prev;
-            } else {
-                db->tail = current->prev;
-            }
-
-            free(current->entry.key);
-            free(current->entry.value);
-            free(current);
-            db->size--;
-            return;
-        }
-        current = current->next;
-    }
-}
-
-// *****************************************************************************
-// batch CRUD operations
-// *****************************************************************************
-
-void fossil_crabdb_batch_create(const fossil_crabdb_entry_t *entries, size_t count) {
-    for (size_t i = 0; i < count; i++) {
-        fossil_crabdb_create(entries[i].key, entries[i].value, entries[i].value_size);
-    }
-}
-
-void fossil_crabdb_batch_read(const char **keys, size_t count, void ***values, size_t **value_sizes) {
-    *values = (void **)malloc(count * sizeof(void *));
-    if (!*values) {
-        fprintf(stderr, "Failed to allocate memory for the values.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    *value_sizes = (size_t *)malloc(count * sizeof(size_t));
-    if (!*value_sizes) {
-        fprintf(stderr, "Failed to allocate memory for the value sizes.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    for (size_t i = 0; i < count; i++) {
-        (*values)[i] = fossil_crabdb_read(keys[i], &(*value_sizes)[i]);
-    }
-}
-
-void fossil_crabdb_batch_update(const fossil_crabdb_entry_t *entries, size_t count) {
-    for (size_t i = 0; i < count; i++) {
-        fossil_crabdb_update(entries[i].key, entries[i].value, entries[i].value_size);
-    }
-}
-
-void fossil_crabdb_batch_delete(const char **keys, size_t count) {
-    for (size_t i = 0; i < count; i++) {
-        fossil_crabdb_delete(keys[i]);
-    }
-}
-
-// *****************************************************************************
-// Algorithic operations
-// *****************************************************************************
-
-fossil_crabdb_entry_t *fossil_crabdb_search(const char *partial_key, size_t *count) {
-    fossil_crabdb_entry_t *matches = (fossil_crabdb_entry_t *)malloc(db->size * sizeof(fossil_crabdb_entry_t));
-    if (!matches) {
-        fprintf(stderr, "Failed to allocate memory for the matches.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    fossil_crabdb_page_t *current = db->head;
-    size_t i = 0;
-    while (current) {
-        if (strstr(current->entry.key, partial_key)) {
-            matches[i] = current->entry;
-            i++;
-        }
-        current = current->next;
-    }
-
-    *count = i;
-    return matches;
-}
-
-void fossil_crabdb_sort(void) {
-    fossil_crabdb_page_t *current = db->head;
-    while (current) {
-        fossil_crabdb_page_t *next = current->next;
-        while (next) {
-            if (strcmp(current->entry.key, next->entry.key) > 0) {
-                fossil_crabdb_entry_t temp = current->entry;
-                current->entry = next->entry;
-                next->entry = temp;
-            }
-            next = next->next;
-        }
-        current = current->next;
-    }
-}
-
-fossil_crabdb_entry_t *fossil_crabdb_filter(bool (*predicate)(const fossil_crabdb_entry_t *), size_t *count) {
-    fossil_crabdb_entry_t *matches = (fossil_crabdb_entry_t *)malloc(db->size * sizeof(fossil_crabdb_entry_t));
-    if (!matches) {
-        fprintf(stderr, "Failed to allocate memory for the matches.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    fossil_crabdb_page_t *current = db->head;
-    size_t i = 0;
-    while (current) {
-        if (predicate(&current->entry)) {
-            matches[i] = current->entry;
-            i++;
-        }
-        current = current->next;
-    }
-
-    *count = i;
-    return matches;
-}
-
-// *****************************************************************************
-// Utility declarations
-// *****************************************************************************
-
-// Count the number of entries in the database.
-size_t fossil_crabdb_count(void) {
-    return db->size;
-}
-
-// Get a value by key.
-void *fossil_crabdb_get(const char *key, size_t *value_size) {
-    fossil_crabdb_page_t *current = db->head;
-    while (current) {
-        if (strcmp(current->entry.key, key) == 0) {
-            *value_size = current->entry.value_size;
-            void *value = malloc(*value_size);
-            if (!value) {
-                fprintf(stderr, "Failed to allocate memory for the value.\n");
-                exit(EXIT_FAILURE);
-            }
-            memcpy(value, current->entry.value, *value_size);
-            return value;
-        }
-        current = current->next;
-    }
-    return NULL;
-}
-
-// Check if a key exists.
-bool fossil_crabdb_key_exists(const char *key) {
-    fossil_crabdb_page_t *current = db->head;
-    while (current) {
-        if (strcmp(current->entry.key, key) == 0) {
+static bool fossil_crabdb_key_exists(const char **index, size_t index_size, const char *key) {
+    for (size_t i = 0; i < index_size; ++i) {
+        if (strcmp(index[i], key) == 0) {
             return true;
         }
-        current = current->next;
     }
     return false;
 }
 
-// List all keys in the database.
-char **fossil_crabdb_list_keys(size_t *count) {
-    char **keys = (char **)malloc(db->size * sizeof(char *));
-    if (!keys) {
-        fprintf(stderr, "Failed to allocate memory for the keys.\n");
+static size_t fossil_crabdb_add_to_index(char ***index, size_t index_size, const char *key) {
+    *index = realloc(*index, (index_size + 1) * sizeof(char *));
+    if (*index == NULL) {
+        fprintf(stderr, "Memory allocation failed for index\n");
         exit(EXIT_FAILURE);
     }
+    (*index)[index_size] = custom_strdup(key);
+    return index_size + 1;
+}
 
-    fossil_crabdb_page_t *current = db->head;
-    size_t i = 0;
-    while (current) {
-        keys[i] = custom_strdup(current->entry.key);
-        if (!keys[i]) {
-            fprintf(stderr, "Failed to allocate memory for the key.\n");
-            exit(EXIT_FAILURE);
+char *custom_strdup(const char *str) {
+    char *new_str = malloc(strlen(str) + 1);
+    if (new_str == NULL) {
+        return NULL;
+    }
+    strcpy(new_str, str);
+    return new_str;
+}
+
+// *****************************************************************************
+// Relational database operations
+// *****************************************************************************
+
+/**
+ * Create a table-like structure in the database with attributes.
+ * 
+ * @param table_name The name of the table to create.
+ * @param attributes The attributes that define the table schema.
+ * @param attr_count The number of attributes in the schema.
+ */
+void fossil_crabdb_create_table(const char *table_name, fossil_crabdb_attributes_t *attributes, size_t attr_count) {
+    fossil_crabdb_book_t *new_db = (fossil_crabdb_book_t *)malloc(sizeof(fossil_crabdb_book_t));
+    new_db->head = NULL;
+    new_db->tail = NULL;
+    new_db->size = 0;
+    db = new_db;
+}
+
+/**
+ * Insert a new row into a table.
+ * 
+ * @param table_name The name of the table to insert into.
+ * @param entries An array of entries to insert.
+ * @param entry_count The number of entries to insert.
+ */
+void fossil_crabdb_insert_row(const char *table_name, const fossil_crabdb_entry_t *entries, size_t entry_count) {
+    fossil_crabdb_page_t *new_page = (fossil_crabdb_page_t *)malloc(sizeof(fossil_crabdb_page_t));
+    new_page->entry.key = custom_strdup(entries[0].key);
+    new_page->entry.value = custom_strdup(entries[0].value);
+    new_page->entry.type = entries[0].type;
+    new_page->entry.attributes = entries[0].attributes;
+    new_page->next = NULL;
+    new_page->prev = db->tail;
+    if (db->tail != NULL) {
+        db->tail->next = new_page;
+    }
+    db->tail = new_page;
+    if (db->head == NULL) {
+        db->head = new_page;
+    }
+    db->size++;
+}
+
+/**
+ * Query rows from a table using conditions.
+ * 
+ * @param table_name The name of the table to query from.
+ * @param condition A callback function to filter rows.
+ * @param result_count A pointer to store the number of matching rows.
+ * 
+ * @return An array of matching rows.
+ */
+fossil_crabdb_entry_t *fossil_crabdb_query(const char *table_name, bool (*condition)(const fossil_crabdb_entry_t *), size_t *result_count) {
+    fossil_crabdb_entry_t *entries = (fossil_crabdb_entry_t *)malloc((db->size + 1) * sizeof(fossil_crabdb_entry_t));
+    fossil_crabdb_page_t *current_page = db->head;
+    size_t entry_index = 0;
+    while (current_page != NULL) {
+        entries[entry_index++] = current_page->entry;
+        current_page = current_page->next;
+    }
+    entries[entry_index].key = NULL;
+    entries[entry_index].value = NULL;
+    if (condition != NULL) {
+        fossil_crabdb_entry_t *filtered_entries = (fossil_crabdb_entry_t *)malloc((db->size + 1) * sizeof(fossil_crabdb_entry_t));
+        size_t filtered_index = 0;
+        for (size_t i = 0; entries[i].key != NULL; i++) {
+            if (condition(&entries[i])) {
+                filtered_entries[filtered_index++] = entries[i];
+            }
         }
+        *result_count = filtered_index;
+        free(entries);
+        return filtered_entries;
+    }
+    *result_count = entry_index;
+    return entries;
+}
+
+fossil_crabdb_entry_t *fossil_crabdb_search(const char *table_name, const char *search_term, bool search_in_keys, size_t *result_count) {
+    fossil_crabdb_entry_t *entries = fossil_crabdb_query(table_name, NULL, result_count);
+    if (entries == NULL) {
+        return NULL;
+    }
+    fossil_crabdb_entry_t *search_results = (fossil_crabdb_entry_t *)malloc(*result_count * sizeof(fossil_crabdb_entry_t));
+    size_t result_index = 0;
+    for (size_t i = 0; i < *result_count; i++) {
+        if ((search_in_keys && strstr(entries[i].key, search_term) != NULL) ||
+            (!search_in_keys && strstr(entries[i].value, search_term) != NULL)) {
+            search_results[result_index++] = entries[i];
+        }
+    }
+    *result_count = result_index;
+    return search_results;
+}
+
+void fossil_crabdb_update_rows(const char *table_name, bool (*condition)(const fossil_crabdb_entry_t *), const fossil_crabdb_entry_t *new_values, size_t value_count) {
+    fossil_crabdb_entry_t *entries = fossil_crabdb_query(table_name, condition, NULL);
+    if (entries == NULL) {
+        return;
+    }
+    for (size_t i = 0; entries[i].key != NULL; i++) {
+        for (size_t j = 0; j < value_count; j++) {
+            if (strcmp(entries[i].key, new_values[j].key) == 0) {
+                free(entries[i].value);
+                entries[i].value = custom_strdup(new_values[j].value);
+                break;
+            }
+        }
+    }
+}
+
+void fossil_crabdb_delete_rows(const char *table_name, bool (*condition)(const fossil_crabdb_entry_t *)) {
+    fossil_crabdb_entry_t *entries = fossil_crabdb_query(table_name, condition, NULL);
+    if (entries == NULL) {
+        return;
+    }
+    for (size_t i = 0; entries[i].key != NULL; i++) {
+        free(entries[i].key);
+        free(entries[i].value);
+    }
+    free(entries);
+}
+
+void fossil_crabdb_begin_transaction(const char *transaction_name) {
+    fossil_crabdb_transaction_t *transaction = (fossil_crabdb_transaction_t *)malloc(sizeof(fossil_crabdb_transaction_t));
+    transaction->name = custom_strdup(transaction_name);
+    transaction->next = active_transaction;
+    active_transaction = transaction;
+    transaction->snapshot = *db;
+}
+
+void fossil_crabdb_commit_transaction(const char *transaction_name) {
+    fossil_crabdb_transaction_t *transaction = active_transaction;
+    while (transaction != NULL) {
+        if (strcmp(transaction->name, transaction_name) == 0) {
+            *db = transaction->snapshot;
+            active_transaction = transaction->next;
+            free(transaction->name);
+            free(transaction);
+            return;
+        }
+        transaction = transaction->next;
+    }
+}
+
+void fossil_crabdb_rollback_transaction(const char *transaction_name) {
+    fossil_crabdb_transaction_t *transaction = active_transaction;
+    while (transaction != NULL) {
+        if (strcmp(transaction->name, transaction_name) == 0) {
+            active_transaction = transaction->next;
+            free(transaction->name);
+            free(transaction);
+            return;
+        }
+        transaction = transaction->next;
+    }
+}
+
+void fossil_crabdb_backup(const char *file_path) {
+    FILE *backup_file = fopen(file_path, "wb");
+    if (backup_file == NULL) {
+        fprintf(stderr, "Error: Unable to open backup file for writing.\n");
+        return;
+    }
+    fwrite(db, sizeof(fossil_crabdb_book_t), 1, backup_file);
+    fclose(backup_file);
+}
+
+void fossil_crabdb_restore(const char *file_path) {
+    FILE *backup_file = fopen(file_path, "rb");
+    if (backup_file == NULL) {
+        fprintf(stderr, "Error: Unable to open backup file for reading.\n");
+        return;
+    }
+    if (db == NULL) {
+        db = (fossil_crabdb_book_t *)malloc(sizeof(fossil_crabdb_book_t));
+    }
+    if (fread(db, sizeof(fossil_crabdb_book_t), 1, backup_file) != 1) {
+        fprintf(stderr, "Error: Failed to read backup file.\n");
+    }
+    fclose(backup_file);
+}
+
+// *****************************************************************************
+// Utility functions for relational operations
+// *****************************************************************************
+
+fossil_crabdb_entry_t *fossil_crabdb_join(const char *table1, const char *table2, bool (*join_condition)(const fossil_crabdb_entry_t *, const fossil_crabdb_entry_t *), size_t *result_count) {
+    fossil_crabdb_entry_t *entries1 = fossil_crabdb_query(table1, NULL, NULL);
+    fossil_crabdb_entry_t *entries2 = fossil_crabdb_query(table2, NULL, NULL);
+    fossil_crabdb_entry_t *joined_entries = (fossil_crabdb_entry_t *)malloc((db->size + 1) * sizeof(fossil_crabdb_entry_t));
+    size_t joined_index = 0;
+    for (size_t i = 0; entries1[i].key != NULL; i++) {
+        for (size_t j = 0; entries2[j].key != NULL; j++) {
+            if (join_condition(&entries1[i], &entries2[j])) {
+                joined_entries[joined_index++] = entries1[i];
+                joined_entries[joined_index++] = entries2[j];
+            }
+        }
+    }
+    *result_count = joined_index;
+    return joined_entries;
+}
+
+void *fossil_crabdb_aggregate(const char *table_name, void *(*aggregate_function)(const fossil_crabdb_entry_t *, size_t)) {
+    size_t result_count;
+    fossil_crabdb_entry_t *entries = fossil_crabdb_query(table_name, NULL, &result_count);
+    return aggregate_function(entries, result_count);
+}
+
+fossil_crabdb_entry_t *fossil_crabdb_paginate(const fossil_crabdb_entry_t *entries, size_t total_entries, size_t page_size, size_t page_number) {
+    size_t start_index = page_size * page_number;
+    if (start_index >= total_entries) {
+        return NULL;
+    }
+    size_t end_index = start_index + page_size;
+    if (end_index > total_entries) {
+        end_index = total_entries;
+    }
+    size_t page_count = end_index - start_index;
+    fossil_crabdb_entry_t *page_entries = (fossil_crabdb_entry_t *)malloc(page_count * sizeof(fossil_crabdb_entry_t));
+    for (size_t i = 0; i < page_count; i++) {
+        page_entries[i] = entries[start_index + i];
+    }
+    return page_entries;
+}
+
+// *****************************************************************************
+// Rebuild Indices Function
+// *****************************************************************************
+
+void fossil_crabdb_rebuild_indices(const char *table_name) {
+    if (table_name == NULL) {
+        fprintf(stderr, "Table name cannot be NULL.\n");
+        return;
+    }
+
+    printf("Rebuilding indices for table: %s\n", table_name);
+
+    // For the sake of example, assume we have access to a global database instance.
+    extern fossil_crabdb_book_t database;
+
+    char **primary_index = NULL;   // Array to store primary keys.
+    size_t primary_index_size = 0;
+
+    char **unique_index = NULL;    // Array to store unique keys.
+    size_t unique_index_size = 0;
+
+    fossil_crabdb_page_t *current = database.head;
+
+    while (current != NULL) {
+        fossil_crabdb_entry_t *entry = &current->entry;
+
+        // Check for primary key constraint
+        if (entry->attributes.is_primary_key) {
+            if (fossil_crabdb_key_exists((const char **)primary_index, primary_index_size, entry->key)) {
+                fprintf(stderr, "Duplicate primary key found: %s\n", entry->key);
+            } else {
+                primary_index_size = fossil_crabdb_add_to_index(&primary_index, primary_index_size, entry->key);
+            }
+        }
+
+        // Check for unique constraint
+        if (entry->attributes.is_unique) {
+            if (fossil_crabdb_key_exists((const char **)unique_index, unique_index_size, entry->key)) {
+                fprintf(stderr, "Duplicate unique key found: %s\n", entry->key);
+            } else {
+                unique_index_size = fossil_crabdb_add_to_index(&unique_index, unique_index_size, entry->key);
+            }
+        }
+
         current = current->next;
-        i++;
     }
 
-    *count = db->size;
-    return keys;
-}
+    // Cleanup: free indices
+    for (size_t i = 0; i < primary_index_size; ++i) {
+        free(primary_index[i]);
+    }
+    free(primary_index);
 
-// Clear all entries in the database.
-void fossil_crabdb_clear(void) {
-    fossil_crabdb_page_t *current = db->head;
-    while (current) {
-        fossil_crabdb_page_t *next = current->next;
-        free(current->entry.key);
-        free(current->entry.value);
-        free(current);
-        current = next;
+    for (size_t i = 0; i < unique_index_size; ++i) {
+        free(unique_index[i]);
     }
-    db->head = db->tail = NULL;
-    db->size = 0;
-}
+    free(unique_index);
 
-// *****************************************************************************
-// encode and decoding
-// *****************************************************************************
-
-// Encode data to the CrabDB format.
-void fossil_crabdb_encode(const char *key, const void *value, size_t value_size, FILE *file) {
-    size_t key_size = strlen(key);
-    fwrite(&key_size, sizeof(size_t), 1, file);
-    fwrite(key, key_size, 1, file);
-    fwrite(&value_size, sizeof(size_t), 1, file);
-    fwrite(value, value_size, 1, file);
-}
-
-// Decode data from the CrabDB format.
-void fossil_crabdb_decode(FILE *file, char *key, void **value, size_t *value_size) {
-    size_t key_size;
-    if (fread(&key_size, sizeof(size_t), 1, file) != 1) {
-        fprintf(stderr, "Failed to read key size from the file.\n");
-        exit(EXIT_FAILURE);
-    }
-    if (fread(key, key_size, 1, file) != 1) {
-        fprintf(stderr, "Failed to read key from the file.\n");
-        exit(EXIT_FAILURE);
-    }
-    key[key_size] = '\0';
-
-    if (fread(value_size, sizeof(size_t), 1, file) != 1) {
-        fprintf(stderr, "Failed to read value size from the file.\n");
-        exit(EXIT_FAILURE);
-    }
-    *value = malloc(*value_size);
-    if (!*value) {
-        fprintf(stderr, "Failed to allocate memory for the value.\n");
-        exit(EXIT_FAILURE);
-    }
-    if (fread(*value, *value_size, 1, file) != 1) {
-        fprintf(stderr, "Failed to read value from the file.\n");
-        exit(EXIT_FAILURE);
-    }
+    printf("Indices successfully rebuilt for table: %s\n", table_name);
 }
