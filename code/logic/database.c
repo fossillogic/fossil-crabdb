@@ -13,353 +13,437 @@
  */
 #include "fossil/crabdb/database.h"
 
-// Lookup table for valid strings corresponding to each tofu type.
-static char *_CRABDB_TYPE_ID[] = {
-    "i8",
-    "i16",
-    "i32",
-    "i64",
-    "u8",
-    "u16",
-    "u32",
-    "u64",
-    "hex",
-    "octal",
-    "binary",
-    "float",
-    "double",
-    "wstr",
-    "cstr",
-    "cchar",
-    "wchar",
-    "bool",
-    "size",
-    "date",
-    "any",
-    "null"
-};
-
 static fossil_crabdb_transaction_t *active_transaction = NULL; // Current active transaction
 
 static fossil_crabdb_book_t *db = NULL;
 
+char *custom_strdup(const char *str) {
+    if (str == NULL) {
+        return NULL;
+    }
+    size_t len = strlen(str);
+    char *copy = (char *)malloc(len + 1);
+    if (copy == NULL) {
+        return NULL;
+    }
+    strcpy(copy, str);
+    return copy;
+}
+
 // *****************************************************************************
-// Helper Functions
+// Database API Functions
 // *****************************************************************************
 
-static bool fossil_crabdb_key_exists(const char **index, size_t index_size, const char *key) {
-    for (size_t i = 0; i < index_size; ++i) {
-        if (strcmp(index[i], key) == 0) {
+/**
+ * @brief Initializes a new empty database.
+ */
+fossil_crabdb_book_t* fossil_crabdb_init(void) {
+    fossil_crabdb_book_t *book = (fossil_crabdb_book_t *)malloc(sizeof(fossil_crabdb_book_t));
+    if (book == NULL) {
+        return NULL;
+    }
+    book->head = NULL;
+    book->tail = NULL;
+    book->size = 0;
+    return book;
+}
+
+/**
+ * @brief Releases all resources used by the database.
+ */
+void fossil_crabdb_release(fossil_crabdb_book_t *book) {
+    if (book == NULL) {
+        return;
+    }
+    fossil_crabdb_page_t *current = book->head;
+    while (current != NULL) {
+        fossil_crabdb_page_t *next = current->next;
+        free(current->entry.key);
+        free(current->entry.value);
+        free(current);
+        current = next;
+    }
+    free(book);
+}
+
+/**
+ * @brief Inserts a new key-value pair into the database.
+ */
+bool fossil_crabdb_insert(fossil_crabdb_book_t *book, const char *key, const char *value, fossil_crabdb_attributes_t attributes) {
+    if (book == NULL || key == NULL || value == NULL) {
+        return false;
+    }
+    fossil_crabdb_page_t *page = (fossil_crabdb_page_t *)malloc(sizeof(fossil_crabdb_page_t));
+    if (page == NULL) {
+        return false;
+    }
+    page->entry.key = custom_strdup(key);
+    page->entry.value = custom_strdup(value);
+    page->entry.attributes = attributes;
+    page->next = NULL;
+    if (book->head == NULL) {
+        book->head = page;
+        book->tail = page;
+        page->prev = NULL;
+    } else {
+        book->tail->next = page;
+        page->prev = book->tail;
+        book->tail = page;
+    }
+    book->size++;
+    return true;
+}
+
+/**
+ * @brief Updates the value of an existing key.
+ */
+bool fossil_crabdb_update(fossil_crabdb_book_t *book, const char *key, const char *new_value) {
+    if (book == NULL || key == NULL || new_value == NULL) {
+        return false;
+    }
+    fossil_crabdb_page_t *current = book->head;
+    while (current != NULL) {
+        if (strcmp(current->entry.key, key) == 0) {
+            free(current->entry.value);
+            current->entry.value = custom_strdup(new_value);
             return true;
         }
+        current = current->next;
     }
     return false;
 }
 
-static size_t fossil_crabdb_add_to_index(char ***index, size_t index_size, const char *key) {
-    *index = realloc(*index, (index_size + 1) * sizeof(char *));
-    if (*index == NULL) {
-        fprintf(stderr, "Memory allocation failed for index\n");
-        exit(EXIT_FAILURE);
-    }
-    (*index)[index_size] = custom_strdup(key);
-    return index_size + 1;
-}
-
-char *custom_strdup(const char *str) {
-    char *new_str = malloc(strlen(str) + 1);
-    if (new_str == NULL) {
-        return NULL;
-    }
-    strcpy(new_str, str);
-    return new_str;
-}
-
-// *****************************************************************************
-// Relational database operations
-// *****************************************************************************
-
 /**
- * Create a table-like structure in the database with attributes.
- * 
- * @param table_name The name of the table to create.
- * @param attributes The attributes that define the table schema.
- * @param attr_count The number of attributes in the schema.
+ * @brief Deletes an entry from the database by key.
  */
-void fossil_crabdb_create_table(const char *table_name, fossil_crabdb_attributes_t *attributes, size_t attr_count) {
-    fossil_crabdb_book_t *new_db = (fossil_crabdb_book_t *)malloc(sizeof(fossil_crabdb_book_t));
-    new_db->head = NULL;
-    new_db->tail = NULL;
-    new_db->size = 0;
-    db = new_db;
-}
-
-/**
- * Insert a new row into a table.
- * 
- * @param table_name The name of the table to insert into.
- * @param entries An array of entries to insert.
- * @param entry_count The number of entries to insert.
- */
-void fossil_crabdb_insert_row(const char *table_name, const fossil_crabdb_entry_t *entries, size_t entry_count) {
-    fossil_crabdb_page_t *new_page = (fossil_crabdb_page_t *)malloc(sizeof(fossil_crabdb_page_t));
-    new_page->entry.key = custom_strdup(entries[0].key);
-    new_page->entry.value = custom_strdup(entries[0].value);
-    new_page->entry.type = entries[0].type;
-    new_page->entry.attributes = entries[0].attributes;
-    new_page->next = NULL;
-    new_page->prev = db->tail;
-    if (db->tail != NULL) {
-        db->tail->next = new_page;
+bool fossil_crabdb_delete(fossil_crabdb_book_t *book, const char *key) {
+    if (book == NULL || key == NULL) {
+        return false;
     }
-    db->tail = new_page;
-    if (db->head == NULL) {
-        db->head = new_page;
-    }
-    db->size++;
-}
-
-/**
- * Query rows from a table using conditions.
- * 
- * @param table_name The name of the table to query from.
- * @param condition A callback function to filter rows.
- * @param result_count A pointer to store the number of matching rows.
- * 
- * @return An array of matching rows.
- */
-fossil_crabdb_entry_t *fossil_crabdb_query(const char *table_name, bool (*condition)(const fossil_crabdb_entry_t *), size_t *result_count) {
-    fossil_crabdb_entry_t *entries = (fossil_crabdb_entry_t *)malloc((db->size + 1) * sizeof(fossil_crabdb_entry_t));
-    fossil_crabdb_page_t *current_page = db->head;
-    size_t entry_index = 0;
-    while (current_page != NULL) {
-        entries[entry_index++] = current_page->entry;
-        current_page = current_page->next;
-    }
-    entries[entry_index].key = NULL;
-    entries[entry_index].value = NULL;
-    if (condition != NULL) {
-        fossil_crabdb_entry_t *filtered_entries = (fossil_crabdb_entry_t *)malloc((db->size + 1) * sizeof(fossil_crabdb_entry_t));
-        size_t filtered_index = 0;
-        for (size_t i = 0; entries[i].key != NULL; i++) {
-            if (condition(&entries[i])) {
-                filtered_entries[filtered_index++] = entries[i];
-            }
-        }
-        *result_count = filtered_index;
-        free(entries);
-        return filtered_entries;
-    }
-    *result_count = entry_index;
-    return entries;
-}
-
-fossil_crabdb_entry_t *fossil_crabdb_search(const char *table_name, const char *search_term, bool search_in_keys, size_t *result_count) {
-    fossil_crabdb_entry_t *entries = fossil_crabdb_query(table_name, NULL, result_count);
-    if (entries == NULL) {
-        return NULL;
-    }
-    fossil_crabdb_entry_t *search_results = (fossil_crabdb_entry_t *)malloc(*result_count * sizeof(fossil_crabdb_entry_t));
-    size_t result_index = 0;
-    for (size_t i = 0; i < *result_count; i++) {
-        if ((search_in_keys && strstr(entries[i].key, search_term) != NULL) ||
-            (!search_in_keys && strstr(entries[i].value, search_term) != NULL)) {
-            search_results[result_index++] = entries[i];
-        }
-    }
-    *result_count = result_index;
-    return search_results;
-}
-
-void fossil_crabdb_update_rows(const char *table_name, bool (*condition)(const fossil_crabdb_entry_t *), const fossil_crabdb_entry_t *new_values, size_t value_count) {
-    fossil_crabdb_entry_t *entries = fossil_crabdb_query(table_name, condition, NULL);
-    if (entries == NULL) {
-        return;
-    }
-    for (size_t i = 0; entries[i].key != NULL; i++) {
-        for (size_t j = 0; j < value_count; j++) {
-            if (strcmp(entries[i].key, new_values[j].key) == 0) {
-                free(entries[i].value);
-                entries[i].value = custom_strdup(new_values[j].value);
-                break;
-            }
-        }
-    }
-}
-
-void fossil_crabdb_delete_rows(const char *table_name, bool (*condition)(const fossil_crabdb_entry_t *)) {
-    fossil_crabdb_entry_t *entries = fossil_crabdb_query(table_name, condition, NULL);
-    if (entries == NULL) {
-        return;
-    }
-    for (size_t i = 0; entries[i].key != NULL; i++) {
-        free(entries[i].key);
-        free(entries[i].value);
-    }
-    free(entries);
-}
-
-void fossil_crabdb_begin_transaction(const char *transaction_name) {
-    fossil_crabdb_transaction_t *transaction = (fossil_crabdb_transaction_t *)malloc(sizeof(fossil_crabdb_transaction_t));
-    transaction->name = custom_strdup(transaction_name);
-    transaction->next = active_transaction;
-    active_transaction = transaction;
-    transaction->snapshot = *db;
-}
-
-void fossil_crabdb_commit_transaction(const char *transaction_name) {
-    fossil_crabdb_transaction_t *transaction = active_transaction;
-    while (transaction != NULL) {
-        if (strcmp(transaction->name, transaction_name) == 0) {
-            *db = transaction->snapshot;
-            active_transaction = transaction->next;
-            free(transaction->name);
-            free(transaction);
-            return;
-        }
-        transaction = transaction->next;
-    }
-}
-
-void fossil_crabdb_rollback_transaction(const char *transaction_name) {
-    fossil_crabdb_transaction_t *transaction = active_transaction;
-    while (transaction != NULL) {
-        if (strcmp(transaction->name, transaction_name) == 0) {
-            active_transaction = transaction->next;
-            free(transaction->name);
-            free(transaction);
-            return;
-        }
-        transaction = transaction->next;
-    }
-}
-
-void fossil_crabdb_backup(const char *file_path) {
-    FILE *backup_file = fopen(file_path, "wb");
-    if (backup_file == NULL) {
-        fprintf(stderr, "Error: Unable to open backup file for writing.\n");
-        return;
-    }
-    fwrite(db, sizeof(fossil_crabdb_book_t), 1, backup_file);
-    fclose(backup_file);
-}
-
-void fossil_crabdb_restore(const char *file_path) {
-    FILE *backup_file = fopen(file_path, "rb");
-    if (backup_file == NULL) {
-        fprintf(stderr, "Error: Unable to open backup file for reading.\n");
-        return;
-    }
-    if (db == NULL) {
-        db = (fossil_crabdb_book_t *)malloc(sizeof(fossil_crabdb_book_t));
-    }
-    if (fread(db, sizeof(fossil_crabdb_book_t), 1, backup_file) != 1) {
-        fprintf(stderr, "Error: Failed to read backup file.\n");
-    }
-    fclose(backup_file);
-}
-
-// *****************************************************************************
-// Utility functions for relational operations
-// *****************************************************************************
-
-fossil_crabdb_entry_t *fossil_crabdb_join(const char *table1, const char *table2, bool (*join_condition)(const fossil_crabdb_entry_t *, const fossil_crabdb_entry_t *), size_t *result_count) {
-    fossil_crabdb_entry_t *entries1 = fossil_crabdb_query(table1, NULL, NULL);
-    fossil_crabdb_entry_t *entries2 = fossil_crabdb_query(table2, NULL, NULL);
-    fossil_crabdb_entry_t *joined_entries = (fossil_crabdb_entry_t *)malloc((db->size + 1) * sizeof(fossil_crabdb_entry_t));
-    size_t joined_index = 0;
-    for (size_t i = 0; entries1[i].key != NULL; i++) {
-        for (size_t j = 0; entries2[j].key != NULL; j++) {
-            if (join_condition(&entries1[i], &entries2[j])) {
-                joined_entries[joined_index++] = entries1[i];
-                joined_entries[joined_index++] = entries2[j];
-            }
-        }
-    }
-    *result_count = joined_index;
-    return joined_entries;
-}
-
-void *fossil_crabdb_aggregate(const char *table_name, void *(*aggregate_function)(const fossil_crabdb_entry_t *, size_t)) {
-    size_t result_count;
-    fossil_crabdb_entry_t *entries = fossil_crabdb_query(table_name, NULL, &result_count);
-    return aggregate_function(entries, result_count);
-}
-
-fossil_crabdb_entry_t *fossil_crabdb_paginate(const fossil_crabdb_entry_t *entries, size_t total_entries, size_t page_size, size_t page_number) {
-    size_t start_index = page_size * page_number;
-    if (start_index >= total_entries) {
-        return NULL;
-    }
-    size_t end_index = start_index + page_size;
-    if (end_index > total_entries) {
-        end_index = total_entries;
-    }
-    size_t page_count = end_index - start_index;
-    fossil_crabdb_entry_t *page_entries = (fossil_crabdb_entry_t *)malloc(page_count * sizeof(fossil_crabdb_entry_t));
-    for (size_t i = 0; i < page_count; i++) {
-        page_entries[i] = entries[start_index + i];
-    }
-    return page_entries;
-}
-
-// *****************************************************************************
-// Rebuild Indices Function
-// *****************************************************************************
-
-void fossil_crabdb_rebuild_indices(const char *table_name) {
-    if (table_name == NULL) {
-        fprintf(stderr, "Table name cannot be NULL.\n");
-        return;
-    }
-
-    printf("Rebuilding indices for table: %s\n", table_name);
-
-    // For the sake of example, assume we have access to a global database instance.
-    extern fossil_crabdb_book_t database;
-
-    char **primary_index = NULL;   // Array to store primary keys.
-    size_t primary_index_size = 0;
-
-    char **unique_index = NULL;    // Array to store unique keys.
-    size_t unique_index_size = 0;
-
-    fossil_crabdb_page_t *current = database.head;
-
+    fossil_crabdb_page_t *current = book->head;
     while (current != NULL) {
-        fossil_crabdb_entry_t *entry = &current->entry;
-
-        // Check for primary key constraint
-        if (entry->attributes.is_primary_key) {
-            if (fossil_crabdb_key_exists((const char **)primary_index, primary_index_size, entry->key)) {
-                fprintf(stderr, "Duplicate primary key found: %s\n", entry->key);
+        if (strcmp(current->entry.key, key) == 0) {
+            if (current->prev != NULL) {
+                current->prev->next = current->next;
             } else {
-                primary_index_size = fossil_crabdb_add_to_index(&primary_index, primary_index_size, entry->key);
+                book->head = current->next;
             }
-        }
-
-        // Check for unique constraint
-        if (entry->attributes.is_unique) {
-            if (fossil_crabdb_key_exists((const char **)unique_index, unique_index_size, entry->key)) {
-                fprintf(stderr, "Duplicate unique key found: %s\n", entry->key);
+            if (current->next != NULL) {
+                current->next->prev = current->prev;
             } else {
-                unique_index_size = fossil_crabdb_add_to_index(&unique_index, unique_index_size, entry->key);
+                book->tail = current->prev;
             }
+            free(current->entry.key);
+            free(current->entry.value);
+            free(current);
+            book->size--;
+            return true;
         }
-
         current = current->next;
     }
+    return false;
+}
 
-    // Cleanup: free indices
-    for (size_t i = 0; i < primary_index_size; ++i) {
-        free(primary_index[i]);
+/**
+ * @brief Searches for an entry by key.
+ */
+fossil_crabdb_entry_t* fossil_crabdb_search(fossil_crabdb_book_t *book, const char *key) {
+    if (book == NULL || key == NULL) {
+        return NULL;
     }
-    free(primary_index);
-
-    for (size_t i = 0; i < unique_index_size; ++i) {
-        free(unique_index[i]);
+    fossil_crabdb_page_t *current = book->head;
+    while (current != NULL) {
+        if (strcmp(current->entry.key, key) == 0) {
+            return &current->entry;
+        }
+        current = current->next;
     }
-    free(unique_index);
+    return NULL;
+}
 
-    printf("Indices successfully rebuilt for table: %s\n", table_name);
+/**
+ * @brief Displays all entries in the database.
+ */
+void fossil_crabdb_display(fossil_crabdb_book_t *book) {
+    if (book == NULL) {
+        return;
+    }
+    fossil_crabdb_page_t *current = book->head;
+    while (current != NULL) {
+        printf("Key: %s, Value: %s\n", current->entry.key, current->entry.value);
+        current = current->next;
+    }
+}
+
+/**
+ * @brief Counts the number of entries in the database.
+ */
+size_t fossil_crabdb_size(fossil_crabdb_book_t *book) {
+    if (book == NULL) {
+        return 0;
+    }
+    return book->size;
+}
+
+/**
+ * @brief Checks if the database is empty.
+ */
+bool fossil_crabdb_is_empty(fossil_crabdb_book_t *book) {
+    return book == NULL || book->size == 0;
+}
+
+/**
+ * @brief Clears all entries from the database.
+ */
+void fossil_crabdb_clear(fossil_crabdb_book_t *book) {
+    if (book == NULL) {
+        return;
+    }
+    fossil_crabdb_page_t *current = book->head;
+    while (current != NULL) {
+        fossil_crabdb_page_t *next = current->next;
+        free(current->entry.key);
+        free(current->entry.value);
+        free(current);
+        current = next;
+    }
+    book->head = NULL;
+    book->tail = NULL;
+    book->size = 0;
+}
+
+// *****************************************************************************
+// Relational Operations
+// *****************************************************************************
+
+/**
+ * @brief Joins two databases based on matching keys.
+ */
+fossil_crabdb_book_t* fossil_crabdb_join(fossil_crabdb_book_t *book1, fossil_crabdb_book_t *book2) {
+    if (book1 == NULL || book2 == NULL) {
+        return NULL;
+    }
+    fossil_crabdb_book_t *result = fossil_crabdb_init();
+    if (result == NULL) {
+        return NULL;
+    }
+    fossil_crabdb_page_t *current1 = book1->head;
+    while (current1 != NULL) {
+        fossil_crabdb_page_t *current2 = book2->head;
+        while (current2 != NULL) {
+            if (strcmp(current1->entry.key, current2->entry.key) == 0) {
+                fossil_crabdb_insert(result, current1->entry.key, current1->entry.value, current1->entry.attributes);
+                fossil_crabdb_insert(result, current2->entry.key, current2->entry.value, current2->entry.attributes);
+            }
+            current2 = current2->next;
+        }
+        current1 = current1->next;
+    }
+    return result;
+}
+
+/**
+ * @brief Filters database entries based on a condition.
+ */
+fossil_crabdb_book_t* fossil_crabdb_filter(fossil_crabdb_book_t *book, bool (*predicate)(fossil_crabdb_entry_t *)) {
+    if (book == NULL || predicate == NULL) {
+        return NULL;
+    }
+    fossil_crabdb_book_t *result = fossil_crabdb_init();
+    if (result == NULL) {
+        return NULL;
+    }
+    fossil_crabdb_page_t *current = book->head;
+    while (current != NULL) {
+        if (predicate(&current->entry)) {
+            fossil_crabdb_insert(result, current->entry.key, current->entry.value, current->entry.attributes);
+        }
+        current = current->next;
+    }
+    return result;
+}
+
+/**
+ * @brief Sorts database entries based on a comparison function.
+ */
+void fossil_crabdb_sort(fossil_crabdb_book_t *book, int (*comparator)(fossil_crabdb_entry_t *, fossil_crabdb_entry_t *)) {
+    if (book == NULL || comparator == NULL) {
+        return;
+    }
+    fossil_crabdb_page_t *current = book->head;
+    while (current != NULL) {
+        fossil_crabdb_page_t *next = current->next;
+        while (next != NULL) {
+            if (comparator(&current->entry, &next->entry) > 0) {
+                fossil_crabdb_entry_t temp = current->entry;
+                current->entry = next->entry;
+                next->entry = temp;
+            }
+            next = next->next;
+        }
+        current = current->next;
+    }
+}
+
+/**
+ * @brief Merges two databases into one.
+ */
+fossil_crabdb_book_t* fossil_crabdb_merge(fossil_crabdb_book_t *book1, fossil_crabdb_book_t *book2) {
+    if (book1 == NULL || book2 == NULL) {
+        return NULL;
+    }
+    fossil_crabdb_book_t *result = fossil_crabdb_init();
+    if (result == NULL) {
+        return NULL;
+    }
+    fossil_crabdb_page_t *current = book1->head;
+    while (current != NULL) {
+        fossil_crabdb_insert(result, current->entry.key, current->entry.value, current->entry.attributes);
+        current = current->next;
+    }
+    current = book2->head;
+    while (current != NULL) {
+        fossil_crabdb_insert(result, current->entry.key, current->entry.value, current->entry.attributes);
+        current = current->next;
+    }
+    return result;
+}
+
+// *****************************************************************************
+// Transaction Management
+// *****************************************************************************
+
+/**
+ * @brief Begins a new transaction.
+ */
+fossil_crabdb_transaction_t* fossil_crabdb_transaction_begin(fossil_crabdb_book_t *book, const char *name) {
+    if (book == NULL || name == NULL) {
+        return NULL;
+    }
+    fossil_crabdb_transaction_t *transaction = (fossil_crabdb_transaction_t *)malloc(sizeof(fossil_crabdb_transaction_t));
+    if (transaction == NULL) {
+        return NULL;
+    }
+    transaction->name = custom_strdup(name);
+    transaction->snapshot = *book;
+    transaction->next = active_transaction;
+    active_transaction = transaction;
+    return transaction;
+}
+
+/**
+ * @brief Commits a transaction, saving changes.
+ */
+bool fossil_crabdb_transaction_commit(fossil_crabdb_book_t *book, fossil_crabdb_transaction_t *transaction) {
+    if (book == NULL || transaction == NULL) {
+        return false;
+    }
+    fossil_crabdb_transaction_t *current = active_transaction;
+    while (current != NULL) {
+        if (current == transaction) {
+            active_transaction = current->next;
+            fossil_crabdb_release(&current->snapshot);
+            free(current->name);
+            free(current);
+            return true;
+        }
+        current = current->next;
+    }
+    return false;
+}
+
+/**
+ * @brief Rolls back a transaction, restoring the previous state.
+ */
+bool fossil_crabdb_transaction_rollback(fossil_crabdb_book_t *book, fossil_crabdb_transaction_t *transaction) {
+    if (book == NULL || transaction == NULL) {
+        return false;
+    }
+    fossil_crabdb_transaction_t *current = active_transaction;
+    while (current != NULL) {
+        if (current == transaction) {
+            active_transaction = current->next;
+            *book = current->snapshot;
+            fossil_crabdb_release(&current->snapshot);
+            free(current->name);
+            free(current);
+            return true;
+        }
+        current = current->next;
+    }
+    return false;
+}
+
+/**
+ * @brief Releases a transaction's resources.
+ */
+void fossil_crabdb_transaction_release(fossil_crabdb_transaction_t *transaction) {
+    if (transaction == NULL) {
+        return;
+    }
+    fossil_crabdb_release(&transaction->snapshot);
+    free(transaction->name);
+    free(transaction);
+}
+
+// *****************************************************************************
+// Utility Functions
+// *****************************************************************************
+
+/**
+ * @brief Dumps the database content to a file.
+ */
+bool fossil_crabdb_dump_to_file(fossil_crabdb_book_t *book, const char *filename) {
+    if (book == NULL || filename == NULL) {
+        return false;
+    }
+    FILE *file = fopen(filename, "w");
+    if (file == NULL) {
+        return false;
+    }
+    fossil_crabdb_page_t *current = book->head;
+    while (current != NULL) {
+        fprintf(file, "%s=%s\n", current->entry.key, current->entry.value);
+        current = current->next;
+    }
+    fclose(file);
+    return true;
+}
+
+/**
+ * @brief Loads the database content from a file.
+ */
+bool fossil_crabdb_load_from_file(fossil_crabdb_book_t *book, const char *filename) {
+    if (book == NULL || filename == NULL) {
+        return false;
+    }
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        return false;
+    }
+    char line[256];
+    while (fgets(line, sizeof(line), file) != NULL) {
+        char *key = strtok(line, "=");
+        char *value = strtok(NULL, "\n");
+        fossil_crabdb_insert(book, key, value, (fossil_crabdb_attributes_t){false, false, false});
+    }
+    fclose(file);
+    return true;
+}
+
+/**
+ * @brief Validates the integrity of the database.
+ */
+bool fossil_crabdb_validate(fossil_crabdb_book_t *book) {
+    if (book == NULL) {
+        return false;
+    }
+    fossil_crabdb_page_t *current = book->head;
+    while (current != NULL) {
+        if (current->entry.key == NULL || current->entry.value == NULL) {
+            return false;
+        }
+        current = current->next;
+    }
+    return true;
 }

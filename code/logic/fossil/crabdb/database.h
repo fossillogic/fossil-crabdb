@@ -27,246 +27,175 @@ extern "C" {
 #endif
 
 // *****************************************************************************
-// Enumerations for data types and attributes
+// Enumerations for Data Types and Attributes
 // *****************************************************************************
-
-/**
- * @brief Enumerates the possible data types for values stored in the database.
- */
-typedef enum {
-    FOSSIL_CRABDB_TYPE_I8,        // 8 Bit Integer values
-    FOSSIL_CRABDB_TYPE_I16,       // 16 Bit Integer values
-    FOSSIL_CRABDB_TYPE_I32,       // 32 Bit Integer values
-    FOSSIL_CRABDB_TYPE_I64,       // 64 Bit Integer values
-    FOSSIL_CRABDB_TYPE_U8,        // Unsigned 8 Bit Integer values
-    FOSSIL_CRABDB_TYPE_U16,       // Unsigned 16 Bit Integer values
-    FOSSIL_CRABDB_TYPE_U32,       // Unsigned 32 Bit Integer values
-    FOSSIL_CRABDB_TYPE_U64,       // Unsigned 64 Bit Integer values
-    FOSSIL_CRABDB_TYPE_HEX,       // Hexadecimal values
-    FOSSIL_CRABDB_TYPE_OCT,       // Octal values
-    FOSSIL_CRABDB_TYPE_BIN,       // Binary values
-    FOSSIL_CRABDB_TYPE_F32,       // Floating-point values
-    FOSSIL_CRABDB_TYPE_F64,       // Double-precision floating-point values
-    FOSSIL_CRABDB_TYPE_CSTRING,   // Null-terminated string
-    FOSSIL_CRABDB_TYPE_WSTRING,   // Wide-character string
-    FOSSIL_CRABDB_TYPE_CCHAR,     // Character values
-    FOSSIL_CRABDB_TYPE_WCHAR,     // Wide-character values
-    FOSSIL_CRABDB_TYPE_BOOL,      // Boolean values
-    FOSSIL_CRABDB_TYPE_DATE,      // Date values
-    FOSSIL_CRABDB_TYPE_SIZE,      // Size values
-    FOSSIL_CRABDB_TYPE_ANY,       // Any type represented as a void * pointer
-    FOSSIL_CRABDB_TYPE_NULL       // Null value
-} fossil_crabdb_type_t;
 
 /**
  * @brief Represents additional attributes for each database entry.
  */
 typedef struct {
-    bool is_primary_key;          // Indicates if this entry is a primary key
-    bool is_unique;               // Indicates if this entry is unique
-    bool is_nullable;             // Indicates if this entry allows null values
+    bool is_primary_key;          // Entry is a primary key
+    bool is_unique;               // Entry is unique
+    bool is_nullable;             // Entry allows null values
 } fossil_crabdb_attributes_t;
 
 // *****************************************************************************
-// Database structures
+// Database Structures
 // *****************************************************************************
 
-/**
- * The following types help illustrate a database structure that takes the form
- * of a book, which is a common and easily understandable metaphor. Each entry
- * in the database is like a page in the book, and the entire database is like
- * a collection of these pages.
- * 
- * - fossil_crabdb_entry_t: Represents an entry in the database, holding a key-value pair.
- * - fossil_crabdb_page_t: Represents a node in the doubly linked list, containing an entry and pointers to the next and previous nodes.
- * - fossil_crabdb_book_t: Represents the entire database, maintaining pointers to the head and tail of the list and the number of elements.
- */
-
-/**
- * @brief Represents an entry in the fossil_crabdb database.
- * 
- * Each entry holds a key-value pair, a type, and additional attributes.
- */
 typedef struct {
-    char *key;                    // Null-terminated string for the key
-    char *value;                  // Null-terminated string for the value
-    fossil_crabdb_type_t type;    // Type of the value
-    fossil_crabdb_attributes_t attributes; // Entry attributes
+    char *key;                            // Key
+    char *value;                          // Value
+    fossil_crabdb_attributes_t attributes;// Attributes
 } fossil_crabdb_entry_t;
 
 /**
- * @brief Represents a node in the doubly linked list used by fossil_crabdb.
- * 
- * Each node contains an entry and pointers to the next and previous nodes.
+ * Doubly linked list node representing a database entry.
  */
 typedef struct fossil_crabdb_node {
-    fossil_crabdb_entry_t entry;     // Data stored in the node
-    struct fossil_crabdb_node *next; // Pointer to the next node
-    struct fossil_crabdb_node *prev; // Pointer to the previous node
+    fossil_crabdb_entry_t entry;
+    struct fossil_crabdb_node *next;
+    struct fossil_crabdb_node *prev;
 } fossil_crabdb_page_t;
 
 /**
- * @brief Represents a doubly linked list-based relational database.
- * 
- * Maintains pointers to the head and tail of the list and tracks the number of entries.
+ * Represents the database as a doubly linked list (a "book").
  */
 typedef struct {
-    fossil_crabdb_page_t *head;      // Pointer to the first node
-    fossil_crabdb_page_t *tail;      // Pointer to the last node
-    size_t size;                     // Number of entries in the database
+    fossil_crabdb_page_t *head;
+    fossil_crabdb_page_t *tail;
+    size_t size;
 } fossil_crabdb_book_t;
 
 /**
- * @brief Represents a transaction state in the fossil_crabdb database.
+ * Represents a transaction.
  */
 typedef struct fossil_crabdb_transaction {
-    char *name;                         // Transaction name
-    fossil_crabdb_book_t snapshot;      // Snapshot of the database state
-    struct fossil_crabdb_transaction *next;
+    char *name;                              // Transaction name
+    fossil_crabdb_book_t snapshot;           // Database snapshot
+    struct fossil_crabdb_transaction *next;  // Next transaction
 } fossil_crabdb_transaction_t;
 
 // *****************************************************************************
-// Relational database operations
+// Database API Functions
 // *****************************************************************************
 
 /**
- * Create a table-like structure in the database with attributes.
- * 
- * @param table_name The name of the table to create.
- * @param attributes The attributes that define the table schema.
- * @param attr_count The number of attributes in the schema.
+ * @brief Initializes a new empty database.
  */
-void fossil_crabdb_create_table(const char *table_name, fossil_crabdb_attributes_t *attributes, size_t attr_count);
+fossil_crabdb_book_t* fossil_crabdb_init(void);
 
 /**
- * Insert a new row into a table.
- * 
- * @param table_name The name of the table to insert into.
- * @param entries An array of entries to insert.
- * @param entry_count The number of entries to insert.
+ * @brief Releases all resources used by the database.
  */
-void fossil_crabdb_insert_row(const char *table_name, const fossil_crabdb_entry_t *entries, size_t entry_count);
+void fossil_crabdb_release(fossil_crabdb_book_t *book);
 
 /**
- * Query rows from a table using conditions.
- * 
- * @param table_name The name of the table to query from.
- * @param condition A callback function to filter rows.
- * @param result_count A pointer to store the number of matching rows.
- * 
- * @return An array of matching rows.
+ * @brief Inserts a new key-value pair into the database.
  */
-fossil_crabdb_entry_t *fossil_crabdb_query(const char *table_name, bool (*condition)(const fossil_crabdb_entry_t *), size_t *result_count);
+bool fossil_crabdb_insert(fossil_crabdb_book_t *book, const char *key, const char *value, fossil_crabdb_attributes_t attributes);
 
 /**
- * Search for rows by key or value.
- * 
- * @param table_name The name of the table to search in.
- * @param search_term The term to search for.
- * @param search_in_keys Indicates whether to search in keys (true) or values (false).
- * @param result_count A pointer to store the number of matching rows.
- * 
- * @return An array of matching rows.
+ * @brief Updates the value of an existing key.
  */
-fossil_crabdb_entry_t *fossil_crabdb_search(const char *table_name, const char *search_term, bool search_in_keys, size_t *result_count);
+bool fossil_crabdb_update(fossil_crabdb_book_t *book, const char *key, const char *new_value);
 
 /**
- * Update rows in a table.
- * 
- * @param table_name The name of the table to update.
- * @param condition A callback function to filter rows to update.
- * @param new_values An array of updated values.
- * @param value_count The number of updated values.
+ * @brief Deletes an entry from the database by key.
  */
-void fossil_crabdb_update_rows(const char *table_name, bool (*condition)(const fossil_crabdb_entry_t *), const fossil_crabdb_entry_t *new_values, size_t value_count);
+bool fossil_crabdb_delete(fossil_crabdb_book_t *book, const char *key);
 
 /**
- * Delete rows from a table.
- * 
- * @param table_name The name of the table to delete from.
- * @param condition A callback function to filter rows to delete.
+ * @brief Searches for an entry by key.
  */
-void fossil_crabdb_delete_rows(const char *table_name, bool (*condition)(const fossil_crabdb_entry_t *));
+fossil_crabdb_entry_t* fossil_crabdb_search(fossil_crabdb_book_t *book, const char *key);
 
 /**
- * Begin a transaction.
- * 
- * @param transaction_name The name of the transaction.
+ * @brief Displays all entries in the database.
  */
-void fossil_crabdb_begin_transaction(const char *transaction_name);
+void fossil_crabdb_display(fossil_crabdb_book_t *book);
 
 /**
- * Commit a transaction, making all changes permanent.
- * 
- * @param transaction_name The name of the transaction to commit.
+ * @brief Counts the number of entries in the database.
  */
-void fossil_crabdb_commit_transaction(const char *transaction_name);
+size_t fossil_crabdb_size(fossil_crabdb_book_t *book);
 
 /**
- * Rollback a transaction, reverting all changes made during the transaction.
- * 
- * @param transaction_name The name of the transaction to rollback.
+ * @brief Checks if the database is empty.
  */
-void fossil_crabdb_rollback_transaction(const char *transaction_name);
+bool fossil_crabdb_is_empty(fossil_crabdb_book_t *book);
 
 /**
- * Backup the database to a file.
- * 
- * @param file_path The path to the backup file.
+ * @brief Clears all entries from the database.
  */
-void fossil_crabdb_backup(const char *file_path);
-
-/**
- * Restore the database from a backup file.
- * 
- * @param file_path The path to the backup file.
- */
-void fossil_crabdb_restore(const char *file_path);
+void fossil_crabdb_clear(fossil_crabdb_book_t *book);
 
 // *****************************************************************************
-// Utility functions for relational operations
+// Relational Operations
 // *****************************************************************************
 
 /**
- * Join two tables on a specified condition.
- * 
- * @param table1 The name of the first table.
- * @param table2 The name of the second table.
- * @param join_condition A callback function defining the join condition.
- * @param result_count A pointer to store the number of resulting rows.
- * 
- * @return An array of joined rows.
+ * @brief Joins two databases based on matching keys.
  */
-fossil_crabdb_entry_t *fossil_crabdb_join(const char *table1, const char *table2, bool (*join_condition)(const fossil_crabdb_entry_t *, const fossil_crabdb_entry_t *), size_t *result_count);
+fossil_crabdb_book_t* fossil_crabdb_join(fossil_crabdb_book_t *book1, fossil_crabdb_book_t *book2);
 
 /**
- * Aggregate data from a table.
- * 
- * @param table_name The name of the table to aggregate from.
- * @param aggregate_function A callback function to perform the aggregation.
- * 
- * @return The result of the aggregation.
+ * @brief Filters database entries based on a condition.
  */
-void *fossil_crabdb_aggregate(const char *table_name, void *(*aggregate_function)(const fossil_crabdb_entry_t *, size_t));
+fossil_crabdb_book_t* fossil_crabdb_filter(fossil_crabdb_book_t *book, bool (*predicate)(fossil_crabdb_entry_t *));
 
 /**
- * Paginate query results.
- * 
- * @param entries The array of query results.
- * @param total_entries The total number of query results.
- * @param page_size The number of results per page.
- * @param page_number The page number to fetch.
- * 
- * @return A pointer to the entries for the requested page.
+ * @brief Sorts database entries based on a comparison function.
  */
-fossil_crabdb_entry_t *fossil_crabdb_paginate(const fossil_crabdb_entry_t *entries, size_t total_entries, size_t page_size, size_t page_number);
+void fossil_crabdb_sort(fossil_crabdb_book_t *book, int (*comparator)(fossil_crabdb_entry_t *, fossil_crabdb_entry_t *));
 
 /**
- * Rebuild indices for optimizing search operations.
- * 
- * @param table_name The name of the table to rebuild indices for.
+ * @brief Merges two databases into one.
  */
-void fossil_crabdb_rebuild_indices(const char *table_name);
+fossil_crabdb_book_t* fossil_crabdb_merge(fossil_crabdb_book_t *book1, fossil_crabdb_book_t *book2);
+
+// *****************************************************************************
+// Transaction Management
+// *****************************************************************************
+
+/**
+ * @brief Begins a new transaction.
+ */
+fossil_crabdb_transaction_t* fossil_crabdb_transaction_begin(fossil_crabdb_book_t *book, const char *name);
+
+/**
+ * @brief Commits a transaction, saving changes.
+ */
+bool fossil_crabdb_transaction_commit(fossil_crabdb_book_t *book, fossil_crabdb_transaction_t *transaction);
+
+/**
+ * @brief Rolls back a transaction, restoring the previous state.
+ */
+bool fossil_crabdb_transaction_rollback(fossil_crabdb_book_t *book, fossil_crabdb_transaction_t *transaction);
+
+/**
+ * @brief Releases a transaction's resources.
+ */
+void fossil_crabdb_transaction_release(fossil_crabdb_transaction_t *transaction);
+
+// *****************************************************************************
+// Utility Functions
+// *****************************************************************************
+
+/**
+ * @brief Dumps the database content to a file.
+ */
+bool fossil_crabdb_dump_to_file(fossil_crabdb_book_t *book, const char *filename);
+
+/**
+ * @brief Loads the database content from a file.
+ */
+bool fossil_crabdb_load_from_file(fossil_crabdb_book_t *book, const char *filename);
+
+/**
+ * @brief Validates the integrity of the database.
+ */
+bool fossil_crabdb_validate(fossil_crabdb_book_t *book);
 
 #ifdef __cplusplus
 }
@@ -278,190 +207,80 @@ namespace fossil {
 /**
  * @brief Represents a high-level interface to the Fossil CrabDB database.
  */
-class CrabDB {
+class CrabDB
+{
 public:
-    /**
-     * @brief Construct a new CrabDB object
-     */
     CrabDB() {
-        // Initialization code if needed
+        book = fossil_crabdb_init();
+        if (!book) {
+            throw std::runtime_error("Failed to initialize the database.");
+        }
     }
-    
-    /**
-     * @brief Destroy the CrabDB object
-     */
+
     ~CrabDB() {
-        // Cleanup code if needed
+        fossil_crabdb_release(book);
     }
 
-    /**
-     * @brief Create a table-like structure in the database with attributes.
-     * 
-     * @param table_name The name of the table to create.
-     * @param attributes The attributes that define the table schema.
-     * @param attr_count The number of attributes in the schema.
-     */
-    void createTable(const std::string &table_name, fossil_crabdb_attributes_t *attributes, size_t attr_count) {
-        fossil_crabdb_create_table(table_name.c_str(), attributes, attr_count);
+    void insert(const std::string &key, const std::string &value, fossil_crabdb_attributes_t attributes) {
+        if (!fossil_crabdb_insert(book, key.c_str(), value.c_str(), attributes)) {
+            throw std::runtime_error("Failed to insert entry.");
+        }
     }
 
-    /**
-     * @brief Insert a new row into a table.
-     * 
-     * @param table_name The name of the table to insert into.
-     * @param entries An array of entries to insert.
-     * @param entry_count The number of entries to insert.
-     */
-    void insertRow(const std::string &table_name, const fossil_crabdb_entry_t *entries, size_t entry_count) {
-        fossil_crabdb_insert_row(table_name.c_str(), entries, entry_count);
+    void update(const std::string &key, const std::string &new_value) {
+        if (!fossil_crabdb_update(book, key.c_str(), new_value.c_str())) {
+            throw std::runtime_error("Failed to update entry.");
+        }
     }
 
-    /**
-     * @brief Query rows from a table using conditions.
-     * 
-     * @param table_name The name of the table to query from.
-     * @param condition A callback function to filter rows.
-     * 
-     * @return An array of matching rows.
-     */
-    std::vector<fossil_crabdb_entry_t> query(const std::string &table_name, bool (*condition)(const fossil_crabdb_entry_t *)) {
-        size_t result_count;
-        fossil_crabdb_entry_t *results = fossil_crabdb_query(table_name.c_str(), condition, &result_count);
-        return std::vector<fossil_crabdb_entry_t>(results, results + result_count);
+    void remove(const std::string &key) {
+        if (!fossil_crabdb_delete(book, key.c_str())) {
+            throw std::runtime_error("Failed to delete entry.");
+        }
     }
 
-    /**
-     * @brief Search for rows by key or value.
-     * 
-     * @param table_name The name of the table to search in.
-     * @param search_term The term to search for.
-     * @param search_in_keys Indicates whether to search in keys (true) or values (false).
-     * 
-     * @return An array of matching rows.
-     */
-    std::vector<fossil_crabdb_entry_t> search(const std::string &table_name, const std::string &search_term, bool search_in_keys) {
-        size_t result_count;
-        fossil_crabdb_entry_t *results = fossil_crabdb_search(table_name.c_str(), search_term.c_str(), search_in_keys, &result_count);
-        return std::vector<fossil_crabdb_entry_t>(results, results + result_count);
+    std::string search(const std::string &key) {
+        fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, key.c_str());
+        if (!entry) {
+            throw std::runtime_error("Entry not found.");
+        }
+        return std::string(entry->value);
     }
 
-    /**
-     * @brief Update rows in a table.
-     * 
-     * @param table_name The name of the table to update.
-     * @param condition A callback function to filter rows to update.
-     * @param new_values An array of updated values.
-     * @param value_count The number of updated values.
-     */
-    void updateRows(const std::string &table_name, bool (*condition)(const fossil_crabdb_entry_t *), const fossil_crabdb_entry_t *new_values, size_t value_count) {
-        fossil_crabdb_update_rows(table_name.c_str(), condition, new_values, value_count);
+    void display() {
+        fossil_crabdb_display(book);
     }
 
-    /**
-     * @brief Delete rows from a table.
-     * 
-     * @param table_name The name of the table to delete from.
-     * @param condition A callback function to filter rows to delete.
-     */
-    void deleteRows(const std::string &table_name, bool (*condition)(const fossil_crabdb_entry_t *)) {
-        fossil_crabdb_delete_rows(table_name.c_str(), condition);
+    size_t size() {
+        return fossil_crabdb_size(book);
     }
 
-    /**
-     * @brief Begin a transaction.
-     * 
-     * @param transaction_name The name of the transaction.
-     */
-    void beginTransaction(const std::string &transaction_name) {
-        fossil_crabdb_begin_transaction(transaction_name.c_str());
+    bool isEmpty() {
+        return fossil_crabdb_is_empty(book);
     }
 
-    /**
-     * @brief Commit a transaction, making all changes permanent.
-     * 
-     * @param transaction_name The name of the transaction to commit.
-     */
-    void commitTransaction(const std::string &transaction_name) {
-        fossil_crabdb_commit_transaction(transaction_name.c_str());
+    void clear() {
+        fossil_crabdb_clear(book);
     }
 
-    /**
-     * @brief Rollback a transaction, reverting all changes made during the transaction.
-     * 
-     * @param transaction_name The name of the transaction to rollback.
-     */
-    void rollbackTransaction(const std::string &transaction_name) {
-        fossil_crabdb_rollback_transaction(transaction_name.c_str());
+    void dumpToFile(const std::string &filename) {
+        if (!fossil_crabdb_dump_to_file(book, filename.c_str())) {
+            throw std::runtime_error("Failed to dump database to file.");
+        }
     }
 
-    /**
-     * @brief Backup the database to a file.
-     * 
-     * @param file_path The path to the backup file.
-     */
-    void backup(const std::string &file_path) {
-        fossil_crabdb_backup(file_path.c_str());
+    void loadFromFile(const std::string &filename) {
+        if (!fossil_crabdb_load_from_file(book, filename.c_str())) {
+            throw std::runtime_error("Failed to load database from file.");
+        }
     }
 
-    /**
-     * @brief Restore the database from a backup file.
-     * 
-     * @param file_path The path to the backup file.
-     */
-    void restore(const std::string &file_path) {
-        fossil_crabdb_restore(file_path.c_str());
+    bool validate() {
+        return fossil_crabdb_validate(book);
     }
 
-    /**
-     * @brief Join two tables on a specified condition.
-     * 
-     * @param table1 The name of the first table.
-     * @param table2 The name of the second table.
-     * @param join_condition A callback function defining the join condition.
-     * 
-     * @return An array of joined rows.
-     */
-    std::vector<fossil_crabdb_entry_t> join(const std::string &table1, const std::string &table2, bool (*join_condition)(const fossil_crabdb_entry_t *, const fossil_crabdb_entry_t *)) {
-        size_t result_count;
-        fossil_crabdb_entry_t *results = fossil_crabdb_join(table1.c_str(), table2.c_str(), join_condition, &result_count);
-        return std::vector<fossil_crabdb_entry_t>(results, results + result_count);
-    }
-
-    /**
-     * @brief Aggregate data from a table.
-     * 
-     * @param table_name The name of the table to aggregate from.
-     * @param aggregate_function A callback function to perform the aggregation.
-     * 
-     * @return The result of the aggregation.
-     */
-    void *aggregate(const std::string &table_name, void *(*aggregate_function)(const fossil_crabdb_entry_t *, size_t)) {
-        return fossil_crabdb_aggregate(table_name.c_str(), aggregate_function);
-    }
-
-    /**
-     * @brief Paginate query results.
-     * 
-     * @param entries The array of query results.
-     * @param total_entries The total number of query results.
-     * @param page_size The number of results per page.
-     * @param page_number The page number to fetch.
-     * 
-     * @return A vector of entries for the requested page.
-     */
-    std::vector<fossil_crabdb_entry_t> paginate(const std::vector<fossil_crabdb_entry_t> &entries, size_t page_size, size_t page_number) {
-        return std::vector<fossil_crabdb_entry_t>(fossil_crabdb_paginate(entries.data(), entries.size(), page_size, page_number), 
-                                                  fossil_crabdb_paginate(entries.data(), entries.size(), page_size, page_number) + page_size);
-    }
-
-    /**
-     * @brief Rebuild indices for optimizing search operations.
-     * 
-     * @param table_name The name of the table to rebuild indices for.
-     */
-    void rebuildIndices(const std::string &table_name) {
-        fossil_crabdb_rebuild_indices(table_name.c_str());
-    }
+private:
+    fossil_crabdb_book_t *book;
 };
 
 } // namespace fossil
