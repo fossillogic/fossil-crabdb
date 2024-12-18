@@ -39,7 +39,7 @@ FOSSIL_TEARDOWN(c_crabdb_fixture) {
 // Test case for initializing a new database
 FOSSIL_TEST_CASE(c_test_crabdb_init) {
     fossil_crabdb_book_t *book = fossil_crabdb_init();
-    ASSUME_ITS_NOT_NULL(book);
+    ASSUME_NOT_CNULL(book);
     ASSUME_ITS_TRUE(fossil_crabdb_is_empty(book));
     fossil_crabdb_release(book);
 }
@@ -60,7 +60,7 @@ FOSSIL_TEST_CASE(c_test_crabdb_update) {
     bool result = fossil_crabdb_update(book, "key1", "new_value1");
     ASSUME_ITS_TRUE(result);
     fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, "key1");
-    ASSUME_ITS_NOT_NULL(entry);
+    ASSUME_NOT_CNULL(entry);
     ASSUME_ITS_TRUE(strcmp(entry->value, "new_value1") == 0);
     fossil_crabdb_release(book);
 }
@@ -80,7 +80,7 @@ FOSSIL_TEST_CASE(c_test_crabdb_search) {
     fossil_crabdb_book_t *book = fossil_crabdb_init();
     fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
     fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, "key1");
-    ASSUME_ITS_NOT_NULL(entry);
+    ASSUME_NOT_CNULL(entry);
     ASSUME_ITS_TRUE(strcmp(entry->value, "value1") == 0);
     fossil_crabdb_release(book);
 }
@@ -101,7 +101,7 @@ FOSSIL_TEST_CASE(c_test_crabdb_join) {
     fossil_crabdb_insert(book1, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
     fossil_crabdb_insert(book2, "key1", "value2", (fossil_crabdb_attributes_t){false, false, false});
     fossil_crabdb_book_t *result = fossil_crabdb_join(book1, book2);
-    ASSUME_ITS_NOT_NULL(result);
+    ASSUME_NOT_CNULL(result);
     ASSUME_ITS_TRUE(fossil_crabdb_size(result) == 2);
     fossil_crabdb_release(book1);
     fossil_crabdb_release(book2);
@@ -109,29 +109,33 @@ FOSSIL_TEST_CASE(c_test_crabdb_join) {
 }
 
 // Test case for filtering database entries
+static bool filter_key1(fossil_crabdb_entry_t *entry) {
+    return strcmp(entry->key, "key1") == 0;
+}
+
 FOSSIL_TEST_CASE(c_test_crabdb_filter) {
     fossil_crabdb_book_t *book = fossil_crabdb_init();
     fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
     fossil_crabdb_insert(book, "key2", "value2", (fossil_crabdb_attributes_t){false, false, false});
-    fossil_crabdb_book_t *result = fossil_crabdb_filter(book, [](fossil_crabdb_entry_t *entry) {
-        return strcmp(entry->key, "key1") == 0;
-    });
-    ASSUME_ITS_NOT_NULL(result);
+    fossil_crabdb_book_t *result = fossil_crabdb_filter(book, filter_key1);
+    ASSUME_NOT_CNULL(result);
     ASSUME_ITS_TRUE(fossil_crabdb_size(result) == 1);
     fossil_crabdb_release(book);
     fossil_crabdb_release(result);
 }
 
 // Test case for sorting database entries
+static int compare_keys(const fossil_crabdb_entry_t *a, const fossil_crabdb_entry_t *b) {
+    return strcmp(a->key, b->key);
+}
+
 FOSSIL_TEST_CASE(c_test_crabdb_sort) {
     fossil_crabdb_book_t *book = fossil_crabdb_init();
     fossil_crabdb_insert(book, "key2", "value2", (fossil_crabdb_attributes_t){false, false, false});
     fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
-    fossil_crabdb_sort(book, [](fossil_crabdb_entry_t *a, fossil_crabdb_entry_t *b) {
-        return strcmp(a->key, b->key);
-    });
+    fossil_crabdb_sort(book, compare_keys);
     fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, "key1");
-    ASSUME_ITS_NOT_NULL(entry);
+    ASSUME_NOT_CNULL(entry);
     ASSUME_ITS_TRUE(strcmp(entry->key, "key1") == 0);
     fossil_crabdb_release(book);
 }
@@ -143,7 +147,7 @@ FOSSIL_TEST_CASE(c_test_crabdb_merge) {
     fossil_crabdb_insert(book1, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
     fossil_crabdb_insert(book2, "key2", "value2", (fossil_crabdb_attributes_t){false, false, false});
     fossil_crabdb_book_t *result = fossil_crabdb_merge(book1, book2);
-    ASSUME_ITS_NOT_NULL(result);
+    ASSUME_NOT_CNULL(result);
     ASSUME_ITS_TRUE(fossil_crabdb_size(result) == 2);
     fossil_crabdb_release(book1);
     fossil_crabdb_release(book2);
