@@ -199,6 +199,7 @@ bool fossil_crabdb_validate(fossil_crabdb_book_t *book);
 
 #ifdef __cplusplus
 }
+
 #include <string>
 #include <vector>
 
