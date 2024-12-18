@@ -15,8 +15,6 @@
 
 static fossil_crabdb_transaction_t *active_transaction = NULL; // Current active transaction
 
-static fossil_crabdb_book_t *db = NULL;
-
 char *custom_strdup(const char *str) {
     if (str == NULL) {
         return NULL;
