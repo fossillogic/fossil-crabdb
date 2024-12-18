@@ -36,41 +36,144 @@ FOSSIL_TEARDOWN(c_crabdb_fixture) {
 // * Fossil Logic Test Blue CrabDB Database
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
-// Test case for opening a database with an invalid file extension
-FOSSIL_TEST_CASE(c_test_crabdb_open_invalid_extension) {
-    bool result = fossil_crabdb_open("invalid_file.txt");
-    ASSUME_ITS_FALSE(result); // Should fail due to invalid file extension
+// Test case for initializing a new database
+FOSSIL_TEST_CASE(c_test_crabdb_init) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    ASSUME_ITS_NOT_NULL(book);
+    ASSUME_ITS_TRUE(fossil_crabdb_is_empty(book));
+    fossil_crabdb_release(book);
 }
 
-// Test case for opening a non-existing database file
-FOSSIL_TEST_CASE(c_test_crabdb_open_non_existing_file) {
-    bool result = fossil_crabdb_open("non_existing_file.crabdb");
-    ASSUME_ITS_FALSE(result); // Should fail due to non-existing file
+// Test case for inserting a new key-value pair
+FOSSIL_TEST_CASE(c_test_crabdb_insert) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    bool result = fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    ASSUME_ITS_TRUE(result);
+    ASSUME_ITS_FALSE(fossil_crabdb_is_empty(book));
+    fossil_crabdb_release(book);
 }
 
-// Test case for closing an already closed database
-FOSSIL_TEST_CASE(c_test_crabdb_close_already_closed) {
-    fossil_crabdb_open("test_file.crabdb");
-    fossil_crabdb_close();
-    fossil_crabdb_close(); // Should handle gracefully without crashing
+// Test case for updating an existing key
+FOSSIL_TEST_CASE(c_test_crabdb_update) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    bool result = fossil_crabdb_update(book, "key1", "new_value1");
+    ASSUME_ITS_TRUE(result);
+    fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, "key1");
+    ASSUME_ITS_NOT_NULL(entry);
+    ASSUME_ITS_TRUE(strcmp(entry->value, "new_value1") == 0);
+    fossil_crabdb_release(book);
+}
+
+// Test case for deleting an entry by key
+FOSSIL_TEST_CASE(c_test_crabdb_delete) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    bool result = fossil_crabdb_delete(book, "key1");
+    ASSUME_ITS_TRUE(result);
+    ASSUME_ITS_TRUE(fossil_crabdb_is_empty(book));
+    fossil_crabdb_release(book);
+}
+
+// Test case for searching an entry by key
+FOSSIL_TEST_CASE(c_test_crabdb_search) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, "key1");
+    ASSUME_ITS_NOT_NULL(entry);
+    ASSUME_ITS_TRUE(strcmp(entry->value, "value1") == 0);
+    fossil_crabdb_release(book);
+}
+
+// Test case for clearing all entries from the database
+FOSSIL_TEST_CASE(c_test_crabdb_clear) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_clear(book);
+    ASSUME_ITS_TRUE(fossil_crabdb_is_empty(book));
+    fossil_crabdb_release(book);
+}
+
+// Test case for joining two databases
+FOSSIL_TEST_CASE(c_test_crabdb_join) {
+    fossil_crabdb_book_t *book1 = fossil_crabdb_init();
+    fossil_crabdb_book_t *book2 = fossil_crabdb_init();
+    fossil_crabdb_insert(book1, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_insert(book2, "key1", "value2", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_book_t *result = fossil_crabdb_join(book1, book2);
+    ASSUME_ITS_NOT_NULL(result);
+    ASSUME_ITS_TRUE(fossil_crabdb_size(result) == 2);
+    fossil_crabdb_release(book1);
+    fossil_crabdb_release(book2);
+    fossil_crabdb_release(result);
+}
+
+// Test case for filtering database entries
+FOSSIL_TEST_CASE(c_test_crabdb_filter) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_insert(book, "key2", "value2", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_book_t *result = fossil_crabdb_filter(book, [](fossil_crabdb_entry_t *entry) {
+        return strcmp(entry->key, "key1") == 0;
+    });
+    ASSUME_ITS_NOT_NULL(result);
+    ASSUME_ITS_TRUE(fossil_crabdb_size(result) == 1);
+    fossil_crabdb_release(book);
+    fossil_crabdb_release(result);
+}
+
+// Test case for sorting database entries
+FOSSIL_TEST_CASE(c_test_crabdb_sort) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key2", "value2", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_sort(book, [](fossil_crabdb_entry_t *a, fossil_crabdb_entry_t *b) {
+        return strcmp(a->key, b->key);
+    });
+    fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, "key1");
+    ASSUME_ITS_NOT_NULL(entry);
+    ASSUME_ITS_TRUE(strcmp(entry->key, "key1") == 0);
+    fossil_crabdb_release(book);
+}
+
+// Test case for merging two databases
+FOSSIL_TEST_CASE(c_test_crabdb_merge) {
+    fossil_crabdb_book_t *book1 = fossil_crabdb_init();
+    fossil_crabdb_book_t *book2 = fossil_crabdb_init();
+    fossil_crabdb_insert(book1, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_insert(book2, "key2", "value2", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_book_t *result = fossil_crabdb_merge(book1, book2);
+    ASSUME_ITS_NOT_NULL(result);
+    ASSUME_ITS_TRUE(fossil_crabdb_size(result) == 2);
+    fossil_crabdb_release(book1);
+    fossil_crabdb_release(book2);
+    fossil_crabdb_release(result);
+}
+
+// Test case for validating the integrity of the database
+FOSSIL_TEST_CASE(c_test_crabdb_validate) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    bool result = fossil_crabdb_validate(book);
+    ASSUME_ITS_TRUE(result);
+    fossil_crabdb_release(book);
 }
 
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
-
 FOSSIL_TEST_GROUP(c_crab_database_tests) {    
-    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_open_invalid_extension);
-    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_open_non_existing_file);
-    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_close_already_closed);
-    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_batch_create_invalid_entries);
-    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_batch_read_non_existing_keys);
-    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_batch_delete_mixed_keys);
-    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_search_partial_key);
-    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_filter_custom_predicate);
-    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_sort_entries);
-    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_clear_entries);
-    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_encode_decode);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_init);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_insert);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_update);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_delete);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_search);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_clear);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_join);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_filter);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_sort);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_merge);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_validate);
 
     FOSSIL_TEST_REGISTER(c_crabdb_fixture);
 } // end of tests
