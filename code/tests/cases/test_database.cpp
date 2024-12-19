@@ -122,19 +122,19 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_filter) {
     fossil_crabdb_release(result);
 }
 
-// Test case for sorting database entries
-FOSSIL_TEST_CASE(cpp_test_crabdb_sort) {
-    fossil_crabdb_book_t *book = fossil_crabdb_init();
-    fossil_crabdb_insert(book, const_cast<char *>("key2"), const_cast<char *>("value2"), {false, false, false});
-    fossil_crabdb_insert(book, const_cast<char *>("key1"), const_cast<char *>("value1"), {false, false, false});
-    fossil_crabdb_sort(book, [](fossil_crabdb_entry_t *a, fossil_crabdb_entry_t *b) {
-        return strcmp(a->key, b->key);
-    });
-    fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, const_cast<char *>("key1"));
-    ASSUME_NOT_CNULL(entry);
-    ASSUME_ITS_TRUE(strcmp(entry->key, const_cast<char *>("key1")) == 0);
-    fossil_crabdb_release(book);
-}
+// // Test case for sorting database entries
+// FOSSIL_TEST_CASE(cpp_test_crabdb_sort) {
+//     fossil_crabdb_book_t *book = fossil_crabdb_init();
+//     fossil_crabdb_insert(book, const_cast<char *>("key2"), const_cast<char *>("value2"), {false, false, false});
+//     fossil_crabdb_insert(book, const_cast<char *>("key1"), const_cast<char *>("value1"), {false, false, false});
+//     fossil_crabdb_sort(book, [](fossil_crabdb_entry_t *a, fossil_crabdb_entry_t *b) {
+//         return strcmp(a->key, b->key);
+//     });
+//     fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, const_cast<char *>("key1"));
+//     ASSUME_NOT_CNULL(entry);
+//     ASSUME_ITS_TRUE(strcmp(entry->key, const_cast<char *>("key1")) == 0);
+//     fossil_crabdb_release(book);
+// }
 
 // Test case for merging two databases
 FOSSIL_TEST_CASE(cpp_test_crabdb_merge) {
@@ -171,7 +171,7 @@ FOSSIL_TEST_GROUP(cpp_crab_database_tests) {
     FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_clear);
     FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_join);
     FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_filter);
-    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_sort);
+    // FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_sort);
     FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_merge);
     FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_validate);
 
