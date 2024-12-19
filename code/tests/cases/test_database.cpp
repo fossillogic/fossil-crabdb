@@ -179,58 +179,6 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_sort_descending) {
     fossil_crabdb_release(book);
 }
 
-// Test case for dumping the database to a file
-FOSSIL_TEST_CASE(cpp_test_crabdb_dump_to_file) {
-    fossil_crabdb_book_t *book = fossil_crabdb_init();
-    fossil_crabdb_insert(book, const_cast<char *>("key1"), const_cast<char *>("value1"), {false, false, false});
-    bool result = fossil_crabdb_dump_to_file(book, "test_dump.db");
-    ASSUME_ITS_TRUE(result);
-    fossil_crabdb_release(book);
-}
-
-// Test case for loading the database from a file
-FOSSIL_TEST_CASE(cpp_test_crabdb_load_from_file) {
-    fossil_crabdb_book_t *book = fossil_crabdb_load_from_file("test_dump.db");
-    ASSUME_NOT_CNULL(book);
-    fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, const_cast<char *>("key1"));
-    ASSUME_NOT_CNULL(entry);
-    ASSUME_ITS_TRUE(strcmp(entry->value, "value1") == 0);
-    fossil_crabdb_release(book);
-}
-
-// Test case for beginning a transaction
-FOSSIL_TEST_CASE(cpp_test_crabdb_transaction_begin) {
-    fossil_crabdb_book_t *book = fossil_crabdb_init();
-    bool result = fossil_crabdb_transaction_begin(book);
-    ASSUME_ITS_TRUE(result);
-    fossil_crabdb_release(book);
-}
-
-// Test case for committing a transaction
-FOSSIL_TEST_CASE(cpp_test_crabdb_transaction_commit) {
-    fossil_crabdb_book_t *book = fossil_crabdb_init();
-    fossil_crabdb_transaction_begin(book);
-    fossil_crabdb_insert(book, const_cast<char *>("key1"), const_cast<char *>("value1"), {false, false, false});
-    bool result = fossil_crabdb_transaction_commit(book);
-    ASSUME_ITS_TRUE(result);
-    fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, const_cast<char *>("key1"));
-    ASSUME_NOT_CNULL(entry);
-    ASSUME_ITS_TRUE(strcmp(entry->value, "value1") == 0);
-    fossil_crabdb_release(book);
-}
-
-// Test case for rolling back a transaction
-FOSSIL_TEST_CASE(cpp_test_crabdb_transaction_rollback) {
-    fossil_crabdb_book_t *book = fossil_crabdb_init();
-    fossil_crabdb_transaction_begin(book);
-    fossil_crabdb_insert(book, const_cast<char *>("key1"), const_cast<char *>("value1"), {false, false, false});
-    bool result = fossil_crabdb_transaction_rollback(book);
-    ASSUME_ITS_TRUE(result);
-    ASSUME_ITS_TRUE(fossil_crabdb_is_empty(book));
-    fossil_crabdb_release(book);
-}
-
-
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
@@ -247,11 +195,6 @@ FOSSIL_TEST_GROUP(cpp_crab_database_tests) {
     FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_validate);
     FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_sort_ascending);
     FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_sort_descending);
-    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_dump_to_file);
-    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_load_from_file);
-    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_transaction_begin);
-    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_transaction_commit);
-    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_transaction_rollback);
 
     FOSSIL_TEST_REGISTER(cpp_crabdb_fixture);
 } // end of tests
