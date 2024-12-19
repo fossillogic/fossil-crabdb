@@ -145,11 +145,6 @@ fossil_crabdb_book_t* fossil_crabdb_join(fossil_crabdb_book_t *book1, fossil_cra
 fossil_crabdb_book_t* fossil_crabdb_filter(fossil_crabdb_book_t *book, bool (*predicate)(fossil_crabdb_entry_t *));
 
 /**
- * @brief Sorts database entries based on a comparison function.
- */
-void fossil_crabdb_sort(fossil_crabdb_book_t *book, int (*comparator)(fossil_crabdb_entry_t *, fossil_crabdb_entry_t *));
-
-/**
  * @brief Merges two databases into one.
  */
 fossil_crabdb_book_t* fossil_crabdb_merge(fossil_crabdb_book_t *book1, fossil_crabdb_book_t *book2);
@@ -201,6 +196,7 @@ bool fossil_crabdb_validate(fossil_crabdb_book_t *book);
 }
 
 #include <string>
+#include <stdexcept>
 #include <vector>
 
 namespace fossil {

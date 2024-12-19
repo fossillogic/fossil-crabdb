@@ -124,22 +124,6 @@ FOSSIL_TEST_CASE(c_test_crabdb_filter) {
     fossil_crabdb_release(result);
 }
 
-// Test case for sorting database entries
-static int compare_keys(const fossil_crabdb_entry_t *a, const fossil_crabdb_entry_t *b) {
-    return strcmp(a->key, b->key);
-}
-
-FOSSIL_TEST_CASE(c_test_crabdb_sort) {
-    fossil_crabdb_book_t *book = fossil_crabdb_init();
-    fossil_crabdb_insert(book, "key2", "value2", (fossil_crabdb_attributes_t){false, false, false});
-    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
-    fossil_crabdb_sort(book, compare_keys);
-    fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, "key1");
-    ASSUME_NOT_CNULL(entry);
-    ASSUME_ITS_TRUE(strcmp(entry->key, "key1") == 0);
-    fossil_crabdb_release(book);
-}
-
 // Test case for merging two databases
 FOSSIL_TEST_CASE(c_test_crabdb_merge) {
     fossil_crabdb_book_t *book1 = fossil_crabdb_init();
@@ -175,7 +159,6 @@ FOSSIL_TEST_GROUP(c_crab_database_tests) {
     FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_clear);
     FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_join);
     FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_filter);
-    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_sort);
     FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_merge);
     FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_validate);
 

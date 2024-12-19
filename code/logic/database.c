@@ -262,28 +262,6 @@ fossil_crabdb_book_t* fossil_crabdb_filter(fossil_crabdb_book_t *book, bool (*pr
 }
 
 /**
- * @brief Sorts database entries based on a comparison function.
- */
-void fossil_crabdb_sort(fossil_crabdb_book_t *book, int (*comparator)(fossil_crabdb_entry_t *, fossil_crabdb_entry_t *)) {
-    if (book == NULL || comparator == NULL) {
-        return;
-    }
-    fossil_crabdb_page_t *current = book->head;
-    while (current != NULL) {
-        fossil_crabdb_page_t *next = current->next;
-        while (next != NULL) {
-            if (comparator(&current->entry, &next->entry) > 0) {
-                fossil_crabdb_entry_t temp = current->entry;
-                current->entry = next->entry;
-                next->entry = temp;
-            }
-            next = next->next;
-        }
-        current = current->next;
-    }
-}
-
-/**
  * @brief Merges two databases into one.
  */
 fossil_crabdb_book_t* fossil_crabdb_merge(fossil_crabdb_book_t *book1, fossil_crabdb_book_t *book2) {
