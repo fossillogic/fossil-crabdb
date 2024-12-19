@@ -31,6 +31,14 @@ extern "C" {
 // *****************************************************************************
 
 /**
+ * @brief Enumerates sorting orders for fossil_crabdb_sort operations.
+ */
+typedef enum {
+    FOSSIL_CRABDB_SORT_ASCENDING,     // Sort in ascending order
+    FOSSIL_CRABDB_SORT_DESCENDING     // Sort in descending order
+} fossil_crabdb_sort_order_t;
+
+/**
  * @brief Represents additional attributes for each database entry.
  */
 typedef struct {
@@ -148,6 +156,15 @@ fossil_crabdb_book_t* fossil_crabdb_filter(fossil_crabdb_book_t *book, bool (*pr
  * @brief Merges two databases into one.
  */
 fossil_crabdb_book_t* fossil_crabdb_merge(fossil_crabdb_book_t *book1, fossil_crabdb_book_t *book2);
+
+/**
+ * @brief Sorts the database by key.
+ *
+ * @param book          Pointer to the database (fossil_crabdb_book_t).
+ * @param order         Sorting order (ascending or descending).
+ * @return              0 on success, non-zero on error.
+ */
+int fossil_crabdb_sort(fossil_crabdb_book_t *book, fossil_crabdb_sort_order_t order);
 
 // *****************************************************************************
 // Transaction Management

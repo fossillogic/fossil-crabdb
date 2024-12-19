@@ -423,3 +423,103 @@ bool fossil_crabdb_validate(fossil_crabdb_book_t *book) {
     }
     return true;
 }
+
+// *****************************************************************************
+// Helper Functions for Merge Sort
+// *****************************************************************************
+
+/**
+ * @brief Splits the linked list into two halves.
+ *
+ * @param head          Pointer to the head of the list.
+ * @param front         Pointer to store the first half of the list.
+ * @param back          Pointer to store the second half of the list.
+ */
+static void split_list(fossil_crabdb_page_t *head, fossil_crabdb_page_t **front, fossil_crabdb_page_t **back) {
+    fossil_crabdb_page_t *slow = head;
+    fossil_crabdb_page_t *fast = head->next;
+
+    while (fast != NULL) {
+        fast = fast->next;
+        if (fast != NULL) {
+            slow = slow->next;
+            fast = fast->next;
+        }
+    }
+
+    *front = head;
+    *back = slow->next;
+    slow->next = NULL;
+}
+
+/**
+ * @brief Merges two sorted linked lists based on the sorting order.
+ *
+ * @param left          Pointer to the first sorted list.
+ * @param right         Pointer to the second sorted list.
+ * @param order         Sorting order (ascending or descending).
+ * @return              Pointer to the merged list.
+ */
+static fossil_crabdb_page_t *merge_sorted_lists(fossil_crabdb_page_t *left, fossil_crabdb_page_t *right, fossil_crabdb_sort_order_t order) {
+    if (left == NULL) return right;
+    if (right == NULL) return left;
+
+    int cmp = strcmp(left->entry.key, right->entry.key);
+    bool condition = (order == FOSSIL_CRABDB_SORT_ASCENDING) ? (cmp <= 0) : (cmp >= 0);
+
+    if (condition) {
+        left->next = merge_sorted_lists(left->next, right, order);
+        left->next->prev = left;
+        left->prev = NULL;
+        return left;
+    } else {
+        right->next = merge_sorted_lists(left, right->next, order);
+        right->next->prev = right;
+        right->prev = NULL;
+        return right;
+    }
+}
+
+/**
+ * @brief Performs an in-place merge sort on a doubly linked list.
+ *
+ * @param head          Pointer to the head of the list.
+ * @param order         Sorting order (ascending or descending).
+ * @return              Pointer to the sorted list.
+ */
+static fossil_crabdb_page_t *merge_sort(fossil_crabdb_page_t *head, fossil_crabdb_sort_order_t order) {
+    if (head == NULL || head->next == NULL) {
+        return head;
+    }
+
+    fossil_crabdb_page_t *front = NULL;
+    fossil_crabdb_page_t *back = NULL;
+    split_list(head, &front, &back);
+
+    front = merge_sort(front, order);
+    back = merge_sort(back, order);
+
+    return merge_sorted_lists(front, back, order);
+}
+
+// *****************************************************************************
+// Public Function Implementation
+// *****************************************************************************
+
+int fossil_crabdb_sort(fossil_crabdb_book_t *book, fossil_crabdb_sort_order_t order) {
+    if (book == NULL || book->head == NULL) {
+        return -1; // Error: Invalid input
+    }
+
+    // Perform merge sort
+    book->head = merge_sort(book->head, order);
+
+    // Update the tail pointer after sorting
+    fossil_crabdb_page_t *current = book->head;
+    while (current->next != NULL) {
+        current = current->next;
+    }
+    book->tail = current;
+
+    return 0; // Success
+}
