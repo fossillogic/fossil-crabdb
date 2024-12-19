@@ -47,7 +47,7 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_init) {
 // Test case for inserting a new key-value pair
 FOSSIL_TEST_CASE(cpp_test_crabdb_insert) {
     fossil_crabdb_book_t *book = fossil_crabdb_init();
-    bool result = fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    bool result = fossil_crabdb_insert(book, static_cast<char *>("key1"), static_cast<char *>("value1"), (fossil_crabdb_attributes_t){false, false, false});
     ASSUME_ITS_TRUE(result);
     ASSUME_ITS_FALSE(fossil_crabdb_is_empty(book));
     fossil_crabdb_release(book);
@@ -56,10 +56,10 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_insert) {
 // Test case for updating an existing key
 FOSSIL_TEST_CASE(cpp_test_crabdb_update) {
     fossil_crabdb_book_t *book = fossil_crabdb_init();
-    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
-    bool result = fossil_crabdb_update(book, "key1", "new_value1");
+    fossil_crabdb_insert(book, static_cast<char *>("key1"), static_cast<char *>("value1"), (fossil_crabdb_attributes_t){false, false, false});
+    bool result = fossil_crabdb_update(book, static_cast<char *>("key1"), static_cast<char *>("new_value1"));
     ASSUME_ITS_TRUE(result);
-    fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, "key1");
+    fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, static_cast<char *>("key1"));
     ASSUME_NOT_CNULL(entry);
     ASSUME_ITS_TRUE(strcmp(entry->value, "new_value1") == 0);
     fossil_crabdb_release(book);
@@ -68,8 +68,8 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_update) {
 // Test case for deleting an entry by key
 FOSSIL_TEST_CASE(cpp_test_crabdb_delete) {
     fossil_crabdb_book_t *book = fossil_crabdb_init();
-    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
-    bool result = fossil_crabdb_delete(book, "key1");
+    fossil_crabdb_insert(book, static_cast<char *>("key1"), static_cast<char *>("value1"), (fossil_crabdb_attributes_t){false, false, false});
+    bool result = fossil_crabdb_delete(book, static_cast<char *>("key1"));
     ASSUME_ITS_TRUE(result);
     ASSUME_ITS_TRUE(fossil_crabdb_is_empty(book));
     fossil_crabdb_release(book);
@@ -78,8 +78,8 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_delete) {
 // Test case for searching an entry by key
 FOSSIL_TEST_CASE(cpp_test_crabdb_search) {
     fossil_crabdb_book_t *book = fossil_crabdb_init();
-    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
-    fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, "key1");
+    fossil_crabdb_insert(book, static_cast<char *>("key1"), static_cast<char *>("value1"), (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, static_cast<char *>("key1"));
     ASSUME_NOT_CNULL(entry);
     ASSUME_ITS_TRUE(strcmp(entry->value, "value1") == 0);
     fossil_crabdb_release(book);
@@ -88,7 +88,7 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_search) {
 // Test case for clearing all entries from the database
 FOSSIL_TEST_CASE(cpp_test_crabdb_clear) {
     fossil_crabdb_book_t *book = fossil_crabdb_init();
-    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_insert(book, static_cast<char *>("key1"), static_cast<char *>("value1"), (fossil_crabdb_attributes_t){false, false, false});
     fossil_crabdb_clear(book);
     ASSUME_ITS_TRUE(fossil_crabdb_is_empty(book));
     fossil_crabdb_release(book);
@@ -98,8 +98,8 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_clear) {
 FOSSIL_TEST_CASE(cpp_test_crabdb_join) {
     fossil_crabdb_book_t *book1 = fossil_crabdb_init();
     fossil_crabdb_book_t *book2 = fossil_crabdb_init();
-    fossil_crabdb_insert(book1, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
-    fossil_crabdb_insert(book2, "key1", "value2", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_insert(book1, static_cast<char *>("key1"), static_cast<char *>("value1"), (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_insert(book2, static_cast<char *>("key1"), static_cast<char *>("value2"), (fossil_crabdb_attributes_t){false, false, false});
     fossil_crabdb_book_t *result = fossil_crabdb_join(book1, book2);
     ASSUME_NOT_CNULL(result);
     ASSUME_ITS_TRUE(fossil_crabdb_size(result) == 2);
@@ -111,10 +111,10 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_join) {
 // Test case for filtering database entries
 FOSSIL_TEST_CASE(cpp_test_crabdb_filter) {
     fossil_crabdb_book_t *book = fossil_crabdb_init();
-    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
-    fossil_crabdb_insert(book, "key2", "value2", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_insert(book, static_cast<char *>("key1"), static_cast<char *>("value1"), (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_insert(book, static_cast<char *>("key2"), static_cast<char *>("value2"), (fossil_crabdb_attributes_t){false, false, false});
     fossil_crabdb_book_t *result = fossil_crabdb_filter(book, [](fossil_crabdb_entry_t *entry) {
-        return strcmp(entry->key, "key1") == 0;
+        return strcmp(entry->key, static_cast<char *>("key1")) == 0;
     });
     ASSUME_NOT_CNULL(result);
     ASSUME_ITS_TRUE(fossil_crabdb_size(result) == 1);
@@ -125,14 +125,14 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_filter) {
 // Test case for sorting database entries
 FOSSIL_TEST_CASE(cpp_test_crabdb_sort) {
     fossil_crabdb_book_t *book = fossil_crabdb_init();
-    fossil_crabdb_insert(book, "key2", "value2", (fossil_crabdb_attributes_t){false, false, false});
-    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_insert(book, static_cast<char *>("key2"), static_cast<char *>("value2"), (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_insert(book, static_cast<char *>("key1"), static_cast<char *>("value1"), (fossil_crabdb_attributes_t){false, false, false});
     fossil_crabdb_sort(book, [](fossil_crabdb_entry_t *a, fossil_crabdb_entry_t *b) {
         return strcmp(a->key, b->key);
     });
-    fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, "key1");
+    fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, static_cast<char *>("key1"));
     ASSUME_NOT_CNULL(entry);
-    ASSUME_ITS_TRUE(strcmp(entry->key, "key1") == 0);
+    ASSUME_ITS_TRUE(strcmp(entry->key, static_cast<char *>("key1")) == 0);
     fossil_crabdb_release(book);
 }
 
@@ -140,10 +140,10 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_sort) {
 FOSSIL_TEST_CASE(cpp_test_crabdb_merge) {
     fossil_crabdb_book_t *book1 = fossil_crabdb_init();
     fossil_crabdb_book_t *book2 = fossil_crabdb_init();
-    fossil_crabdb_insert(book1, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
-    fossil_crabdb_insert(book2, "key2", "value2", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_insert(book1, static_cast<char *>("key1"), static_cast<char *>("value1"), (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_insert(book2, static_cast<char *>("key2"), static_cast<char *>("value2"), (fossil_crabdb_attributes_t){false, false, false});
     fossil_crabdb_book_t *result = fossil_crabdb_merge(book1, book2);
-    ASSUME_ITS_NOT_NULL(result);
+    ASSUME_NOT_CNULL(result);
     ASSUME_ITS_TRUE(fossil_crabdb_size(result) == 2);
     fossil_crabdb_release(book1);
     fossil_crabdb_release(book2);
@@ -153,7 +153,7 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_merge) {
 // Test case for validating the integrity of the database
 FOSSIL_TEST_CASE(cpp_test_crabdb_validate) {
     fossil_crabdb_book_t *book = fossil_crabdb_init();
-    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_insert(book, static_cast<char *>("key1"), static_cast<char *>("value1"), (fossil_crabdb_attributes_t){false, false, false});
     bool result = fossil_crabdb_validate(book);
     ASSUME_ITS_TRUE(result);
     fossil_crabdb_release(book);
