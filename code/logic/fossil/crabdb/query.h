@@ -21,17 +21,96 @@ extern "C" {
 #endif
 
 // *****************************************************************************
-// Query Language Operations
+// Query Language API
 // *****************************************************************************
 
 /**
- * Parse and execute a query to insert or update a key-value pair in the database.
+ * @brief Executes a query string on the database.
  *
- * @param query The query string to execute (e.g., "INSERT INTO table (key, value) VALUES ('key1', 'value1')").
- * 
- * @return 0 if the operation was successful, or an error code if something went wrong.
+ * @param book          Pointer to the database (fossil_crabdb_book_t).
+ * @param query         Query string to execute.
+ * @return              0 on success, non-zero on error.
  */
-void fossil_crabql_execute(const char *query);
+int fossil_crabql_execute(fossil_crabdb_book_t *book, const char *query);
+
+/**
+ * @brief Parses and validates a query string.
+ *
+ * @param query         Query string to parse.
+ * @return              true if valid, false otherwise.
+ */
+bool fossil_crabql_validate(const char *query);
+
+/**
+ * @brief Selects entries from the database matching a condition.
+ *
+ * @param book          Pointer to the database (fossil_crabdb_book_t).
+ * @param condition     Predicate function to filter entries.
+ * @return              A new book containing the filtered entries.
+ */
+fossil_crabdb_book_t* fossil_crabql_select(fossil_crabdb_book_t *book, bool (*condition)(fossil_crabdb_entry_t *));
+
+/**
+ * @brief Inserts a new entry into the database using a query string.
+ *
+ * @param book          Pointer to the database (fossil_crabdb_book_t).
+ * @param query         Query string in the format "INSERT key=value".
+ * @return              0 on success, non-zero on error.
+ */
+int fossil_crabql_insert(fossil_crabdb_book_t *book, const char *query);
+
+/**
+ * @brief Updates existing entries in the database using a query string.
+ *
+ * @param book          Pointer to the database (fossil_crabdb_book_t).
+ * @param query         Query string in the format "UPDATE key=value WHERE condition".
+ * @return              Number of updated entries, or -1 on error.
+ */
+int fossil_crabql_update(fossil_crabdb_book_t *book, const char *query);
+
+/**
+ * @brief Deletes entries from the database using a query string.
+ *
+ * @param book          Pointer to the database (fossil_crabdb_book_t).
+ * @param query         Query string in the format "DELETE WHERE condition".
+ * @return              Number of deleted entries, or -1 on error.
+ */
+int fossil_crabql_delete(fossil_crabdb_book_t *book, const char *query);
+
+/**
+ * @brief Sorts the database using a query string.
+ *
+ * @param book          Pointer to the database (fossil_crabdb_book_t).
+ * @param query         Query string in the format "SORT BY key ASC|DESC".
+ * @return              0 on success, non-zero on error.
+ */
+int fossil_crabql_sort(fossil_crabdb_book_t *book, const char *query);
+
+/**
+ * @brief Joins two databases using a query string.
+ *
+ * @param book1         Pointer to the first database (fossil_crabdb_book_t).
+ * @param book2         Pointer to the second database (fossil_crabdb_book_t).
+ * @param query         Query string in the format "JOIN ON key".
+ * @return              A new book containing the joined entries.
+ */
+fossil_crabdb_book_t* fossil_crabql_join(fossil_crabdb_book_t *book1, fossil_crabdb_book_t *book2, const char *query);
+
+/**
+ * @brief Prints the query results.
+ *
+ * @param book          Pointer to the database (fossil_crabdb_book_t).
+ */
+void fossil_crabql_print_results(fossil_crabdb_book_t *book);
+
+/**
+ * @brief Exports query results to a file.
+ *
+ * @param book          Pointer to the database (fossil_crabdb_book_t).
+ * @param filename      Name of the output file.
+ * @return              0 on success, non-zero on error.
+ */
+int fossil_crabql_export(fossil_crabdb_book_t *book, const char *filename);
 
 #ifdef __cplusplus
 }

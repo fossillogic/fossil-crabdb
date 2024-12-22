@@ -21,80 +21,90 @@ extern "C" {
 #endif
 
 // *****************************************************************************
-// Search operations
+// Search API Functions
 // *****************************************************************************
 
 /**
- * Search for a key in the database.
+ * @brief Finds an entry by key in the database.
  *
- * This function checks if a key exists in the database.
- * 
- * @param key The key to search for.
- * 
- * @return true if the key is found, false otherwise.
+ * @param book  Pointer to the database (fossil_crabdb_book_t).
+ * @param key   Key to search for.
+ * @return      Pointer to the entry if found, NULL otherwise.
  */
-bool fossil_crabsearch_key_exists(const char *key);
+fossil_crabdb_entry_t* fossil_crabsearch_by_key(fossil_crabdb_book_t *book, const char *key);
 
 /**
- * Search for entries with a value that matches a given pattern.
+ * @brief Finds all entries with a specific value in the database.
  *
- * This function performs a search for values that match a specific pattern.
- * It can be used for partial string matching or matching a range of values.
- * 
- * @param pattern The pattern to search for in values.
- * @param count A pointer to store the number of entries matching the pattern.
- * 
- * @return An array of keys that match the pattern, or NULL if no matches are found.
- *         The caller is responsible for freeing this array.
+ * @param book      Pointer to the database (fossil_crabdb_book_t).
+ * @param value     Value to search for.
+ * @return          A new database containing all matching entries.
  */
-char **fossil_crabsearch_values_by_pattern(const char *pattern, size_t *count);
+fossil_crabdb_book_t* fossil_crabsearch_by_value(fossil_crabdb_book_t *book, const char *value);
 
 /**
- * Search for all keys in the database whose values match a given pattern.
+ * @brief Finds all entries matching a predicate.
  *
- * @param pattern The pattern to search for.
- * @param count A pointer to store the number of matching keys.
- * 
- * @return An array of keys that match the value pattern.
+ * @param book          Pointer to the database (fossil_crabdb_book_t).
+ * @param predicate     Function pointer to the predicate.
+ * @return              A new database containing all matching entries.
  */
-char **fossil_crabsearch_keys_by_pattern(const char *pattern, size_t *count);
+fossil_crabdb_book_t* fossil_crabsearch_by_predicate(fossil_crabdb_book_t *book, bool (*predicate)(fossil_crabdb_entry_t *));
 
 /**
- * Search for a value in the database by key.
+ * @brief Finds the first entry that matches a predicate.
  *
- * This function searches for a key in the database and returns the associated value.
- * If the key is not found, it returns NULL.
- *
- * @param key The key to search for.
- * @param value_size A pointer to store the size of the value.
- * 
- * @return A pointer to the value associated with the key, or NULL if the key is not found.
+ * @param book          Pointer to the database (fossil_crabdb_book_t).
+ * @param predicate     Function pointer to the predicate.
+ * @return              Pointer to the first matching entry, or NULL if none found.
  */
-void *fossil_crabsearch_value_by_key(const char *key, size_t *value_size);
+fossil_crabdb_entry_t* fossil_crabsearch_first_by_predicate(fossil_crabdb_book_t *book, bool (*predicate)(fossil_crabdb_entry_t *));
 
 /**
- * Search for a key in the database using a case-insensitive match.
+ * @brief Checks if a key exists in the database.
  *
- * This function checks if a key exists in the database, ignoring case.
- *
- * @param key The key to search for (case-insensitive).
- * 
- * @return true if the key is found (case-insensitive), false otherwise.
+ * @param book  Pointer to the database (fossil_crabdb_book_t).
+ * @param key   Key to search for.
+ * @return      True if the key exists, false otherwise.
  */
-bool fossil_crabsearch_key_exists_case_insensitive(const char *key);
+bool fossil_crabsearch_key_exists(fossil_crabdb_book_t *book, const char *key);
 
 /**
- * Perform a search for multiple keys with a common prefix.
+ * @brief Finds all primary key entries in the database.
  *
- * This function checks if any keys in the database start with the given prefix.
- * 
- * @param prefix The prefix to search for.
- * @param count A pointer to store the number of matching keys.
- * 
- * @return An array of keys starting with the specified prefix.
- *         The caller is responsible for freeing this array.
+ * @param book  Pointer to the database (fossil_crabdb_book_t).
+ * @return      A new database containing all primary key entries.
  */
-char **fossil_crabsearch_keys_by_prefix(const char *prefix, size_t *count);
+fossil_crabdb_book_t* fossil_crabsearch_primary_keys(fossil_crabdb_book_t *book);
+
+/**
+ * @brief Counts the entries that match a predicate.
+ *
+ * @param book          Pointer to the database (fossil_crabdb_book_t).
+ * @param predicate     Function pointer to the predicate.
+ * @return              Number of matching entries.
+ */
+size_t fossil_crabsearch_count_by_predicate(fossil_crabdb_book_t *book, bool (*predicate)(fossil_crabdb_entry_t *));
+
+// *****************************************************************************
+// Search Utility Functions
+// *****************************************************************************
+
+/**
+ * @brief Example predicate to find non-nullable entries.
+ *
+ * @param entry  Pointer to a database entry (fossil_crabdb_entry_t).
+ * @return       True if the entry is non-nullable, false otherwise.
+ */
+bool fossil_crabsearch_is_non_nullable(fossil_crabdb_entry_t *entry);
+
+/**
+ * @brief Example predicate to find unique entries.
+ *
+ * @param entry  Pointer to a database entry (fossil_crabdb_entry_t).
+ * @return       True if the entry is unique, false otherwise.
+ */
+bool fossil_crabsearch_is_unique(fossil_crabdb_entry_t *entry);
 
 #ifdef __cplusplus
 }
