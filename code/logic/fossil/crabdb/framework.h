@@ -17,7 +17,5 @@
 #include "database.h"
 #include "search.h"
 #include "storage.h"
-#include "introspect.h"
-#include "query.h"
 
 #endif /* FOSSIL_CRABDB_FRAMEWORK_H */
