@@ -11,7 +11,7 @@
  * Copyright (C) 2024 Fossil Logic. All rights reserved.
  * -----------------------------------------------------------------------------
  */
-#include "fossil/crabdb/storeage.h"
+#include "fossil/crabdb/store.h"
 
 // *****************************************************************************
 // INI Storage API
