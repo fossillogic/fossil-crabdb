@@ -108,6 +108,91 @@ bool fossil_crabsearch_is_unique(fossil_crabdb_entry_t *entry);
 
 #ifdef __cplusplus
 }
+#include <string>
+
+namespace fossil {
+
+class CrabDBSearch {
+public:
+    /**
+     * @brief Constructor for the CrabDBSearch class.
+     *
+     * @param book  Pointer to the database (fossil_crabdb_book_t).
+     */
+    CrabDBSearch(fossil_crabdb_book_t* book) : book_(book) {}
+
+    /**
+     * @brief Destructor for the CrabDBSearch class.
+     */
+    fossil_crabdb_entry_t* searchByKey(const std::string& key) {
+        return fossil_crabsearch_by_key(book_, key.c_str());
+    }
+
+    /**
+     * @brief Searches for all entries with a specific value.
+     *
+     * @param value Value to search for.
+     * @return      A new database containing all matching entries.
+     */
+    fossil_crabdb_book_t* searchByValue(const std::string& value) {
+        return fossil_crabsearch_by_value(book_, value.c_str());
+    }
+
+    /**
+     * @brief Searches for all entries matching a predicate.
+     *
+     * @param predicate Function pointer to the predicate.
+     * @return          A new database containing all matching entries.
+     */
+    fossil_crabdb_book_t* searchByPredicate(bool (*predicate)(fossil_crabdb_entry_t *)) {
+        return fossil_crabsearch_by_predicate(book_, predicate);
+    }
+
+    /**
+     * @brief Searches for the first entry that matches a predicate.
+     *
+     * @param predicate Function pointer to the predicate.
+     * @return          Pointer to the first matching entry, or NULL if none found.
+     */
+    fossil_crabdb_entry_t* searchFirstByPredicate(bool (*predicate)(fossil_crabdb_entry_t *)) {
+        return fossil_crabsearch_first_by_predicate(book_, predicate);
+    }
+
+    /**
+     * @brief Checks if a key exists in the database.
+     *
+     * @param key Key to search for.
+     * @return    True if the key exists, false otherwise.
+     */
+    bool keyExists(const std::string& key) {
+        return fossil_crabsearch_key_exists(book_, key.c_str());
+    }
+
+    /**
+     * @brief Finds all primary key entries in the database.
+     *
+     * @return A new database containing all primary key entries.
+     */
+    fossil_crabdb_book_t* searchPrimaryKeys() {
+        return fossil_crabsearch_primary_keys(book_);
+    }
+
+    /**
+     * @brief Counts the entries that match a predicate.
+     *
+     * @param predicate Function pointer to the predicate.
+     * @return          Number of matching entries.
+     */
+    size_t countByPredicate(bool (*predicate)(fossil_crabdb_entry_t *)) {
+        return fossil_crabsearch_count_by_predicate(book_, predicate);
+    }
+
+private:
+    fossil_crabdb_book_t* book_;
+};
+
+} // namespace fossil
+
 #endif
 
 #endif // FOSSIL_CRABDB_QUERY_H
