@@ -9,6 +9,44 @@ CrabDB is a lightweight, portable key-value database designed to provide fast an
 - **Simple API**: The database API is designed to be straightforward and easy to use, with a focus on simplicity and readability. Whether you're storing data for a small project or a larger system, CrabDB's API is intuitive enough for anyone to get started quickly.
 - **Efficient Memory Management**: With a focus on performance, CrabDB minimizes memory usage while maintaining fast access times and stable behavior, even with a growing dataset.
 
+## Sample CrabQL
+
+Here's a sample CrabQL script for a book database that demonstrates the usage of various operations like insert, select, update, and delete, with conditional logic and attributes.
+
+```ini
+# Create books table
+create_table('books', columns: ['title', 'author', 'genre', 'published_year']);
+
+# Insert some books into the database
+insert('book1', 'title': 'The Great Gatsby', 'author': 'F. Scott Fitzgerald', 'genre': 'Fiction', 'published_year': 1925);
+insert('book2', 'title': '1984', 'author': 'George Orwell', 'genre': 'Dystopian', 'published_year': 1949);
+insert('book3', 'title': 'To Kill a Mockingbird', 'author': 'Harper Lee', 'genre': 'Fiction', 'published_year': 1960);
+
+# Update a book's genre
+update('book2', 'new_value': 'Dystopian, Political Fiction', where 'title' = '1984');
+
+# Select a book by its title
+select('book1', where 'title' = 'The Great Gatsby');
+
+# Select all books in a particular genre
+select('book', where 'genre' = 'Fiction');
+
+# Delete a book by title
+delete('book3', where 'title' = 'To Kill a Mockingbird');
+
+# Insert a new book with optional attributes
+insert('book4', 'title': 'Brave New World', 'author': 'Aldous Huxley', 'genre': 'Dystopian', 'published_year': 1932, primary_key: true);
+
+# Sort books by published year in descending order
+sort(order: 'descending');
+
+# Start a transaction for multiple operations
+begin_transaction('book_transaction');
+insert('book5', 'title': 'Moby Dick', 'author': 'Herman Melville', 'genre': 'Adventure', 'published_year': 1851);
+insert('book6', 'title': 'Pride and Prejudice', 'author': 'Jane Austen', 'genre': 'Romance', 'published_year': 1813);
+commit_transaction('book_transaction');
+```
+
 ## Prerequisites
 
 Before getting started, make sure you have the following installed:
