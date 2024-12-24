@@ -3,7 +3,7 @@ if get_option('with_test').enabled()
 
     test_c   = ['unit_runner.c']
     test_cases = [
-        'crabdb', 'crabql', 'crabsearch', 'crabsync'
+        'database', # 'query', 'search'
     ]
 
     foreach cases : test_cases

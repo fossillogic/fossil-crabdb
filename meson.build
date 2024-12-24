@@ -1,4 +1,4 @@
-project('Fossil CrabDB', 'c', 'cpp',
+project('Fossil Blue Crab', 'c', 'cpp',
     meson_version: '>=1.3.0',
     license: 'MPL-2.0',
     version: '0.2.0',

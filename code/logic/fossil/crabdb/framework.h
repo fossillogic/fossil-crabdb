@@ -15,10 +15,5 @@
 #define FOSSIL_CRABDB_FRAMEWORK_H
 
 #include "database.h"
-#include "query.h"
-#include "sync.h"
-#include "search.h"
-#include "logging.h"
-
 
 #endif /* FOSSIL_CRABDB_FRAMEWORK_H */
