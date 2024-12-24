@@ -421,8 +421,10 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_execute_begin_transaction_query) {
 FOSSIL_TEST_CASE(cpp_test_crabdb_execute_commit_transaction_query) {
     fossil_crabdb_book_t *book = fossil_crabdb_init();
     fossil_crabdb_transaction_t *transaction = fossil_crabdb_transaction_begin(book, const_cast<char *>("test_transaction"));
+    ASSUME_NOT_CNULL(transaction);
     bool result = fossil_crabdb_execute_query(book, const_cast<char *>("commit_transaction('test_transaction');"));
     ASSUME_ITS_TRUE(result);
+    ASSUME_ITS_TRUE(transaction->state == FOSSIL_CRABDB_TRANSACTION_COMMITTED);
     fossil_crabdb_release(book);
 }
 
@@ -430,8 +432,10 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_execute_commit_transaction_query) {
 FOSSIL_TEST_CASE(cpp_test_crabdb_execute_rollback_transaction_query) {
     fossil_crabdb_book_t *book = fossil_crabdb_init();
     fossil_crabdb_transaction_t *transaction = fossil_crabdb_transaction_begin(book, const_cast<char *>("test_transaction"));
+    ASSUME_NOT_CNULL(transaction);
     bool result = fossil_crabdb_execute_query(book, const_cast<char *>("rollback_transaction('test_transaction');"));
     ASSUME_ITS_TRUE(result);
+    ASSUME_ITS_TRUE(transaction->state == FOSSIL_CRABDB_TRANSACTION_ROLLEDBACK);
     fossil_crabdb_release(book);
 }
 
