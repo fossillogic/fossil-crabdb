@@ -464,12 +464,14 @@ bool fossil_crabdb_execute_query(fossil_crabdb_book_t *book, const char *query) 
         // Extract key, value, and optional attributes
         char key[256], value[256];
         bool primary_key = false, unique = false;
-        sscanf(query_copy, "insert('%255[^']', '%255[^']', primary_key: %5s, unique: %5s);",
-               key, value, (primary_key ? "true" : "false"), (unique ? "true" : "false"));
-
-        // Insert into the database
-        fossil_crabdb_attributes_t attributes = {primary_key, unique, true};
-        return fossil_crabdb_insert(book, key, value, attributes);
+        // Initialize primary_key and unique
+        if (sscanf(query_copy, "insert('%255[^']', '%255[^']', primary_key: %5s, unique: %5s);",
+                   key, value, (primary_key ? "true" : "false"), (unique ? "true" : "false")) == 4) {
+            // Insert into the database
+            fossil_crabdb_attributes_t attributes = {primary_key, unique, true};
+            return fossil_crabdb_insert(book, key, value, attributes);
+        }
+        return false;
     } else if (strcmp(operation, "update") == 0) {
         // Extract key, new value, and optional conditions
         char key[256], new_value[256], condition_key[256], operator[8], condition_value[256];
@@ -532,7 +534,7 @@ bool fossil_crabdb_execute_query(fossil_crabdb_book_t *book, const char *query) 
         char order[64];
         sscanf(query_copy, "sort(order: '%63[^']');", order);
 
-        fossil_crabdb_sort_order_t sort_order = 
+        fossil_crabdb_sort_order_t sort_order =
             strcmp(order, "ascending") == 0 ? FOSSIL_CRABDB_SORT_ASCENDING : FOSSIL_CRABDB_SORT_DESCENDING;
 
         // Sort the database
@@ -546,17 +548,9 @@ bool fossil_crabdb_execute_query(fossil_crabdb_book_t *book, const char *query) 
         transaction = fossil_crabdb_transaction_begin(book, name);
         return transaction != NULL;
     } else if (strcmp(operation, "commit_transaction") == 0) {
-        // Extract transaction name
-        char name[256];
-        sscanf(query_copy, "commit_transaction('%255[^']');", name);
-
         // Commit the transaction
         return fossil_crabdb_transaction_commit(book, transaction);
     } else if (strcmp(operation, "rollback_transaction") == 0) {
-        // Extract transaction name
-        char name[256];
-        sscanf(query_copy, "rollback_transaction('%255[^']');", name);
-
         // Rollback the transaction
         return fossil_crabdb_transaction_rollback(book, transaction);
     }
