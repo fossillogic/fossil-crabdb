@@ -373,71 +373,6 @@ bool fossil_crabstore_validate_csv(const char *filename);
 
 namespace fossil {
 
-//
-class CrabStore {
-public:
-    static bool saveToIni(const CrabDB &db, const std::string &filename) {
-        return fossil_crabstore_save_to_ini(db.book, filename.c_str());
-    }
-
-    static bool loadFromIni(CrabDB &db, const std::string &filename) {
-        return fossil_crabstore_load_from_ini(db.book, filename.c_str());
-    }
-
-    static bool saveToCsv(const CrabDB &db, const std::string &filename) {
-        return fossil_crabstore_save_to_csv(db.book, filename.c_str());
-    }
-
-    static bool loadFromCsv(CrabDB &db, const std::string &filename) {
-        return fossil_crabstore_load_from_csv(db.book, filename.c_str());
-    }
-
-    static bool validateIni(const std::string &filename) {
-        return fossil_crabstore_validate_ini(filename.c_str());
-    }
-
-    static bool validateCsv(const std::string &filename) {
-        return fossil_crabstore_validate_csv(filename.c_str());
-    }
-};
-
-class CrabSearch {
-public:
-    static fossil_crabdb_entry_t* byKey(CrabDB &db, const std::string &key) {
-        return fossil_crabsearch_by_key(db.book, key.c_str());
-    }
-
-    static CrabDB byValue(CrabDB &db, const std::string &value) {
-        CrabDB result;
-        result.book = fossil_crabsearch_by_value(db.book, value.c_str());
-        return result;
-    }
-
-    static CrabDB byPredicate(CrabDB &db, bool (*predicate)(fossil_crabdb_entry_t *)) {
-        CrabDB result;
-        result.book = fossil_crabsearch_by_predicate(db.book, predicate);
-        return result;
-    }
-
-    static fossil_crabdb_entry_t* firstByPredicate(CrabDB &db, bool (*predicate)(fossil_crabdb_entry_t *)) {
-        return fossil_crabsearch_first_by_predicate(db.book, predicate);
-    }
-
-    static bool keyExists(CrabDB &db, const std::string &key) {
-        return fossil_crabsearch_key_exists(db.book, key.c_str());
-    }
-
-    static CrabDB primaryKeys(CrabDB &db) {
-        CrabDB result;
-        result.book = fossil_crabsearch_primary_keys(db.book);
-        return result;
-    }
-
-    static size_t countByPredicate(CrabDB &db, bool (*predicate)(fossil_crabdb_entry_t *)) {
-        return fossil_crabsearch_count_by_predicate(db.book, predicate);
-    }
-};
-
 class CrabDB {
 public:
     CrabDB() {
@@ -501,6 +436,70 @@ public:
 
 private:
     fossil_crabdb_book_t *book;
+};
+
+class CrabStore {
+public:
+    static bool saveToIni(const CrabDB &db, const std::string &filename) {
+        return fossil_crabstore_save_to_ini(db.book, filename.c_str());
+    }
+
+    static bool loadFromIni(CrabDB &db, const std::string &filename) {
+        return fossil_crabstore_load_from_ini(db.book, filename.c_str());
+    }
+
+    static bool saveToCsv(const CrabDB &db, const std::string &filename) {
+        return fossil_crabstore_save_to_csv(db.book, filename.c_str());
+    }
+
+    static bool loadFromCsv(CrabDB &db, const std::string &filename) {
+        return fossil_crabstore_load_from_csv(db.book, filename.c_str());
+    }
+
+    static bool validateIni(const std::string &filename) {
+        return fossil_crabstore_validate_ini(filename.c_str());
+    }
+
+    static bool validateCsv(const std::string &filename) {
+        return fossil_crabstore_validate_csv(filename.c_str());
+    }
+};
+
+class CrabSearch {
+public:
+    static fossil_crabdb_entry_t* byKey(CrabDB &db, const std::string &key) {
+        return fossil_crabsearch_by_key(db.book, key.c_str());
+    }
+
+    static CrabDB byValue(CrabDB &db, const std::string &value) {
+        CrabDB result;
+        result.book = fossil_crabsearch_by_value(db.book, value.c_str());
+        return result;
+    }
+
+    static CrabDB byPredicate(CrabDB &db, bool (*predicate)(fossil_crabdb_entry_t *)) {
+        CrabDB result;
+        result.book = fossil_crabsearch_by_predicate(db.book, predicate);
+        return result;
+    }
+
+    static fossil_crabdb_entry_t* firstByPredicate(CrabDB &db, bool (*predicate)(fossil_crabdb_entry_t *)) {
+        return fossil_crabsearch_first_by_predicate(db.book, predicate);
+    }
+
+    static bool keyExists(CrabDB &db, const std::string &key) {
+        return fossil_crabsearch_key_exists(db.book, key.c_str());
+    }
+
+    static CrabDB primaryKeys(CrabDB &db) {
+        CrabDB result;
+        result.book = fossil_crabsearch_primary_keys(db.book);
+        return result;
+    }
+
+    static size_t countByPredicate(CrabDB &db, bool (*predicate)(fossil_crabdb_entry_t *)) {
+        return fossil_crabsearch_count_by_predicate(db.book, predicate);
+    }
 };
 
 } // namespace fossil
