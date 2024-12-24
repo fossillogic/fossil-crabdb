@@ -173,6 +173,268 @@ FOSSIL_TEST_CASE(c_test_crabdb_sort_descending) {
     fossil_crabdb_release(book);
 }
 
+// Test case for saving the database content to an INI file
+FOSSIL_TEST_CASE(c_test_crabstore_save_to_ini) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    bool result = fossil_crabstore_save_to_ini(book, "test_save.ini");
+    ASSUME_ITS_TRUE(result);
+    fossil_crabdb_release(book);
+}
+
+// Test case for loading the database content from an INI file
+FOSSIL_TEST_CASE(c_test_crabstore_load_from_ini) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    bool result = fossil_crabstore_load_from_ini(book, "test_save.ini");
+    ASSUME_ITS_TRUE(result);
+    fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, "key1");
+    ASSUME_NOT_CNULL(entry);
+    ASSUME_ITS_TRUE(strcmp(entry->value, "value1") == 0);
+    fossil_crabdb_release(book);
+}
+
+// Test case for saving the database content to a CSV file
+FOSSIL_TEST_CASE(c_test_crabstore_save_to_csv) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    bool result = fossil_crabstore_save_to_csv(book, "test_save.csv");
+    ASSUME_ITS_TRUE(result);
+    fossil_crabdb_release(book);
+}
+
+// Test case for loading the database content from a CSV file
+FOSSIL_TEST_CASE(c_test_crabstore_load_from_csv) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    bool result = fossil_crabstore_load_from_csv(book, "test_save.csv");
+    ASSUME_ITS_TRUE(result);
+    fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, "key1");
+    ASSUME_NOT_CNULL(entry);
+    ASSUME_ITS_TRUE(strcmp(entry->value, "value1") == 0);
+    fossil_crabdb_release(book);
+}
+
+// Test case for validating the structure of an INI file
+FOSSIL_TEST_CASE(c_test_crabstore_validate_ini) {
+    bool result = fossil_crabstore_validate_ini("test_save.ini");
+    ASSUME_ITS_TRUE(result);
+}
+
+// Test case for validating the structure of a CSV file
+FOSSIL_TEST_CASE(c_test_crabstore_validate_csv) {
+    bool result = fossil_crabstore_validate_csv("test_save.csv");
+    ASSUME_ITS_TRUE(result);
+}
+
+// Test case for searching an entry by value
+FOSSIL_TEST_CASE(c_test_crabsearch_by_value) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_insert(book, "key2", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_book_t *result = fossil_crabsearch_by_value(book, "value1");
+    ASSUME_NOT_CNULL(result);
+    ASSUME_ITS_TRUE(fossil_crabdb_size(result) == 2);
+    fossil_crabdb_release(book);
+    fossil_crabdb_release(result);
+}
+
+// Test case for searching entries by predicate
+static bool predicate_key1(fossil_crabdb_entry_t *entry) {
+    return strcmp(entry->key, "key1") == 0;
+}
+
+FOSSIL_TEST_CASE(c_test_crabsearch_by_predicate) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_insert(book, "key2", "value2", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_book_t *result = fossil_crabsearch_by_predicate(book, predicate_key1);
+    ASSUME_NOT_CNULL(result);
+    ASSUME_ITS_TRUE(fossil_crabdb_size(result) == 1);
+    fossil_crabdb_release(book);
+    fossil_crabdb_release(result);
+}
+
+// Test case for searching the first entry by predicate
+FOSSIL_TEST_CASE(c_test_crabsearch_first_by_predicate) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_insert(book, "key2", "value2", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_entry_t *entry = fossil_crabsearch_first_by_predicate(book, predicate_key1);
+    ASSUME_NOT_CNULL(entry);
+    ASSUME_ITS_TRUE(strcmp(entry->key, "key1") == 0);
+    fossil_crabdb_release(book);
+}
+
+// Test case for checking if a key exists
+FOSSIL_TEST_CASE(c_test_crabsearch_key_exists) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    bool exists = fossil_crabsearch_key_exists(book, "key1");
+    ASSUME_ITS_TRUE(exists);
+    exists = fossil_crabsearch_key_exists(book, "key2");
+    ASSUME_ITS_FALSE(exists);
+    fossil_crabdb_release(book);
+}
+
+// Test case for finding all primary key entries
+FOSSIL_TEST_CASE(c_test_crabsearch_primary_keys) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){true, false, false});
+    fossil_crabdb_insert(book, "key2", "value2", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_book_t *result = fossil_crabsearch_primary_keys(book);
+    ASSUME_NOT_CNULL(result);
+    ASSUME_ITS_TRUE(fossil_crabdb_size(result) == 1);
+    fossil_crabdb_release(book);
+    fossil_crabdb_release(result);
+}
+
+// Test case for counting entries by predicate
+FOSSIL_TEST_CASE(c_test_crabsearch_count_by_predicate) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_insert(book, "key2", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    size_t count = fossil_crabsearch_count_by_predicate(book, predicate_key1);
+    ASSUME_ITS_TRUE(count == 1);
+    fossil_crabdb_release(book);
+}
+
+// Test case for finding non-nullable entries
+FOSSIL_TEST_CASE(c_test_crabsearch_is_non_nullable) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, true, false});
+    fossil_crabdb_insert(book, "key2", "value2", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_book_t *result = fossil_crabsearch_by_predicate(book, fossil_crabsearch_is_non_nullable);
+    ASSUME_NOT_CNULL(result);
+    ASSUME_ITS_TRUE(fossil_crabdb_size(result) == 1);
+    fossil_crabdb_release(book);
+    fossil_crabdb_release(result);
+}
+
+// Test case for finding unique entries
+FOSSIL_TEST_CASE(c_test_crabsearch_is_unique) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, true});
+    fossil_crabdb_insert(book, "key2", "value2", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_book_t *result = fossil_crabsearch_by_predicate(book, fossil_crabsearch_is_unique);
+    ASSUME_NOT_CNULL(result);
+    ASSUME_ITS_TRUE(fossil_crabdb_size(result) == 1);
+    fossil_crabdb_release(book);
+    fossil_crabdb_release(result);
+}
+
+// Test case for dumping database content to a file
+FOSSIL_TEST_CASE(c_test_crabdb_dump_to_file) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    bool result = fossil_crabdb_dump_to_file(book, "test_dump.txt");
+    ASSUME_ITS_TRUE(result);
+    fossil_crabdb_release(book);
+}
+
+// Test case for loading database content from a file
+FOSSIL_TEST_CASE(c_test_crabdb_load_from_file) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    bool result = fossil_crabdb_load_from_file(book, "test_dump.txt");
+    ASSUME_ITS_TRUE(result);
+    fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, "key1");
+    ASSUME_NOT_CNULL(entry);
+    ASSUME_ITS_TRUE(strcmp(entry->value, "value1") == 0);
+    fossil_crabdb_release(book);
+}
+
+// Test case for executing an insert query
+FOSSIL_TEST_CASE(c_test_crabdb_execute_insert_query) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    bool result = fossil_crabdb_execute_query(book, "insert('key1', 'value1', primary_key: false, unique: false);");
+    ASSUME_ITS_TRUE(result);
+    fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, "key1");
+    ASSUME_NOT_CNULL(entry);
+    ASSUME_ITS_TRUE(strcmp(entry->value, "value1") == 0);
+    fossil_crabdb_release(book);
+}
+
+// Test case for executing an update query
+FOSSIL_TEST_CASE(c_test_crabdb_execute_update_query) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    bool result = fossil_crabdb_execute_query(book, "update('key1', new_value: 'new_value1');");
+    ASSUME_ITS_TRUE(result);
+    fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, "key1");
+    ASSUME_NOT_CNULL(entry);
+    ASSUME_ITS_TRUE(strcmp(entry->value, "new_value1") == 0);
+    fossil_crabdb_release(book);
+}
+
+// Test case for executing a delete query
+FOSSIL_TEST_CASE(c_test_crabdb_execute_delete_query) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    bool result = fossil_crabdb_execute_query(book, "delete('key1');");
+    ASSUME_ITS_TRUE(result);
+    ASSUME_ITS_TRUE(fossil_crabdb_is_empty(book));
+    fossil_crabdb_release(book);
+}
+
+// Test case for executing a select query
+FOSSIL_TEST_CASE(c_test_crabdb_execute_select_query) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    bool result = fossil_crabdb_execute_query(book, "select('key1');");
+    ASSUME_ITS_TRUE(result);
+    fossil_crabdb_release(book);
+}
+
+// Test case for executing a sort query in ascending order
+FOSSIL_TEST_CASE(c_test_crabdb_execute_sort_ascending_query) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key3", "value3", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_insert(book, "key2", "value2", (fossil_crabdb_attributes_t){false, false, false});
+    bool result = fossil_crabdb_execute_query(book, "sort(order: 'ascending');");
+    ASSUME_ITS_TRUE(result);
+    fossil_crabdb_page_t *current = book->head;
+    ASSUME_ITS_TRUE(strcmp(current->entry.key, "key1") == 0);
+    fossil_crabdb_release(book);
+}
+
+// Test case for executing a sort query in descending order
+FOSSIL_TEST_CASE(c_test_crabdb_execute_sort_descending_query) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_insert(book, "key1", "value1", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_insert(book, "key3", "value3", (fossil_crabdb_attributes_t){false, false, false});
+    fossil_crabdb_insert(book, "key2", "value2", (fossil_crabdb_attributes_t){false, false, false});
+    bool result = fossil_crabdb_execute_query(book, "sort(order: 'descending');");
+    ASSUME_ITS_TRUE(result);
+    fossil_crabdb_page_t *current = book->head;
+    ASSUME_ITS_TRUE(strcmp(current->entry.key, "key3") == 0);
+    fossil_crabdb_release(book);
+}
+
+// Test case for executing a begin transaction query
+FOSSIL_TEST_CASE(c_test_crabdb_execute_begin_transaction_query) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    bool result = fossil_crabdb_execute_query(book, "begin_transaction('test_transaction');");
+    ASSUME_ITS_TRUE(result);
+    fossil_crabdb_release(book);
+}
+
+// Test case for executing a commit transaction query
+FOSSIL_TEST_CASE(c_test_crabdb_execute_commit_transaction_query) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_transaction_t *transaction = fossil_crabdb_transaction_begin(book, "test_transaction");
+    bool result = fossil_crabdb_execute_query(book, "commit_transaction('test_transaction');");
+    ASSUME_ITS_TRUE(result);
+    fossil_crabdb_release(book);
+}
+
+// Test case for executing a rollback transaction query
+FOSSIL_TEST_CASE(c_test_crabdb_execute_rollback_transaction_query) {
+    fossil_crabdb_book_t *book = fossil_crabdb_init();
+    fossil_crabdb_transaction_t *transaction = fossil_crabdb_transaction_begin(book, "test_transaction");
+    bool result = fossil_crabdb_execute_query(book, "rollback_transaction('test_transaction');");
+    ASSUME_ITS_TRUE(result);
+    fossil_crabdb_release(book);
+}
+
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
@@ -189,6 +451,31 @@ FOSSIL_TEST_GROUP(c_crab_database_tests) {
     FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_validate);
     FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_sort_ascending);
     FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_sort_descending);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabstore_save_to_ini);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabstore_load_from_ini);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabstore_save_to_csv);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabstore_load_from_csv);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabstore_validate_ini);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabstore_validate_csv);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabsearch_by_value);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabsearch_by_predicate);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabsearch_first_by_predicate);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabsearch_key_exists);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabsearch_primary_keys);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabsearch_count_by_predicate);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabsearch_is_non_nullable);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabsearch_is_unique);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_dump_to_file);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_load_from_file);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_execute_insert_query);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_execute_update_query);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_execute_delete_query);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_execute_select_query);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_execute_sort_ascending_query);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_execute_sort_descending_query);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_execute_begin_transaction_query);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_execute_commit_transaction_query);
+    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_execute_rollback_transaction_query);
 
     FOSSIL_TEST_REGISTER(c_crabdb_fixture);
 } // end of tests
