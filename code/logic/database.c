@@ -424,6 +424,147 @@ bool fossil_crabdb_validate(fossil_crabdb_book_t *book) {
     return true;
 }
 
+// Utility function to strip comments from a query
+void strip_comments(char *query) {
+    char *comment_start = strstr(query, "#");
+    if (!comment_start) comment_start = strstr(query, "--");
+    if (comment_start) *comment_start = '\0'; // Terminate at comment start
+}
+
+// Evaluate conditional operations for future logic handling
+bool evaluate_condition(const char *left, const char *operator, const char *right) {
+    if (strcmp(operator, "=") == 0) return strcmp(left, right) == 0;
+    if (strcmp(operator, "!=") == 0) return strcmp(left, right) != 0;
+    if (strcmp(operator, "<") == 0) return atoi(left) < atoi(right);
+    if (strcmp(operator, ">") == 0) return atoi(left) > atoi(right);
+    if (strcmp(operator, "<=") == 0) return atoi(left) <= atoi(right);
+    if (strcmp(operator, ">=") == 0) return atoi(left) >= atoi(right);
+    return false;
+}
+
+bool fossil_crabdb_execute_query(fossil_crabdb_book_t *book, const char *query) {
+    if (!book || !query) return false;
+
+    // Create a modifiable copy of the query
+    char query_copy[1024];
+    strncpy(query_copy, query, sizeof(query_copy) - 1);
+    query_copy[sizeof(query_copy) - 1] = '\0';
+
+    // Strip comments from the query
+    strip_comments(query_copy);
+
+    // Parse operation name
+    char operation[64];
+    if (sscanf(query_copy, "%63[^'(]", operation) != 1) return false;
+
+    fossil_crabdb_transaction_t *transaction = NULL;
+
+    // Handle different operations
+    if (strcmp(operation, "insert") == 0) {
+        // Extract key, value, and optional attributes
+        char key[256], value[256];
+        bool primary_key = false, unique = false;
+        sscanf(query_copy, "insert('%255[^']', '%255[^']', primary_key: %5s, unique: %5s);",
+               key, value, (primary_key ? "true" : "false"), (unique ? "true" : "false"));
+
+        // Insert into the database
+        fossil_crabdb_attributes_t attributes = {primary_key, unique, true};
+        return fossil_crabdb_insert(book, key, value, attributes);
+    } else if (strcmp(operation, "update") == 0) {
+        // Extract key, new value, and optional conditions
+        char key[256], new_value[256], condition_key[256], operator[8], condition_value[256];
+        int condition_found = sscanf(query_copy, "update('%255[^']', new_value: '%255[^']', where '%255[^']' %7[^'] '%255[^']');",
+                                     key, new_value, condition_key, operator, condition_value);
+
+        if (condition_found == 5) {
+            // Apply condition check before update
+            fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, condition_key);
+            if (entry && evaluate_condition(entry->value, operator, condition_value)) {
+                return fossil_crabdb_update(book, key, new_value);
+            }
+            return false;
+        } else {
+            // No condition specified, perform unconditional update
+            return fossil_crabdb_update(book, key, new_value);
+        }
+    } else if (strcmp(operation, "select") == 0) {
+        // Extract key and optional conditions
+        char key[256], condition_key[256], operator[8], condition_value[256];
+        int condition_found = sscanf(query_copy, "select('%255[^']', where '%255[^']' %7[^'] '%255[^']');",
+                                     key, condition_key, operator, condition_value);
+
+        if (condition_found == 4) {
+            // Apply condition check before selection
+            fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, condition_key);
+            if (entry && evaluate_condition(entry->value, operator, condition_value)) {
+                printf("Key: %s, Value: %s\n", entry->key, entry->value);
+                return true;
+            }
+            return false;
+        } else {
+            // No condition specified, perform unconditional selection
+            fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, key);
+            if (entry) {
+                printf("Key: %s, Value: %s\n", entry->key, entry->value);
+                return true;
+            }
+            return false;
+        }
+    } else if (strcmp(operation, "delete") == 0) {
+        // Extract key and optional conditions
+        char key[256], condition_key[256], operator[8], condition_value[256];
+        int condition_found = sscanf(query_copy, "delete('%255[^']', where '%255[^']' %7[^'] '%255[^']');",
+                                     key, condition_key, operator, condition_value);
+
+        if (condition_found == 4) {
+            // Apply condition check before deletion
+            fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, condition_key);
+            if (entry && evaluate_condition(entry->value, operator, condition_value)) {
+                return fossil_crabdb_delete(book, key);
+            }
+            return false;
+        } else {
+            // No condition specified, perform unconditional deletion
+            return fossil_crabdb_delete(book, key);
+        }
+    } else if (strcmp(operation, "sort") == 0) {
+        // Extract sorting order
+        char order[64];
+        sscanf(query_copy, "sort(order: '%63[^']');", order);
+
+        fossil_crabdb_sort_order_t sort_order = 
+            strcmp(order, "ascending") == 0 ? FOSSIL_CRABDB_SORT_ASCENDING : FOSSIL_CRABDB_SORT_DESCENDING;
+
+        // Sort the database
+        return fossil_crabdb_sort(book, sort_order) == 0;
+    } else if (strcmp(operation, "begin_transaction") == 0) {
+        // Extract transaction name
+        char name[256];
+        sscanf(query_copy, "begin_transaction('%255[^']');", name);
+
+        // Begin a transaction
+        transaction = fossil_crabdb_transaction_begin(book, name);
+        return transaction != NULL;
+    } else if (strcmp(operation, "commit_transaction") == 0) {
+        // Extract transaction name
+        char name[256];
+        sscanf(query_copy, "commit_transaction('%255[^']');", name);
+
+        // Commit the transaction
+        return fossil_crabdb_transaction_commit(book, transaction);
+    } else if (strcmp(operation, "rollback_transaction") == 0) {
+        // Extract transaction name
+        char name[256];
+        sscanf(query_copy, "rollback_transaction('%255[^']');", name);
+
+        // Rollback the transaction
+        return fossil_crabdb_transaction_rollback(book, transaction);
+    }
+
+    // Unknown operation
+    return false;
+}
+
 // *****************************************************************************
 // Helper Functions for Merge Sort
 // *****************************************************************************
@@ -522,4 +663,251 @@ int fossil_crabdb_sort(fossil_crabdb_book_t *book, fossil_crabdb_sort_order_t or
     book->tail = current;
 
     return 0; // Success
+}
+
+// *****************************************************************************
+// Search API Functions
+// *****************************************************************************
+
+fossil_crabdb_entry_t* fossil_crabsearch_by_key(fossil_crabdb_book_t *book, const char *key) {
+    if (book == NULL || key == NULL) {
+        return NULL;
+    }
+    fossil_crabdb_page_t *current = book->head;
+    while (current != NULL) {
+        if (strcmp(current->entry.key, key) == 0) {
+            return &current->entry;
+        }
+        current = current->next;
+    }
+    return NULL;
+}
+
+fossil_crabdb_book_t* fossil_crabsearch_by_value(fossil_crabdb_book_t *book, const char *value) {
+    if (book == NULL || value == NULL) {
+        return NULL;
+    }
+    fossil_crabdb_book_t *result = fossil_crabdb_init();
+    if (result == NULL) {
+        return NULL;
+    }
+    fossil_crabdb_page_t *current = book->head;
+    while (current != NULL) {
+        if (strcmp(current->entry.value, value) == 0) {
+            fossil_crabdb_insert(result, custom_strdup(current->entry.key), custom_strdup(current->entry.value), current->entry.attributes);
+        }
+        current = current->next;
+    }
+    return result;
+}
+
+fossil_crabdb_book_t* fossil_crabsearch_by_predicate(fossil_crabdb_book_t *book, bool (*predicate)(fossil_crabdb_entry_t *)) {
+    if (book == NULL || predicate == NULL) {
+        return NULL;
+    }
+    fossil_crabdb_book_t *result = fossil_crabdb_init();
+    if (result == NULL) {
+        return NULL;
+    }
+    fossil_crabdb_page_t *current = book->head;
+    while (current != NULL) {
+        if (predicate(&current->entry)) {
+            fossil_crabdb_insert(result, custom_strdup(current->entry.key), custom_strdup(current->entry.value), current->entry.attributes);
+        }
+        current = current->next;
+    }
+    return result;
+}
+
+fossil_crabdb_entry_t* fossil_crabsearch_first_by_predicate(fossil_crabdb_book_t *book, bool (*predicate)(fossil_crabdb_entry_t *)) {
+    if (book == NULL || predicate == NULL) {
+        return NULL;
+    }
+    fossil_crabdb_page_t *current = book->head;
+    while (current != NULL) {
+        if (predicate(&current->entry)) {
+            return &current->entry;
+        }
+        current = current->next;
+    }
+    return NULL;
+}
+
+bool fossil_crabsearch_key_exists(fossil_crabdb_book_t *book, const char *key) {
+    if (book == NULL || key == NULL) {
+        return false;
+    }
+    fossil_crabdb_page_t *current = book->head;
+    while (current != NULL) {
+        if (strcmp(current->entry.key, key) == 0) {
+            return true;
+        }
+        current = current->next;
+    }
+    return false;
+}
+
+fossil_crabdb_book_t* fossil_crabsearch_primary_keys(fossil_crabdb_book_t *book) {
+    if (book == NULL) {
+        return NULL;
+    }
+    fossil_crabdb_book_t *result = fossil_crabdb_init();
+    if (result == NULL) {
+        return NULL;
+    }
+    fossil_crabdb_page_t *current = book->head;
+    while (current != NULL) {
+        if (current->entry.attributes.is_primary_key) {
+            fossil_crabdb_insert(result, custom_strdup(current->entry.key), custom_strdup(current->entry.value), current->entry.attributes);
+        }
+        current = current->next;
+    }
+    return result;
+}
+
+size_t fossil_crabsearch_count_by_predicate(fossil_crabdb_book_t *book, bool (*predicate)(fossil_crabdb_entry_t *)) {
+    if (book == NULL || predicate == NULL) {
+        return 0;
+    }
+    size_t count = 0;
+    fossil_crabdb_page_t *current = book->head;
+    while (current != NULL) {
+        if (predicate(&current->entry)) {
+            count++;
+        }
+        current = current->next;
+    }
+    return count;
+}
+
+// *****************************************************************************
+// Search Utility Functions
+// *****************************************************************************
+
+bool fossil_crabsearch_is_non_nullable(fossil_crabdb_entry_t *entry) {
+    return !entry->attributes.is_nullable;
+}
+
+bool fossil_crabsearch_is_unique(fossil_crabdb_entry_t *entry) {
+    return entry->attributes.is_unique;
+}
+
+// *****************************************************************************
+// INI Storage API
+// *****************************************************************************
+
+bool fossil_crabstore_save_to_ini(const fossil_crabdb_book_t *book, const char *filename) {
+    if (book == NULL || filename == NULL) {
+        return false;
+    }
+    FILE *file = fopen(filename, "w");
+    if (file == NULL) {
+        return false;
+    }
+    fossil_crabdb_page_t *current = book->head;
+    while (current != NULL) {
+        fprintf(file, "%s=%s\n", current->entry.key, current->entry.value);
+        current = current->next;
+    }
+    fclose(file);
+    return true;
+}
+
+bool fossil_crabstore_load_from_ini(fossil_crabdb_book_t *book, const char *filename) {
+    if (book == NULL || filename == NULL) {
+        return false;
+    }
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        return false;
+    }
+    char line[256];
+    while (fgets(line, sizeof(line), file) != NULL) {
+        char *key = strtok(line, "=");
+        char *value = strtok(NULL, "\n");
+        fossil_crabdb_insert(book, key, value, (fossil_crabdb_attributes_t){false, false, false});
+    }
+    fclose(file);
+    return true;
+}
+
+// *****************************************************************************
+// CSV Storage API
+// *****************************************************************************
+
+bool fossil_crabstore_save_to_csv(const fossil_crabdb_book_t *book, const char *filename) {
+    if (book == NULL || filename == NULL) {
+        return false;
+    }
+    FILE *file = fopen(filename, "w");
+    if (file == NULL) {
+        return false;
+    }
+    fossil_crabdb_page_t *current = book->head;
+    while (current != NULL) {
+        fprintf(file, "%s,%s\n", current->entry.key, current->entry.value);
+        current = current->next;
+    }
+    fclose(file);
+    return true;
+}
+
+bool fossil_crabstore_load_from_csv(fossil_crabdb_book_t *book, const char *filename) {
+    if (book == NULL || filename == NULL) {
+        return false;
+    }
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        return false;
+    }
+    char line[256];
+    while (fgets(line, sizeof(line), file) != NULL) {
+        char *key = strtok(line, ",");
+        char *value = strtok(NULL, "\n");
+        fossil_crabdb_insert(book, key, value, (fossil_crabdb_attributes_t){false, false, false});
+    }
+    fclose(file);
+    return true;
+}
+
+// *****************************************************************************
+// Utility Functions for Storage
+// *****************************************************************************
+
+bool fossil_crabstore_validate_ini(const char *filename) {
+    if (filename == NULL) {
+        return false;
+    }
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        return false;
+    }
+    char line[256];
+    while (fgets(line, sizeof(line), file) != NULL) {
+        if (strchr(line, '=') == NULL) {
+            fclose(file);
+            return false;
+        }
+    }
+    fclose(file);
+    return true;
+}
+
+bool fossil_crabstore_validate_csv(const char *filename) {
+    if (filename == NULL) {
+        return false;
+    }
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        return false;
+    }
+    char line[256];
+    while (fgets(line, sizeof(line), file) != NULL) {
+        if (strchr(line, ',') == NULL) {
+            fclose(file);
+            return false;
+        }
+    }
+    fclose(file);
+    return true;
 }

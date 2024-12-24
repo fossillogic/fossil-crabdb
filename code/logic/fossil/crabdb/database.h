@@ -209,6 +209,161 @@ bool fossil_crabdb_load_from_file(fossil_crabdb_book_t *book, const char *filena
  */
 bool fossil_crabdb_validate(fossil_crabdb_book_t *book);
 
+/**
+ * @brief Executes a query on the database.
+ */
+bool fossil_crabdb_execute_query(fossil_crabdb_book_t *book, const char *query);
+
+// *****************************************************************************
+// Search API Functions
+// *****************************************************************************
+
+/**
+ * @brief Finds an entry by key in the database.
+ *
+ * @param book  Pointer to the database (fossil_crabdb_book_t).
+ * @param key   Key to search for.
+ * @return      Pointer to the entry if found, NULL otherwise.
+ */
+fossil_crabdb_entry_t* fossil_crabsearch_by_key(fossil_crabdb_book_t *book, const char *key);
+
+/**
+ * @brief Finds all entries with a specific value in the database.
+ *
+ * @param book      Pointer to the database (fossil_crabdb_book_t).
+ * @param value     Value to search for.
+ * @return          A new database containing all matching entries.
+ */
+fossil_crabdb_book_t* fossil_crabsearch_by_value(fossil_crabdb_book_t *book, const char *value);
+
+/**
+ * @brief Finds all entries matching a predicate.
+ *
+ * @param book          Pointer to the database (fossil_crabdb_book_t).
+ * @param predicate     Function pointer to the predicate.
+ * @return              A new database containing all matching entries.
+ */
+fossil_crabdb_book_t* fossil_crabsearch_by_predicate(fossil_crabdb_book_t *book, bool (*predicate)(fossil_crabdb_entry_t *));
+
+/**
+ * @brief Finds the first entry that matches a predicate.
+ *
+ * @param book          Pointer to the database (fossil_crabdb_book_t).
+ * @param predicate     Function pointer to the predicate.
+ * @return              Pointer to the first matching entry, or NULL if none found.
+ */
+fossil_crabdb_entry_t* fossil_crabsearch_first_by_predicate(fossil_crabdb_book_t *book, bool (*predicate)(fossil_crabdb_entry_t *));
+
+/**
+ * @brief Checks if a key exists in the database.
+ *
+ * @param book  Pointer to the database (fossil_crabdb_book_t).
+ * @param key   Key to search for.
+ * @return      True if the key exists, false otherwise.
+ */
+bool fossil_crabsearch_key_exists(fossil_crabdb_book_t *book, const char *key);
+
+/**
+ * @brief Finds all primary key entries in the database.
+ *
+ * @param book  Pointer to the database (fossil_crabdb_book_t).
+ * @return      A new database containing all primary key entries.
+ */
+fossil_crabdb_book_t* fossil_crabsearch_primary_keys(fossil_crabdb_book_t *book);
+
+/**
+ * @brief Counts the entries that match a predicate.
+ *
+ * @param book          Pointer to the database (fossil_crabdb_book_t).
+ * @param predicate     Function pointer to the predicate.
+ * @return              Number of matching entries.
+ */
+size_t fossil_crabsearch_count_by_predicate(fossil_crabdb_book_t *book, bool (*predicate)(fossil_crabdb_entry_t *));
+
+// *****************************************************************************
+// Search Utility Functions
+// *****************************************************************************
+
+/**
+ * @brief Example predicate to find non-nullable entries.
+ *
+ * @param entry  Pointer to a database entry (fossil_crabdb_entry_t).
+ * @return       True if the entry is non-nullable, false otherwise.
+ */
+bool fossil_crabsearch_is_non_nullable(fossil_crabdb_entry_t *entry);
+
+/**
+ * @brief Example predicate to find unique entries.
+ *
+ * @param entry  Pointer to a database entry (fossil_crabdb_entry_t).
+ * @return       True if the entry is unique, false otherwise.
+ */
+bool fossil_crabsearch_is_unique(fossil_crabdb_entry_t *entry);
+
+// *****************************************************************************
+// INI Storage API
+// *****************************************************************************
+
+/**
+ * @brief Saves the database content to an INI file.
+ *
+ * @param book          Pointer to the database (fossil_crabdb_book_t).
+ * @param filename      Path to the output INI file.
+ * @return              true on success, false on failure.
+ */
+bool fossil_crabstore_save_to_ini(const fossil_crabdb_book_t *book, const char *filename);
+
+/**
+ * @brief Loads the database content from an INI file.
+ *
+ * @param book          Pointer to the database (fossil_crabdb_book_t).
+ * @param filename      Path to the input INI file.
+ * @return              true on success, false on failure.
+ */
+bool fossil_crabstore_load_from_ini(fossil_crabdb_book_t *book, const char *filename);
+
+// *****************************************************************************
+// CSV Storage API
+// *****************************************************************************
+
+/**
+ * @brief Saves the database content to a CSV file.
+ *
+ * @param book          Pointer to the database (fossil_crabdb_book_t).
+ * @param filename      Path to the output CSV file.
+ * @return              true on success, false on failure.
+ */
+bool fossil_crabstore_save_to_csv(const fossil_crabdb_book_t *book, const char *filename);
+
+/**
+ * @brief Loads the database content from a CSV file.
+ *
+ * @param book          Pointer to the database (fossil_crabdb_book_t).
+ * @param filename      Path to the input CSV file.
+ * @return              true on success, false on failure.
+ */
+bool fossil_crabstore_load_from_csv(fossil_crabdb_book_t *book, const char *filename);
+
+// *****************************************************************************
+// Utility Functions for Storage
+// *****************************************************************************
+
+/**
+ * @brief Validates the structure of an INI file before loading.
+ *
+ * @param filename      Path to the INI file.
+ * @return              true if valid, false otherwise.
+ */
+bool fossil_crabstore_validate_ini(const char *filename);
+
+/**
+ * @brief Validates the structure of a CSV file before loading.
+ *
+ * @param filename      Path to the CSV file.
+ * @return              true if valid, false otherwise.
+ */
+bool fossil_crabstore_validate_csv(const char *filename);
+
 #ifdef __cplusplus
 }
 
@@ -218,16 +373,77 @@ bool fossil_crabdb_validate(fossil_crabdb_book_t *book);
 
 namespace fossil {
 
-/**
- * @brief Represents a high-level interface to the Fossil CrabDB database.
- */
-class CrabDB
-{
+//
+class CrabStore {
+public:
+    static bool saveToIni(const CrabDB &db, const std::string &filename) {
+        return fossil_crabstore_save_to_ini(db.book, filename.c_str());
+    }
+
+    static bool loadFromIni(CrabDB &db, const std::string &filename) {
+        return fossil_crabstore_load_from_ini(db.book, filename.c_str());
+    }
+
+    static bool saveToCsv(const CrabDB &db, const std::string &filename) {
+        return fossil_crabstore_save_to_csv(db.book, filename.c_str());
+    }
+
+    static bool loadFromCsv(CrabDB &db, const std::string &filename) {
+        return fossil_crabstore_load_from_csv(db.book, filename.c_str());
+    }
+
+    static bool validateIni(const std::string &filename) {
+        return fossil_crabstore_validate_ini(filename.c_str());
+    }
+
+    static bool validateCsv(const std::string &filename) {
+        return fossil_crabstore_validate_csv(filename.c_str());
+    }
+};
+
+class CrabSearch {
+public:
+    static fossil_crabdb_entry_t* byKey(CrabDB &db, const std::string &key) {
+        return fossil_crabsearch_by_key(db.book, key.c_str());
+    }
+
+    static CrabDB byValue(CrabDB &db, const std::string &value) {
+        CrabDB result;
+        result.book = fossil_crabsearch_by_value(db.book, value.c_str());
+        return result;
+    }
+
+    static CrabDB byPredicate(CrabDB &db, bool (*predicate)(fossil_crabdb_entry_t *)) {
+        CrabDB result;
+        result.book = fossil_crabsearch_by_predicate(db.book, predicate);
+        return result;
+    }
+
+    static fossil_crabdb_entry_t* firstByPredicate(CrabDB &db, bool (*predicate)(fossil_crabdb_entry_t *)) {
+        return fossil_crabsearch_first_by_predicate(db.book, predicate);
+    }
+
+    static bool keyExists(CrabDB &db, const std::string &key) {
+        return fossil_crabsearch_key_exists(db.book, key.c_str());
+    }
+
+    static CrabDB primaryKeys(CrabDB &db) {
+        CrabDB result;
+        result.book = fossil_crabsearch_primary_keys(db.book);
+        return result;
+    }
+
+    static size_t countByPredicate(CrabDB &db, bool (*predicate)(fossil_crabdb_entry_t *)) {
+        return fossil_crabsearch_count_by_predicate(db.book, predicate);
+    }
+};
+
+class CrabDB {
 public:
     CrabDB() {
         book = fossil_crabdb_init();
         if (!book) {
-            throw std::runtime_error("Failed to initialize the database.");
+            throw std::runtime_error("Failed to initialize database");
         }
     }
 
@@ -235,41 +451,31 @@ public:
         fossil_crabdb_release(book);
     }
 
-    void insert(const std::string &key, const std::string &value, fossil_crabdb_attributes_t attributes) {
-        if (!fossil_crabdb_insert(book, key.c_str(), value.c_str(), attributes)) {
-            throw std::runtime_error("Failed to insert entry.");
-        }
+    bool insert(const std::string &key, const std::string &value, fossil_crabdb_attributes_t attributes) {
+        return fossil_crabdb_insert(book, key.c_str(), value.c_str(), attributes);
     }
 
-    void update(const std::string &key, const std::string &new_value) {
-        if (!fossil_crabdb_update(book, key.c_str(), new_value.c_str())) {
-            throw std::runtime_error("Failed to update entry.");
-        }
+    bool update(const std::string &key, const std::string &new_value) {
+        return fossil_crabdb_update(book, key.c_str(), new_value.c_str());
     }
 
-    void remove(const std::string &key) {
-        if (!fossil_crabdb_delete(book, key.c_str())) {
-            throw std::runtime_error("Failed to delete entry.");
-        }
+    bool remove(const std::string &key) {
+        return fossil_crabdb_delete(book, key.c_str());
     }
 
-    std::string search(const std::string &key) {
-        fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, key.c_str());
-        if (!entry) {
-            throw std::runtime_error("Entry not found.");
-        }
-        return std::string(entry->value);
+    fossil_crabdb_entry_t* search(const std::string &key) {
+        return fossil_crabdb_search(book, key.c_str());
     }
 
     void display() {
         fossil_crabdb_display(book);
     }
 
-    size_t size() {
+    size_t size() const {
         return fossil_crabdb_size(book);
     }
 
-    bool isEmpty() {
+    bool isEmpty() const {
         return fossil_crabdb_is_empty(book);
     }
 
@@ -277,20 +483,20 @@ public:
         fossil_crabdb_clear(book);
     }
 
-    void dumpToFile(const std::string &filename) {
-        if (!fossil_crabdb_dump_to_file(book, filename.c_str())) {
-            throw std::runtime_error("Failed to dump database to file.");
-        }
+    bool dumpToFile(const std::string &filename) {
+        return fossil_crabdb_dump_to_file(book, filename.c_str());
     }
 
-    void loadFromFile(const std::string &filename) {
-        if (!fossil_crabdb_load_from_file(book, filename.c_str())) {
-            throw std::runtime_error("Failed to load database from file.");
-        }
+    bool loadFromFile(const std::string &filename) {
+        return fossil_crabdb_load_from_file(book, filename.c_str());
     }
 
-    bool validate() {
+    bool validate() const {
         return fossil_crabdb_validate(book);
+    }
+
+    bool executeQuery(const std::string &query) {
+        return fossil_crabdb_execute_query(book, query.c_str());
     }
 
 private:
