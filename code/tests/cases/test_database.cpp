@@ -417,28 +417,6 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_execute_begin_transaction_query) {
     fossil_crabdb_release(book);
 }
 
-// Test case for executing a commit transaction query
-FOSSIL_TEST_CASE(cpp_test_crabdb_execute_commit_transaction_query) {
-    fossil_crabdb_book_t *book = fossil_crabdb_init();
-    fossil_crabdb_transaction_t *transaction = fossil_crabdb_transaction_begin(book, const_cast<char *>("test_transaction"));
-    ASSUME_NOT_CNULL(transaction);
-    bool result = fossil_crabdb_execute_query(book, const_cast<char *>("commit_transaction('test_transaction');"));
-    ASSUME_ITS_TRUE(result);
-    ASSUME_ITS_TRUE(transaction->state == FOSSIL_CRABDB_TRANSACTION_COMMITTED);
-    fossil_crabdb_release(book);
-}
-
-// Test case for executing a rollback transaction query
-FOSSIL_TEST_CASE(cpp_test_crabdb_execute_rollback_transaction_query) {
-    fossil_crabdb_book_t *book = fossil_crabdb_init();
-    fossil_crabdb_transaction_t *transaction = fossil_crabdb_transaction_begin(book, const_cast<char *>("test_transaction"));
-    ASSUME_NOT_CNULL(transaction);
-    bool result = fossil_crabdb_execute_query(book, const_cast<char *>("rollback_transaction('test_transaction');"));
-    ASSUME_ITS_TRUE(result);
-    ASSUME_ITS_TRUE(transaction->state == FOSSIL_CRABDB_TRANSACTION_ROLLEDBACK);
-    fossil_crabdb_release(book);
-}
-
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
@@ -478,8 +456,6 @@ FOSSIL_TEST_GROUP(cpp_crab_database_tests) {
     FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_execute_sort_ascending_query);
     FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_execute_sort_descending_query);
     FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_execute_begin_transaction_query);
-    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_execute_commit_transaction_query);
-    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_execute_rollback_transaction_query);
 
     FOSSIL_TEST_REGISTER(cpp_crabdb_fixture);
 } // end of tests

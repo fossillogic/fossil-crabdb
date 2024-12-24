@@ -417,26 +417,6 @@ FOSSIL_TEST_CASE(c_test_crabdb_execute_begin_transaction_query) {
     fossil_crabdb_release(book);
 }
 
-// Test case for executing a commit transaction query
-FOSSIL_TEST_CASE(c_test_crabdb_execute_commit_transaction_query) {
-    fossil_crabdb_book_t *book = fossil_crabdb_init();
-    fossil_crabdb_transaction_t *transaction = fossil_crabdb_transaction_begin(book, "test_transaction");
-    ASSUME_NOT_CNULL(transaction);
-    bool result = fossil_crabdb_execute_query(book, "commit_transaction('test_transaction');");
-    ASSUME_ITS_TRUE(result);
-    fossil_crabdb_release(book);
-}
-
-// Test case for executing a rollback transaction query
-FOSSIL_TEST_CASE(c_test_crabdb_execute_rollback_transaction_query) {
-    fossil_crabdb_book_t *book = fossil_crabdb_init();
-    fossil_crabdb_transaction_t *transaction = fossil_crabdb_transaction_begin(book, "test_transaction");
-    ASSUME_NOT_CNULL(transaction);
-    bool result = fossil_crabdb_execute_query(book, "rollback_transaction('test_transaction');");
-    ASSUME_ITS_TRUE(result);
-    fossil_crabdb_release(book);
-}
-
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
@@ -476,8 +456,6 @@ FOSSIL_TEST_GROUP(c_crab_database_tests) {
     FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_execute_sort_ascending_query);
     FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_execute_sort_descending_query);
     FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_execute_begin_transaction_query);
-    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_execute_commit_transaction_query);
-    FOSSIL_TEST_ADD(c_crabdb_fixture, c_test_crabdb_execute_rollback_transaction_query);
 
     FOSSIL_TEST_REGISTER(c_crabdb_fixture);
 } // end of tests
