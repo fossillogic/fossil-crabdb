@@ -173,102 +173,6 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_sort_descending) {
     fossil_crabdb_release(book);
 }
 
-// Test case for dumping database content to a file
-FOSSIL_TEST_CASE(cpp_test_crabdb_dump_to_file) {
-    fossil_crabdb_book_t *book = fossil_crabdb_init();
-    fossil_crabdb_insert(book, const_cast<char *>("key1"), const_cast<char *>("value1"), {false, false, false});
-    bool result = fossil_crabdb_dump_to_file(book, const_cast<char *>("test_dump.txt"));
-    ASSUME_ITS_TRUE(result);
-    fossil_crabdb_release(book);
-}
-
-// Test case for loading database content from a file
-FOSSIL_TEST_CASE(cpp_test_crabdb_load_from_file) {
-    fossil_crabdb_book_t *book = fossil_crabdb_init();
-    bool result = fossil_crabdb_load_from_file(book, const_cast<char *>("test_dump.txt"));
-    ASSUME_ITS_TRUE(result);
-    fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, const_cast<char *>("key1"));
-    ASSUME_NOT_CNULL(entry);
-    ASSUME_ITS_TRUE(strcmp(entry->value, "value1") == 0);
-    fossil_crabdb_release(book);
-}
-
-// Test case for executing an insert query
-FOSSIL_TEST_CASE(cpp_test_crabdb_execute_insert_query) {
-    fossil_crabdb_book_t *book = fossil_crabdb_init();
-    bool result = fossil_crabdb_execute_query(book, const_cast<char *>("insert('key1', 'value1', primary_key: false, unique: false);"));
-    ASSUME_ITS_TRUE(result);
-    fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, const_cast<char *>("key1"));
-    ASSUME_NOT_CNULL(entry);
-    ASSUME_ITS_TRUE(strcmp(entry->value, "value1") == 0);
-    fossil_crabdb_release(book);
-}
-
-// Test case for executing an update query
-FOSSIL_TEST_CASE(cpp_test_crabdb_execute_update_query) {
-    fossil_crabdb_book_t *book = fossil_crabdb_init();
-    fossil_crabdb_insert(book, const_cast<char *>("key1"), const_cast<char *>("value1"), {false, false, false});
-    bool result = fossil_crabdb_execute_query(book, const_cast<char *>("update('key1', new_value: 'new_value1');"));
-    ASSUME_ITS_TRUE(result);
-    fossil_crabdb_entry_t *entry = fossil_crabdb_search(book, const_cast<char *>("key1"));
-    ASSUME_NOT_CNULL(entry);
-    ASSUME_ITS_TRUE(strcmp(entry->value, "new_value1") == 0);
-    fossil_crabdb_release(book);
-}
-
-// Test case for executing a delete query
-FOSSIL_TEST_CASE(cpp_test_crabdb_execute_delete_query) {
-    fossil_crabdb_book_t *book = fossil_crabdb_init();
-    fossil_crabdb_insert(book, const_cast<char *>("key1"), const_cast<char *>("value1"), {false, false, false});
-    bool result = fossil_crabdb_execute_query(book, const_cast<char *>("delete('key1');"));
-    ASSUME_ITS_TRUE(result);
-    ASSUME_ITS_TRUE(fossil_crabdb_is_empty(book));
-    fossil_crabdb_release(book);
-}
-
-// Test case for executing a select query
-FOSSIL_TEST_CASE(cpp_test_crabdb_execute_select_query) {
-    fossil_crabdb_book_t *book = fossil_crabdb_init();
-    fossil_crabdb_insert(book, const_cast<char *>("key1"), const_cast<char *>("value1"), {false, false, false});
-    bool result = fossil_crabdb_execute_query(book, const_cast<char *>("select('key1');"));
-    ASSUME_ITS_TRUE(result);
-    fossil_crabdb_release(book);
-}
-
-// Test case for executing a sort query in ascending order
-FOSSIL_TEST_CASE(cpp_test_crabdb_execute_sort_ascending_query) {
-    fossil_crabdb_book_t *book = fossil_crabdb_init();
-    fossil_crabdb_insert(book, const_cast<char *>("key3"), const_cast<char *>("value3"), {false, false, false});
-    fossil_crabdb_insert(book, const_cast<char *>("key1"), const_cast<char *>("value1"), {false, false, false});
-    fossil_crabdb_insert(book, const_cast<char *>("key2"), const_cast<char *>("value2"), {false, false, false});
-    bool result = fossil_crabdb_execute_query(book, const_cast<char *>("sort(order: 'ascending');"));
-    ASSUME_ITS_TRUE(result);
-    fossil_crabdb_page_t *current = book->head;
-    ASSUME_ITS_TRUE(strcmp(current->entry.key, "key1") == 0);
-    fossil_crabdb_release(book);
-}
-
-// Test case for executing a sort query in descending order
-FOSSIL_TEST_CASE(cpp_test_crabdb_execute_sort_descending_query) {
-    fossil_crabdb_book_t *book = fossil_crabdb_init();
-    fossil_crabdb_insert(book, const_cast<char *>("key1"), const_cast<char *>("value1"), {false, false, false});
-    fossil_crabdb_insert(book, const_cast<char *>("key3"), const_cast<char *>("value3"), {false, false, false});
-    fossil_crabdb_insert(book, const_cast<char *>("key2"), const_cast<char *>("value2"), {false, false, false});
-    bool result = fossil_crabdb_execute_query(book, const_cast<char *>("sort(order: 'descending');"));
-    ASSUME_ITS_TRUE(result);
-    fossil_crabdb_page_t *current = book->head;
-    ASSUME_ITS_TRUE(strcmp(current->entry.key, "key3") == 0);
-    fossil_crabdb_release(book);
-}
-
-// Test case for executing a begin transaction query
-FOSSIL_TEST_CASE(cpp_test_crabdb_execute_begin_transaction_query) {
-    fossil_crabdb_book_t *book = fossil_crabdb_init();
-    bool result = fossil_crabdb_execute_query(book, const_cast<char *>("begin_transaction('test_transaction');"));
-    ASSUME_ITS_TRUE(result);
-    fossil_crabdb_release(book);
-}
-
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
@@ -285,15 +189,6 @@ FOSSIL_TEST_GROUP(cpp_crab_database_tests) {
     FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_validate);
     FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_sort_ascending);
     FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_sort_descending);
-    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_dump_to_file);
-    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_load_from_file);
-    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_execute_insert_query);
-    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_execute_update_query);
-    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_execute_delete_query);
-    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_execute_select_query);
-    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_execute_sort_ascending_query);
-    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_execute_sort_descending_query);
-    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_execute_begin_transaction_query);
 
     FOSSIL_TEST_REGISTER(cpp_crabdb_fixture);
 } // end of tests

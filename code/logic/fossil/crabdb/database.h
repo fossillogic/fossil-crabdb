@@ -209,11 +209,6 @@ bool fossil_crabdb_load_from_file(fossil_crabdb_book_t *book, const char *filena
  */
 bool fossil_crabdb_validate(fossil_crabdb_book_t *book);
 
-/**
- * @brief Executes a query on the database.
- */
-bool fossil_crabdb_execute_query(fossil_crabdb_book_t *book, const char *query);
-
 #ifdef __cplusplus
 }
 #endif
