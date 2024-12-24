@@ -173,10 +173,63 @@ FOSSIL_TEST_CASE(cpp_test_crabdb_sort_descending) {
     fossil_crabdb_release(book);
 }
 
+// Test case for inserting a new key-value pair using CrabDB class
+FOSSIL_TEST_CASE(cpp_test_crabdb_class_insert) {
+    fossil::CrabDB db;
+    bool result = db.insert("key1", "value1", {false, false, false});
+    ASSUME_ITS_TRUE(result);
+    ASSUME_ITS_FALSE(db.isEmpty());
+}
+
+// Test case for updating an existing key using CrabDB class
+FOSSIL_TEST_CASE(cpp_test_crabdb_class_update) {
+    fossil::CrabDB db;
+    db.insert("key1", "value1", {false, false, false});
+    bool result = db.update("key1", "new_value1");
+    ASSUME_ITS_TRUE(result);
+    fossil_crabdb_entry_t *entry = db.search("key1");
+    ASSUME_NOT_CNULL(entry);
+    ASSUME_ITS_TRUE(strcmp(entry->value, "new_value1") == 0);
+}
+
+// Test case for deleting an entry by key using CrabDB class
+FOSSIL_TEST_CASE(cpp_test_crabdb_class_delete) {
+    fossil::CrabDB db;
+    db.insert("key1", "value1", {false, false, false});
+    bool result = db.remove("key1");
+    ASSUME_ITS_TRUE(result);
+    ASSUME_ITS_TRUE(db.isEmpty());
+}
+
+// Test case for searching an entry by key using CrabDB class
+FOSSIL_TEST_CASE(cpp_test_crabdb_class_search) {
+    fossil::CrabDB db;
+    db.insert("key1", "value1", {false, false, false});
+    fossil_crabdb_entry_t *entry = db.search("key1");
+    ASSUME_NOT_CNULL(entry);
+    ASSUME_ITS_TRUE(strcmp(entry->value, "value1") == 0);
+}
+
+// Test case for clearing all entries from the database using CrabDB class
+FOSSIL_TEST_CASE(cpp_test_crabdb_class_clear) {
+    fossil::CrabDB db;
+    db.insert("key1", "value1", {false, false, false});
+    db.clear();
+    ASSUME_ITS_TRUE(db.isEmpty());
+}
+
+// Test case for validating the integrity of the database using CrabDB class
+FOSSIL_TEST_CASE(cpp_test_crabdb_class_validate) {
+    fossil::CrabDB db;
+    db.insert("key1", "value1", {false, false, false});
+    bool result = db.validate();
+    ASSUME_ITS_TRUE(result);
+}
+
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
-FOSSIL_TEST_GROUP(cpp_crab_database_tests) {    
+FOSSIL_TEST_GROUP(cpp_crab_database_tests) {
     FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_init);
     FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_insert);
     FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_update);
@@ -189,6 +242,12 @@ FOSSIL_TEST_GROUP(cpp_crab_database_tests) {
     FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_validate);
     FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_sort_ascending);
     FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_sort_descending);
+    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_class_insert);
+    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_class_update);
+    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_class_delete);
+    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_class_search);
+    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_class_clear);
+    FOSSIL_TEST_ADD(cpp_crabdb_fixture, cpp_test_crabdb_class_validate);
 
     FOSSIL_TEST_REGISTER(cpp_crabdb_fixture);
 } // end of tests

@@ -211,6 +211,146 @@ bool fossil_crabdb_validate(fossil_crabdb_book_t *book);
 
 #ifdef __cplusplus
 }
+#include <string>
+
+namespace fossil {
+
+/**
+ * @class CrabDB
+ * @brief A class that provides an interface to interact with the Fossil CrabDB database.
+ * 
+ * This class encapsulates the functionality of the Fossil CrabDB, providing methods to
+ * insert, update, remove, search, display, and manage entries in the database.
+ * 
+ * @note The class manages the lifecycle of the database, ensuring proper initialization
+ * and release of resources.
+ */
+class CrabDB {
+public:
+    /**
+     * @brief Constructs a new CrabDB object.
+     */
+    CrabDB() {
+        book = fossil_crabdb_init();
+    }
+
+    /**
+     * @brief Destroys the CrabDB object.
+     */
+    ~CrabDB() {
+        fossil_crabdb_release(book);
+    }
+
+    /**
+     * @brief Inserts a new key-value pair into the database.
+     * 
+     * @param key           The key to insert.
+     * @param value         The value to insert.
+     * @param attributes    Additional attributes for the entry.
+     * @return              True if the entry was inserted successfully, false otherwise.
+     */
+    bool insert(const std::string &key, const std::string &value, fossil_crabdb_attributes_t attributes) {
+        return fossil_crabdb_insert(book, key.c_str(), value.c_str(), attributes);
+    }
+
+    /**
+     * @brief Updates the value of an existing key.
+     * 
+     * @param key           The key to update.
+     * @param new_value     The new value to set.
+     * @return              True if the key was updated successfully, false otherwise.
+     */
+    bool update(const std::string &key, const std::string &new_value) {
+        return fossil_crabdb_update(book, key.c_str(), new_value.c_str());
+    }
+
+    /**
+     * @brief Removes an entry from the database by key.
+     * 
+     * @param key           The key to remove.
+     * @return              True if the entry was removed successfully, false otherwise.
+     */
+    bool remove(const std::string &key) {
+        return fossil_crabdb_delete(book, key.c_str());
+    }
+
+    /**
+     * @brief Searches for an entry by key.
+     * 
+     * @param key           The key to search for.
+     * @return              A pointer to the entry if found, nullptr otherwise.
+     */
+    fossil_crabdb_entry_t* search(const std::string &key) {
+        return fossil_crabdb_search(book, key.c_str());
+    }
+
+    /**
+     * @brief Displays all entries in the database.
+     */
+    void display() {
+        fossil_crabdb_display(book);
+    }
+
+    /**
+     * @brief Counts the number of entries in the database.
+     * 
+     * @return              The number of entries in the database.
+     */
+    size_t size() {
+        return fossil_crabdb_size(book);
+    }
+
+    /**
+     * @brief Checks if the database is empty.
+     * 
+     * @return              True if the database is empty, false otherwise.
+     */
+    bool isEmpty() {
+        return fossil_crabdb_is_empty(book);
+    }
+
+    /**
+     * @brief Clears all entries from the database.
+     */
+    void clear() {
+        fossil_crabdb_clear(book);
+    }
+
+    /**
+     * @brief Sorts the database by key.
+     * 
+     * @param order         The sorting order (ascending or descending).
+     * @return              0 on success, non-zero on error.
+     */
+    bool dumpToFile(const std::string &filename) {
+        return fossil_crabdb_dump_to_file(book, filename.c_str());
+    }
+
+    /**
+     * @brief Loads the database content from a file.
+     * 
+     * @param filename      The name of the file to load.
+     * @return              True if the database was loaded successfully, false otherwise.
+     */
+    bool loadFromFile(const std::string &filename) {
+        return fossil_crabdb_load_from_file(book, filename.c_str());
+    }
+
+    /**
+     * @brief Validates the integrity of the database.
+     * 
+     * @return              True if the database is valid, false otherwise.
+     */
+    bool validate() {
+        return fossil_crabdb_validate(book);
+    }
+
+private:
+    fossil_crabdb_book_t *book;
+};
+
+}
+
 #endif
 
 #endif /* FOSSIL_CRABDB_FRAMEWORK_H */
