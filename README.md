@@ -1,13 +1,18 @@
 # ***Blue Crab Database by Fossil Logic***
 
-CrabDB is a lightweight, portable key-value database designed to provide fast and efficient data storage in a simple, easy-to-use format. Inspired by the metaphor of a book, CrabDB organizes data as pages in a book, where each page represents an entry in the database. This structure makes it intuitive to understand and interact with, while maintaining high performance for both small and large datasets.
+CrabDB is a lightweight, portable key-value database designed to offer fast and efficient data storage in a user-friendly format. Available in two distinct interfaces—**MyShell** and **NoShell**—CrabDB tailors its experience to fit various use cases, from those who prefer a SQL-like syntax to those who prefer raw, key-based access. Its book-inspired structure, where each entry is akin to a page in a book, makes managing key-value pairs intuitive and easy to understand, while ensuring high performance across both small and large datasets.
 
-## Key Features:
-- **Portable**: Designed to be platform-independent, CrabDB works seamlessly across different operating systems, allowing you to store and manage data with minimal dependencies.
-- **Book-Like Structure**: The database's organization is inspired by a book, where each entry is like a page in a book. This simple, yet powerful structure makes it easy to conceptualize and manage key-value pairs.
-- **Search and Lookup**: Quickly search and retrieve values by key with efficient lookup operations, making it ideal for use in a wide range of applications, from small utilities to larger systems.
-- **Simple API**: The database API is designed to be straightforward and easy to use, with a focus on simplicity and readability. Whether you're storing data for a small project or a larger system, CrabDB's API is intuitive enough for anyone to get started quickly.
-- **Efficient Memory Management**: With a focus on performance, CrabDB minimizes memory usage while maintaining fast access times and stable behavior, even with a growing dataset.
+## Key Features
+
+| **Feature**                     | **MyShell**                                                                                                                                   | **NoShell**                                                                                                                                |
+|----------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| **Portability & Cross-Platform** | Works across different operating systems, offering seamless performance with minimal dependencies.                                             | Works across various platforms without external dependencies, ensuring smooth performance.                                               |
+| **Interface**                    | SQL-like command interface, ideal for users familiar with relational databases.                                                               | Direct key-value CRUD operations with a minimalistic approach, no query language required.                                                |
+| **CRUD Operations**              | Insert, find, update, and delete key-value pairs with SQL-like commands.                                                                       | Perform CRUD operations using direct key-value access.                                                                                   |
+| **Backup and Restore**           | Supports backup and restore features using MyShell's command-line interface.                                                                   | Allows for easy backup and restore of database files with no query overhead.                                                              |
+| **API**                          | Intuitive API designed for SQL-like interaction.                                                                                              | Simple API for minimalistic key-value operations.                                                                                        |
+| **Memory Management**            | Optimized for low memory usage and fast access, even with large datasets.                                                                     | Ensures efficient memory usage and performance, even with direct key-value access.                                                        |
+| **Database Management**          | Full support for creating, opening, closing, and deleting databases, as well as managing backups.                                               | Supports similar database management operations with a direct approach, including backups and restores.                                   |
 
 ## Prerequisites
 
@@ -32,7 +37,7 @@ Before getting started, make sure you have the following installed:
    # ======================
    [wrap-git]
    url = https://github.com/fossillogic/fossil-crabdb.git
-   revision = v0.2.0
+   revision = v0.2.1
 
    [provide]
    fossil-crabdb = fossil_crabdb_dep
