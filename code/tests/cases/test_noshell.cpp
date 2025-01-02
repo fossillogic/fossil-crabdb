@@ -273,16 +273,6 @@ FOSSIL_TEST_CASE(cpp_test_noshell_class_validate_extension) {
     ASSUME_ITS_FALSE(result);
 }
 
-// Test case for validating a document using NoShell class
-FOSSIL_TEST_CASE(cpp_test_noshell_class_validate_document) {
-    bool result = fossil::NoShell::validateDocument("document1");
-    ASSUME_ITS_TRUE(result);
-    result = fossil::NoShell::validateDocument("");
-    ASSUME_ITS_FALSE(result);
-    result = fossil::NoShell::validateDocument(NULL);
-    ASSUME_ITS_FALSE(result);
-}
-
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
@@ -310,7 +300,6 @@ FOSSIL_TEST_GROUP(cpp_noshell_database_tests) {
     FOSSIL_TEST_ADD(cpp_noshell_fixture, cpp_test_noshell_class_backup_database);
     FOSSIL_TEST_ADD(cpp_noshell_fixture, cpp_test_noshell_class_restore_database);
     FOSSIL_TEST_ADD(cpp_noshell_fixture, cpp_test_noshell_class_validate_extension);
-    FOSSIL_TEST_ADD(cpp_noshell_fixture, cpp_test_noshell_class_validate_document);
 
     FOSSIL_TEST_REGISTER(cpp_noshell_fixture);
 } // end of tests

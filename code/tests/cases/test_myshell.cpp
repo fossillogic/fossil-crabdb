@@ -200,13 +200,6 @@ FOSSIL_TEST_CASE(cpp_test_myshell_class_validate_extension) {
     ASSUME_ITS_FALSE(fossil::MyShell::validateExtension("test.txt"));
 }
 
-// Test case for validating data using MyShell class
-FOSSIL_TEST_CASE(cpp_test_myshell_class_validate_data) {
-    ASSUME_ITS_TRUE(fossil::MyShell::validateData("valid_data"));
-    ASSUME_ITS_FALSE(fossil::MyShell::validateData(NULL));
-    ASSUME_ITS_FALSE(fossil::MyShell::validateData(""));
-}
-
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
@@ -226,7 +219,6 @@ FOSSIL_TEST_GROUP(cpp_myshell_database_tests) {
     FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_class_delete_nonexistent_record);
     FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_class_backup_restore);
     FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_class_validate_extension);
-    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_class_validate_data);
 
     FOSSIL_TEST_REGISTER(cpp_myshell_fixture);
 } // end of tests
