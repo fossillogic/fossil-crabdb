@@ -15,5 +15,7 @@
 #define FOSSIL_CRABDB_FRAMEWORK_H
 
 #include "database.h"
+#include "myshell.h"
+#include "noshell.h"
 
 #endif /* FOSSIL_CRABDB_FRAMEWORK_H */
