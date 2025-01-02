@@ -17,37 +17,23 @@
 #include <stdlib.h>
 
 // ===========================================================
-// Helper functions
-// ===========================================================
-
-static FILE* open_file(const char *file_name, const char *mode) {
-    return fopen(file_name, mode);
-}
-
-static void close_file(FILE *file) {
-    if (file != NULL) {
-        fclose(file);
-    }
-}
-
-// ===========================================================
 // CRUD Operations
 // ===========================================================
 
 fossil_myshell_error_t fossil_myshell_create_record(const char *file_name, const char *key, const char *value) {
-    FILE *file = open_file(file_name, "a");
+    FILE *file = fopen(file_name, "a");
     if (!file) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
 
     fprintf(file, "%s=%s\n", key, value);
-    close_file(file);
+    fclose(file);
 
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
 fossil_myshell_error_t fossil_myshell_read_record(const char *file_name, const char *key, char *value, size_t buffer_size) {
-    FILE *file = open_file(file_name, "r");
+    FILE *file = fopen(file_name, "r");
     if (!file) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
@@ -59,17 +45,17 @@ fossil_myshell_error_t fossil_myshell_read_record(const char *file_name, const c
 
         if (line_key && strcmp(line_key, key) == 0) {
             strncpy(value, line_value, buffer_size);
-            close_file(file);
+            fclose(file);
             return FOSSIL_MYSHELL_ERROR_SUCCESS;
         }
     }
 
-    close_file(file);
+    fclose(file);
     return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
 }
 
 fossil_myshell_error_t fossil_myshell_update_record(const char *file_name, const char *key, const char *new_value) {
-    FILE *file = open_file(file_name, "r+");
+    FILE *file = fopen(file_name, "r+");
     if (!file) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
@@ -87,26 +73,26 @@ fossil_myshell_error_t fossil_myshell_update_record(const char *file_name, const
     }
 
     if (!found) {
-        close_file(file);
+        fclose(file);
         return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
     }
 
     fseek(file, pos, SEEK_SET);
     fprintf(file, "%s=%s\n", key, new_value);
-    close_file(file);
+    fclose(file);
 
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
 fossil_myshell_error_t fossil_myshell_delete_record(const char *file_name, const char *key) {
-    FILE *file = open_file(file_name, "r");
+    FILE *file = fopen(file_name, "r");
     if (!file) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
 
-    FILE *temp_file = open_file("temp.crabdb", "w");
+    FILE *temp_file = fopen("temp.crabdb", "w");
     if (!temp_file) {
-        close_file(file);
+        fclose(file);
         return FOSSIL_MYSHELL_ERROR_IO;
     }
 
@@ -121,8 +107,8 @@ fossil_myshell_error_t fossil_myshell_delete_record(const char *file_name, const
         }
     }
 
-    close_file(file);
-    close_file(temp_file);
+    fclose(file);
+    fclose(temp_file);
 
     if (deleted) {
         remove(file_name);
@@ -139,22 +125,22 @@ fossil_myshell_error_t fossil_myshell_delete_record(const char *file_name, const
 // ===========================================================
 
 fossil_myshell_error_t fossil_myshell_create_database(const char *file_name) {
-    FILE *file = open_file(file_name, "w");
+    FILE *file = fopen(file_name, "w");
     if (!file) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
 
-    close_file(file);
+    fclose(file);
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
 fossil_myshell_error_t fossil_myshell_open_database(const char *file_name) {
-    FILE *file = open_file(file_name, "r");
+    FILE *file = fopen(file_name, "r");
     if (!file) {
         return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
     }
 
-    close_file(file);
+    fclose(file);
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
@@ -175,14 +161,14 @@ fossil_myshell_error_t fossil_myshell_delete_database(const char *file_name) {
 // ===========================================================
 
 fossil_myshell_error_t fossil_myshell_backup_database(const char *source_file, const char *backup_file) {
-    FILE *source = open_file(source_file, "rb");
+    FILE *source = fopen(source_file, "rb");
     if (!source) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
 
-    FILE *backup = open_file(backup_file, "wb");
+    FILE *backup = fopen(backup_file, "wb");
     if (!backup) {
-        close_file(source);
+        fclose(source);
         return FOSSIL_MYSHELL_ERROR_IO;
     }
 
@@ -192,21 +178,21 @@ fossil_myshell_error_t fossil_myshell_backup_database(const char *source_file, c
         fwrite(buffer, 1, bytes_read, backup);
     }
 
-    close_file(source);
-    close_file(backup);
+    fclose(source);
+    fclose(backup);
 
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
 fossil_myshell_error_t fossil_myshell_restore_database(const char *backup_file, const char *destination_file) {
-    FILE *backup = open_file(backup_file, "rb");
+    FILE *backup = fopen(backup_file, "rb");
     if (!backup) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
 
-    FILE *destination = open_file(destination_file, "wb");
+    FILE *destination = fopen(destination_file, "wb");
     if (!destination) {
-        close_file(backup);
+        fclose(backup);
         return FOSSIL_MYSHELL_ERROR_IO;
     }
 
@@ -216,8 +202,8 @@ fossil_myshell_error_t fossil_myshell_restore_database(const char *backup_file, 
         fwrite(buffer, 1, bytes_read, destination);
     }
 
-    close_file(backup);
-    close_file(destination);
+    fclose(backup);
+    fclose(destination);
 
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
