@@ -144,10 +144,6 @@ fossil_myshell_error_t fossil_myshell_open_database(const char *file_name) {
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
-fossil_myshell_error_t fossil_myshell_close_database(const char *file_name) {
-    return FOSSIL_MYSHELL_ERROR_SUCCESS;  // No specific action required for closure.
-}
-
 fossil_myshell_error_t fossil_myshell_delete_database(const char *file_name) {
     if (remove(file_name) == 0) {
         return FOSSIL_MYSHELL_ERROR_SUCCESS;

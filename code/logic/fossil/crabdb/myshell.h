@@ -116,14 +116,6 @@ fossil_myshell_error_t fossil_myshell_create_database(const char *file_name);
 fossil_myshell_error_t fossil_myshell_open_database(const char *file_name);
 
 /**
- * @brief Closes an open database file.
- * 
- * @param file_name     The name of the database file.
- * @return              0 on success, non-zero on error.
- */
-fossil_myshell_error_t fossil_myshell_close_database(const char *file_name);
-
-/**
  * @brief Deletes a database file.
  * 
  * @param file_name     The name of the database file.
@@ -262,16 +254,6 @@ public:
      */
     static fossil_myshell_error_t openDatabase(const std::string &fileName) {
         return fossil_myshell_open_database(fileName.c_str());
-    }
-
-    /**
-     * @brief Closes an open database file.
-     * 
-     * @param fileName      The name of the database file.
-     * @return              0 on success, non-zero on error.
-     */
-    static fossil_myshell_error_t closeDatabase(const std::string &fileName) {
-        return fossil_myshell_close_database(fileName.c_str());
     }
 
     /**

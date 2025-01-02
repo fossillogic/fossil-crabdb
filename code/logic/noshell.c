@@ -147,10 +147,6 @@ fossil_noshell_error_t fossil_noshell_open_database(const char *file_name) {
     return FOSSIL_NOSHELL_ERROR_SUCCESS;
 }
 
-fossil_noshell_error_t fossil_noshell_close_database(const char *file_name) {
-    return FOSSIL_NOSHELL_ERROR_SUCCESS;  // No specific action required for closure.
-}
-
 fossil_noshell_error_t fossil_noshell_delete_database(const char *file_name) {
     if (remove(file_name) == 0) {
         return FOSSIL_NOSHELL_ERROR_SUCCESS;
