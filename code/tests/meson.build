@@ -3,7 +3,7 @@ if get_option('with_test').enabled()
 
     test_c   = ['unit_runner.c']
     test_cases = [
-        'database', # 'query', 'search'
+        'myshell', 'noshell'
     ]
 
     foreach cases : test_cases
