@@ -218,6 +218,8 @@ FOSSIL_TEST_GROUP(cpp_myshell_database_tests) {
     FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_backup_restore);
     FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_validate_extension);
     FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_validate_data);
+
+    // Adding new class-based test cases
     FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_class_create_record);
     FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_class_read_nonexistent_record);
     FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_class_update_nonexistent_record);
