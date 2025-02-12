@@ -11,8 +11,7 @@ RUN pacman -Syu --noconfirm && \
     clang \
     gdb \
     llvm \
-    rust \
-    cargo \
+    cmake \
     wget \
     python \
     python-pip \
