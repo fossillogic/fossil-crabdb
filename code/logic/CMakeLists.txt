@@ -8,15 +8,8 @@ file(GLOB HEADER_FILES ${CMAKE_CURRENT_SOURCE_DIR}/fossil/*.h)
 
 # List the source files
 set(TEST_CODE
-    serialize.c
-    parser.c
-    error.c
-    input.c
-    output.c
-    soap.c
-    stream.c
-    keyboard.c
-    network.c
+    myshell.c
+    noshell.c
 )
 
 # Create the library target
