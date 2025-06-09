@@ -11,7 +11,7 @@
  * Copyright (C) 2024 Fossil Logic. All rights reserved.
  * -----------------------------------------------------------------------------
  */
-#include <fossil/test/framework.h>
+#include <fossil/pizza/framework.h>
 
 #include "fossil/crabdb/framework.h"
 
@@ -22,7 +22,7 @@
 // mock objects are set here.
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
-FOSSIL_TEST_SUITE(c_myshell_fixture);
+FOSSIL_SUITE(c_myshell_fixture);
 
 FOSSIL_SETUP(c_myshell_fixture) {
     // Setup the test fixture
@@ -37,7 +37,7 @@ FOSSIL_TEARDOWN(c_myshell_fixture) {
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
 // Test case for creating a new record in the database file
-FOSSIL_TEST_CASE(c_test_myshell_create_record) {
+FOSSIL_TEST(c_test_myshell_create_record) {
     const char *file_name = "test.crabdb";
     fossil_myshell_create_database(file_name);
     fossil_myshell_error_t result = fossil_myshell_create_record(file_name, "key1", "value1");
@@ -52,7 +52,7 @@ FOSSIL_TEST_CASE(c_test_myshell_create_record) {
 }
 
 // Test case for reading a non-existent record from the database file
-FOSSIL_TEST_CASE(c_test_myshell_read_nonexistent_record) {
+FOSSIL_TEST(c_test_myshell_read_nonexistent_record) {
     const char *file_name = "test.crabdb";
     fossil_myshell_create_database(file_name);
 
@@ -64,7 +64,7 @@ FOSSIL_TEST_CASE(c_test_myshell_read_nonexistent_record) {
 }
 
 // Test case for updating a non-existent record in the database file
-FOSSIL_TEST_CASE(c_test_myshell_update_nonexistent_record) {
+FOSSIL_TEST(c_test_myshell_update_nonexistent_record) {
     const char *file_name = "test.crabdb";
     fossil_myshell_create_database(file_name);
 
@@ -75,7 +75,7 @@ FOSSIL_TEST_CASE(c_test_myshell_update_nonexistent_record) {
 }
 
 // Test case for deleting a non-existent record from the database file
-FOSSIL_TEST_CASE(c_test_myshell_delete_nonexistent_record) {
+FOSSIL_TEST(c_test_myshell_delete_nonexistent_record) {
     const char *file_name = "test.crabdb";
     fossil_myshell_create_database(file_name);
 
@@ -86,7 +86,7 @@ FOSSIL_TEST_CASE(c_test_myshell_delete_nonexistent_record) {
 }
 
 // Test case for backing up and restoring a database file
-FOSSIL_TEST_CASE(c_test_myshell_backup_restore) {
+FOSSIL_TEST(c_test_myshell_backup_restore) {
     const char *file_name = "test.crabdb";
     const char *backup_file = "backup.crabdb";
     fossil_myshell_create_database(file_name);
@@ -109,13 +109,13 @@ FOSSIL_TEST_CASE(c_test_myshell_backup_restore) {
 }
 
 // Test case for validating the file extension of a database file
-FOSSIL_TEST_CASE(c_test_myshell_validate_extension) {
+FOSSIL_TEST(c_test_myshell_validate_extension) {
     ASSUME_ITS_TRUE(fossil_myshell_validate_extension("test.crabdb"));
     ASSUME_ITS_FALSE(fossil_myshell_validate_extension("test.txt"));
 }
 
 // Test case for validating data
-FOSSIL_TEST_CASE(c_test_myshell_validate_data) {
+FOSSIL_TEST(c_test_myshell_validate_data) {
     ASSUME_ITS_TRUE(fossil_myshell_validate_data("valid_data"));
     ASSUME_ITS_FALSE(fossil_myshell_validate_data(NULL));
     ASSUME_ITS_FALSE(fossil_myshell_validate_data(""));

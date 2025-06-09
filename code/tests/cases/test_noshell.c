@@ -11,7 +11,7 @@
  * Copyright (C) 2024 Fossil Logic. All rights reserved.
  * -----------------------------------------------------------------------------
  */
-#include <fossil/test/framework.h>
+#include <fossil/pizza/framework.h>
 
 #include "fossil/crabdb/framework.h"
 
@@ -22,7 +22,7 @@
 // mock objects are set here.
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
-FOSSIL_TEST_SUITE(c_noshell_fixture);
+FOSSIL_SUITE(c_noshell_fixture);
 
 FOSSIL_SETUP(c_noshell_fixture) {
     // Setup the test fixture
@@ -37,14 +37,14 @@ FOSSIL_TEARDOWN(c_noshell_fixture) {
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
 // Test case for creating a new database
-FOSSIL_TEST_CASE(c_test_noshell_create_database) {
+FOSSIL_TEST(c_test_noshell_create_database) {
     fossil_noshell_error_t result = fossil_noshell_create_database("test.crabdb");
     ASSUME_ITS_TRUE(result == FOSSIL_NOSHELL_ERROR_SUCCESS);
     remove("test.crabdb");
 }
 
 // Test case for opening an existing database
-FOSSIL_TEST_CASE(c_test_noshell_open_database) {
+FOSSIL_TEST(c_test_noshell_open_database) {
     FILE *file = fopen("test.crabdb", "w");
     fclose(file);
     fossil_noshell_error_t result = fossil_noshell_open_database("test.crabdb");
@@ -53,7 +53,7 @@ FOSSIL_TEST_CASE(c_test_noshell_open_database) {
 }
 
 // Test case for deleting a database
-FOSSIL_TEST_CASE(c_test_noshell_delete_database) {
+FOSSIL_TEST(c_test_noshell_delete_database) {
     FILE *file = fopen("test.crabdb", "w");
     fclose(file);
     fossil_noshell_error_t result = fossil_noshell_delete_database("test.crabdb");
@@ -61,7 +61,7 @@ FOSSIL_TEST_CASE(c_test_noshell_delete_database) {
 }
 
 // Test case for inserting a document into the database
-FOSSIL_TEST_CASE(c_test_noshell_insert_document) {
+FOSSIL_TEST(c_test_noshell_insert_document) {
     FILE *file = fopen("test.crabdb", "w");
     fclose(file);
     fossil_noshell_error_t result = fossil_noshell_insert("test.crabdb", "document1");
@@ -70,7 +70,7 @@ FOSSIL_TEST_CASE(c_test_noshell_insert_document) {
 }
 
 // Test case for finding a document in the database
-FOSSIL_TEST_CASE(c_test_noshell_find_document) {
+FOSSIL_TEST(c_test_noshell_find_document) {
     FILE *file = fopen("test.crabdb", "w");
     fprintf(file, "document1\n");
     fclose(file);
@@ -82,7 +82,7 @@ FOSSIL_TEST_CASE(c_test_noshell_find_document) {
 }
 
 // Test case for updating a document in the database
-FOSSIL_TEST_CASE(c_test_noshell_update_document) {
+FOSSIL_TEST(c_test_noshell_update_document) {
     FILE *file = fopen("test.crabdb", "w");
     fprintf(file, "document1\n");
     fclose(file);
@@ -95,7 +95,7 @@ FOSSIL_TEST_CASE(c_test_noshell_update_document) {
 }
 
 // Test case for removing a document from the database
-FOSSIL_TEST_CASE(c_test_noshell_remove_document) {
+FOSSIL_TEST(c_test_noshell_remove_document) {
     FILE *file = fopen("test.crabdb", "w");
     fprintf(file, "document1\n");
     fclose(file);
@@ -108,7 +108,7 @@ FOSSIL_TEST_CASE(c_test_noshell_remove_document) {
 }
 
 // Test case for backing up a database
-FOSSIL_TEST_CASE(c_test_noshell_backup_database) {
+FOSSIL_TEST(c_test_noshell_backup_database) {
     FILE *file = fopen("test.crabdb", "w");
     fprintf(file, "document1\n");
     fclose(file);
@@ -125,7 +125,7 @@ FOSSIL_TEST_CASE(c_test_noshell_backup_database) {
 }
 
 // Test case for restoring a database from a backup
-FOSSIL_TEST_CASE(c_test_noshell_restore_database) {
+FOSSIL_TEST(c_test_noshell_restore_database) {
     FILE *backup = fopen("backup.crabdb", "w");
     fprintf(backup, "document1\n");
     fclose(backup);
@@ -142,7 +142,7 @@ FOSSIL_TEST_CASE(c_test_noshell_restore_database) {
 }
 
 // Test case for validating the file extension
-FOSSIL_TEST_CASE(c_test_noshell_validate_extension) {
+FOSSIL_TEST(c_test_noshell_validate_extension) {
     bool result = fossil_noshell_validate_extension("test.crabdb");
     ASSUME_ITS_TRUE(result);
     result = fossil_noshell_validate_extension("test.txt");
@@ -150,7 +150,7 @@ FOSSIL_TEST_CASE(c_test_noshell_validate_extension) {
 }
 
 // Test case for validating a document
-FOSSIL_TEST_CASE(c_test_noshell_validate_document) {
+FOSSIL_TEST(c_test_noshell_validate_document) {
     bool result = fossil_noshell_validate_document("document1");
     ASSUME_ITS_TRUE(result);
     result = fossil_noshell_validate_document("");

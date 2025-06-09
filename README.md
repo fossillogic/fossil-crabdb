@@ -19,7 +19,6 @@ CrabDB is a lightweight, portable key-value database designed to offer fast and 
 To get started with Fossil CrabDB, ensure you have the following installed:
 
 - **Meson Build System**: If you don’t have Meson installed, follow the installation instructions on the official [Meson website](https://mesonbuild.com/Getting-meson.html).
-- **CMake Build System**: If you don’t have CMake installed, follow the installation instructions on the official [CMake website](https://cmake.org/getting-started/).
 
 ### Adding Fossil CrabDB Dependency
 
@@ -54,36 +53,6 @@ To get started with Fossil CrabDB, ensure you have the following installed:
    ```ini
    dep = dependency('fossil-crabdb')
    ```
-
----
-
-#### Adding Fossil CrabDB Dependency With CMake
-
-To use Fossil CrabDB with CMake, follow these steps:
-
-1. **Install CMake**:
-   Install CMake version `3.13.4` or newer:
-
-   ```sh
-   python -m pip install cmake           # To install CMake
-   python -m pip install --upgrade cmake # To upgrade CMake
-   ```
-
-2. **Find and Integrate Fossil CrabDB**:
-   After installing CMake, you can integrate Fossil CrabDB as a dependency. Add the following lines to your `CMakeLists.txt` file:
-
-   ```cmake
-   # Find Fossil CrabDB package
-   find_package(FossilCrabDB REQUIRED)
-
-   # Link the Fossil CrabDB to your project
-   target_link_libraries(your_target FossilCrabDB)
-   ```
-
-3. **Configure Your CMake Project**:
-   Make sure to configure your CMake project to include the necessary paths and dependencies for Fossil CrabDB. Typically, you’ll want to make sure the `FossilCrabDB` library is correctly linked in your build configuration.
-
-   This will ensure that Fossil CrabDB is included and properly built with your project.
 
 ---
 
