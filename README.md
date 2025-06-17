@@ -41,7 +41,7 @@ To get started with Fossil CrabDB, ensure you have the following installed:
    # ======================
    [wrap-git]
    url = https://github.com/fossillogic/fossil-crabdb.git
-   revision = v0.2.2
+   revision = v0.2.3
 
    [provide]
    fossil-crabdb = fossil_crabdb_dep
