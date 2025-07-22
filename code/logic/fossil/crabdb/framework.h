@@ -16,5 +16,6 @@
 
 #include "myshell.h"
 #include "noshell.h"
+#include "bluecrab.h"
 
 #endif /* FOSSIL_CRABDB_FRAMEWORK_H */
