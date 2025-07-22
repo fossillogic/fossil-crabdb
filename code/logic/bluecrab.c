@@ -268,7 +268,7 @@ int fossil_bluecrab_calculate_hash(const uint8_t *data, size_t len, char out_has
     }
 
     // Simulate hash calculation (replace with actual hashing logic)
-    snprintf(out_hash, FOSSIL_BLUECRAB_HASH_SIZE, "hash_%zu", len);
+    snprintf(out_hash, FOSSIL_BLUECRAB_HASH_SIZE, "hash_%llu", (unsigned long long)len);
     return 0;
 }
 
@@ -403,7 +403,7 @@ int fossil_bluecrab_export_log(const fossil_bluecrab_t *crab, const char *outpat
 
     for (size_t i = 0; i < crab->chain_length; i++) {
         const fossil_bluecrab_block_t *block = &crab->chain[i];
-        fprintf(file, "Block %zu:\n", i);
+        fprintf(file, "Block %llu:\n", (unsigned long long)i);
         fprintf(file, "  Index: %llu\n", (unsigned long long)block->block_index);
         fprintf(file, "  Timestamp: %llu\n", (unsigned long long)block->timestamp_unix);
         fprintf(file, "  Previous Hash: %s\n", block->prev_hash);
