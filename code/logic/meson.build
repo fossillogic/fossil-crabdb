@@ -6,7 +6,7 @@ dep = [
     ]
 
 fossil_crabdb_lib = static_library('fossil-crabdb',
-    files('myshell.c', 'noshell.c'),
+    files('myshell.c', 'noshell.c', 'bluecrab.c'),
     install: true,
     dependencies: dep,
     include_directories: dir)
