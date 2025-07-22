@@ -303,9 +303,9 @@ void fossil_bluecrab_debug_dump(const fossil_bluecrab_t *crab) {
     printf("Blue Crab Protocol: %s\n", crab->protocol);
     printf("Crabfile Path: %s\n", crab->crabfile_path);
     printf("Storage Path: %s\n", crab->storage_path);
-    printf("Field Count: %u\n", crab->field_count);
+    printf("Field Count: %llu\n", (unsigned long long)crab->field_count);
     printf("Last Block Index: %llu\n", (unsigned long long)crab->last_block_index);
-    printf("Chain Length: %u\n", crab->chain_length);
+    printf("Chain Length: %llu\n", (unsigned long long)crab->chain_length);
     printf("Writable: %s\n", crab->writable ? "Yes" : "No");
     printf("Initialized: %s\n", crab->initialized ? "Yes" : "No");
 
