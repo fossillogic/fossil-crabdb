@@ -118,7 +118,7 @@ FOSSIL_TEST(cpp_test_noshell_backup_database) {
     FILE *backup = fopen("backup.crabdb", "r");
     ASSUME_NOT_CNULL(backup);
     char buffer[256];
-    fgets(buffer, sizeof(buffer), backup);
+    (void)fgets(buffer, sizeof(buffer), backup);
     ASSUME_ITS_TRUE(strcmp(buffer, "document1\n") == 0);
     fclose(backup);
     std::remove("test.crabdb");
@@ -135,7 +135,7 @@ FOSSIL_TEST(cpp_test_noshell_restore_database) {
     FILE *restored = fopen("restored.crabdb", "r");
     ASSUME_NOT_CNULL(restored);
     char buffer[256];
-    fgets(buffer, sizeof(buffer), restored);
+    (void)fgets(buffer, sizeof(buffer), restored);
     ASSUME_ITS_TRUE(strcmp(buffer, "document1\n") == 0);
     fclose(restored);
     std::remove("backup.crabdb");
@@ -241,7 +241,7 @@ FOSSIL_TEST(cpp_test_noshell_class_backup_database) {
     FILE *backup = fopen("backup_class.crabdb", "r");
     ASSUME_NOT_CNULL(backup);
     char buffer[256];
-    fgets(buffer, sizeof(buffer), backup);
+    (void)fgets(buffer, sizeof(buffer), backup);
     ASSUME_ITS_TRUE(strcmp(buffer, "document1\n") == 0);
     fclose(backup);
     std::remove("test_class.crabdb");
@@ -258,7 +258,7 @@ FOSSIL_TEST(cpp_test_noshell_class_restore_database) {
     FILE *restored = fopen("restored_class.crabdb", "r");
     ASSUME_NOT_CNULL(restored);
     char buffer[256];
-    fgets(buffer, sizeof(buffer), restored);
+    (void)fgets(buffer, sizeof(buffer), restored);
     ASSUME_ITS_TRUE(strcmp(buffer, "document1\n") == 0);
     fclose(restored);
     std::remove("backup_class.crabdb");
