@@ -20,41 +20,34 @@ To get started with Fossil CrabDB, ensure you have the following installed:
 
 - **Meson Build System**: If you don’t have Meson installed, follow the installation instructions on the official [Meson website](https://mesonbuild.com/Getting-meson.html).
 
-### Adding Fossil CrabDB Dependency
+### Adding Dependency
 
-#### Adding Fossil CrabDB Dependency With Meson
+#### Adding via Meson Git Wrap
 
-1. **Install Meson Build System**:
-   Install Meson version `1.3` or newer:
+To add a git-wrap, place a `.wrap` file in `subprojects` with the Git repo URL and revision, then use `dependency('fossil-crabdb')` in `meson.build` so Meson can fetch and build it automatically.
 
-   ```sh
-   python -m pip install meson           # To install Meson
-   python -m pip install --upgrade meson # To upgrade Meson
-   ```
+#### Adding via Conan GitHub repository
 
-2. **Create a `.wrap` File**:
-   Add the `fossil-crabdb.wrap` file in your `subprojects` directory and include the following content:
+ packages directly from a GitHub repository if it contains a valid `conanfile.py`.
 
-   ```ini
-   # ======================
-   # Git Wrap package definition
-   # ======================
-   [wrap-git]
-   url = https://github.com/fossillogic/fossil-crabdb.git
-   revision = v0.2.3
+```bash
+conan install git+https://github.com/fossillogic/fossil-crabdb.git#v0.2.4 --name fossil_crabdb --build=missing
+```
 
-   [provide]
-   fossil-crabdb = fossil_crabdb_dep
-   ```
+#### Integrate the Dependency:
 
-3. **Integrate the Dependency**:
-   In your `meson.build` file, integrate Fossil CrabDB by adding the following line:
+Add the `fossil-crabdb.wrap` file in your `subprojects` directory and include the following content:
 
-   ```ini
-   dep = dependency('fossil-crabdb')
-   ```
+```ini
+[wrap-git]
+url = https://github.com/fossillogic/fossil-crabdb.git
+revision = v0.2.4
 
----
+[provide]
+dependency_names = fossil-crabdb
+```
+
+**Note**: For the best experience, always use the latest releases. Visit the [releases](https://github.com/fossillogic/fossil-crabdb/releases) page for the latest versions.
 
 ## Configure Options
 
