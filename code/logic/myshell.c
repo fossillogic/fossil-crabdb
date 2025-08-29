@@ -13,6 +13,12 @@
  */
 #include "fossil/crabdb/myshell.h"
 
+// Helper macro for safe snprintf of key=value pairs
+#define SAFE_SNPRINTF_KV(buf, bufsize, key, value) \
+    snprintf((buf), (bufsize), "%.*s=%.*s", \
+             (int)((bufsize)/2 - 1), (key), \
+             (int)((bufsize)/2 - 1), (value))
+
 #define MAX_OPEN_DBS 32
 
 static const char* open_dbs[MAX_OPEN_DBS] = {0};
@@ -117,7 +123,7 @@ fossil_myshell_error_t fossil_myshell_read_record(const char *file_name, const c
             continue;
 
         char temp[512];
-        snprintf(temp, sizeof(temp), "%s=%s", line_key, line_value);
+        SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
         unsigned long calc_hash = fossil_myshell_hash(temp);
 
         if (calc_hash != stored_hash)
@@ -169,7 +175,7 @@ fossil_myshell_error_t fossil_myshell_update_record(const char *file_name, const
         } else {
             // preserve existing
             char record[512];
-            snprintf(record, sizeof(record), "%s=%s", line_key, line_value);
+            SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
             fprintf(temp, "%s|%lu\n", record, stored_hash);
         }
     }
@@ -218,7 +224,7 @@ fossil_myshell_error_t fossil_myshell_delete_record(const char *file_name, const
         }
 
         char record[512];
-        snprintf(record, sizeof(record), "%s=%s", line_key, line_value);
+        SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
         fprintf(temp, "%s|%lu\n", record, stored_hash);
     }
 
