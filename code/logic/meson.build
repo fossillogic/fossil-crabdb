@@ -15,3 +15,5 @@ fossil_crabdb_dep = declare_dependency(
     link_with: [fossil_crabdb_lib],
     dependencies: dep,
     include_directories: dir)
+
+meson.override_dependency('fossil-crabdb', fossil_crabdb_dep)
