@@ -98,7 +98,7 @@ fossil_myshell_error_t fossil_myshell_create_record(const char *file_name, const
     if (!file) return FOSSIL_MYSHELL_ERROR_IO;
 
     char record[512];
-    SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
+    snprintf(record, sizeof(record), "%s=%s", key, value);
     unsigned long hash = fossil_myshell_hash(record);
 
     fprintf(file, "%s|%lu\n", record, hash);
