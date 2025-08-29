@@ -123,7 +123,7 @@ fossil_myshell_error_t fossil_myshell_read_record(const char *file_name, const c
             continue;
 
         char temp[512];
-        SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
+        snprintf(temp, sizeof(temp), "%s=%s", line_key, line_value);
         unsigned long calc_hash = fossil_myshell_hash(temp);
 
         if (calc_hash != stored_hash)
