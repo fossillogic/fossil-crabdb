@@ -47,11 +47,6 @@ static bool fossil_myshell_split_record(char *line, char **key, char **value, un
     return true;
 }
 
-bool fossil_myshell_validate_extension(const char *file_name) {
-    const char *ext = strrchr(file_name, '.');
-    return ext && strcmp(ext, ".fdb") == 0;
-}
-
 // ===========================================================
 // CRUD Operations
 // ===========================================================
@@ -347,8 +342,48 @@ fossil_myshell_error_t fossil_myshell_restore_database(const char *backup_file, 
 // Query and Data Validation
 // ===========================================================
 
+/**
+ * @brief Verifies the integrity of a .fdb database file by checking all record hashes.
+ * 
+ * @param file_name     The name of the database file.
+ * @return              FOSSIL_MYSHELL_ERROR_SUCCESS if all records pass,
+ *                      FOSSIL_MYSHELL_ERROR_CORRUPTED if any record fails,
+ *                      other error codes on I/O or invalid file.
+ */
+fossil_myshell_error_t fossil_myshell_verify_database(const char *file_name) {
+    if (!fossil_myshell_validate_extension(file_name))
+        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+
+    FILE *file = fopen(file_name, "r");
+    if (!file) return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
+
+    char line[512];
+    while (fgets(line, sizeof(line), file)) {
+        char *line_key, *line_value;
+        unsigned long stored_hash;
+
+        if (!fossil_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
+            fclose(file);
+            return FOSSIL_MYSHELL_ERROR_CORRUPTED;
+        }
+
+        char record[512];
+        snprintf(record, sizeof(record), "%s=%s", line_key, line_value);
+        unsigned long calc_hash = fossil_myshell_hash(record);
+
+        if (calc_hash != stored_hash) {
+            fclose(file);
+            return FOSSIL_MYSHELL_ERROR_CORRUPTED;
+        }
+    }
+
+    fclose(file);
+    return FOSSIL_MYSHELL_ERROR_SUCCESS;
+}
+
 bool fossil_myshell_validate_extension(const char *file_name) {
-    return strstr(file_name, ".fdb") != NULL;
+    const char *ext = strrchr(file_name, '.');
+    return ext && strcmp(ext, ".fdb") == 0;
 }
 
 bool fossil_myshell_validate_data(const char *data) {
