@@ -42,22 +42,6 @@ static char* fossil_myshell_strdup(const char *str) {
     return copy;
 }
 
-// Helper: mark database as open
-static bool mark_db_open(const char *file_name) {
-    for (int i = 0; i < MAX_OPEN_DBS; i++) {
-        if (open_dbs[i] && strcmp(open_dbs[i], file_name) == 0) {
-            return false; // already open
-        }
-    }
-    for (int i = 0; i < MAX_OPEN_DBS; i++) {
-        if (open_dbs[i] == NULL) {
-            open_dbs[i] = fossil_myshell_strdup(file_name);
-            return true;
-        }
-    }
-    return false; // no space
-}
-
 // Helper: mark database as closed
 static bool mark_db_closed(const char *file_name) {
     for (int i = 0; i < MAX_OPEN_DBS; i++) {
