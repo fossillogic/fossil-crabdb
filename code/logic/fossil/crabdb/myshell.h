@@ -19,6 +19,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <sys/stat.h>   // for file size
+#include <errno.h>
 #include <stdio.h>
 #include <time.h>
 
@@ -41,6 +43,12 @@ typedef enum {
     FOSSIL_MYSHELL_ERROR_INVALID_QUERY,
     FOSSIL_MYSHELL_ERROR_CONCURRENCY,
     FOSSIL_MYSHELL_ERROR_NOT_FOUND,
+    FOSSIL_MYSHELL_ERROR_PERMISSION_DENIED,
+    FOSSIL_MYSHELL_ERROR_CORRUPTED,
+    FOSSIL_MYSHELL_ERROR_OUT_OF_MEMORY,
+    FOSSIL_MYSHELL_ERROR_UNSUPPORTED,
+    FOSSIL_MYSHELL_ERROR_LOCKED,
+    FOSSIL_MYSHELL_ERROR_TIMEOUT,
     FOSSIL_MYSHELL_ERROR_ALREADY_EXISTS,
     FOSSIL_MYSHELL_ERROR_BACKUP_FAILED,
     FOSSIL_MYSHELL_ERROR_RESTORE_FAILED,
@@ -160,6 +168,69 @@ bool fossil_myshell_validate_extension(const char *file_name);
  * @return              True if the data is valid, false otherwise.
  */
 bool fossil_myshell_validate_data(const char *data);
+
+/**
+ * @brief Closes an opened database file.
+ * 
+ * @param file_name     The name of the database file.
+ * @return              0 on success, non-zero on error.
+ */
+fossil_myshell_error_t fossil_myshell_close_database(const char *file_name);
+
+/**
+ * @brief Checks if a database file is currently open.
+ * 
+ * @param file_name     The name of the database file.
+ * @return              True if open, false otherwise.
+ */
+bool fossil_myshell_is_open(const char *file_name);
+
+/**
+ * @brief Gets the first key in the database.
+ * 
+ * @param file_name     The name of the database file.
+ * @param key_buffer    Buffer to store the key.
+ * @param buffer_size   Size of the buffer.
+ * @return              0 on success, non-zero on error.
+ */
+fossil_myshell_error_t fossil_myshell_first_key(const char *file_name, char *key_buffer, size_t buffer_size);
+
+/**
+ * @brief Gets the next key in the database (iteration).
+ * 
+ * @param file_name     The name of the database file.
+ * @param prev_key      The previous key from iteration.
+ * @param key_buffer    Buffer to store the next key.
+ * @param buffer_size   Size of the buffer.
+ * @return              0 on success, non-zero on error, or EOF if no more keys.
+ */
+fossil_myshell_error_t fossil_myshell_next_key(const char *file_name, const char *prev_key, char *key_buffer, size_t buffer_size);
+
+/**
+ * @brief Gets the total number of records in the database.
+ * 
+ * @param file_name     The name of the database file.
+ * @param count         Pointer to store the record count.
+ * @return              0 on success, non-zero on error.
+ */
+fossil_myshell_error_t fossil_myshell_count_records(const char *file_name, size_t *count);
+
+/**
+ * @brief Gets the size of the database file in bytes.
+ * 
+ * @param file_name     The name of the database file.
+ * @param size_bytes    Pointer to store the file size.
+ * @return              0 on success, non-zero on error.
+ */
+fossil_myshell_error_t fossil_myshell_get_file_size(const char *file_name, size_t *size_bytes);
+
+/**
+ * @brief Converts an error code to a human-readable string.
+ * 
+ * @param error_code    The error code.
+ * @return              A string describing the error.
+ */
+const char* fossil_myshell_error_string(fossil_myshell_error_t error_code);
 
 #ifdef __cplusplus
 }
