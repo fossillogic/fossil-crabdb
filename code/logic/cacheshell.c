@@ -13,6 +13,28 @@
  */
 #include "fossil/crabdb/cacheshell.h"
 
+/**
+ * @brief Custom strdup implementation.
+ * 
+ * @param src       The source string to duplicate.
+ * @return          Pointer to newly allocated string, or NULL on failure.
+ */
+char* fossil_cacheshell_strdup(const char *src) {
+    if (!src) return NULL;
+
+    size_t len = 0;
+    while (src[len] != '\0') len++;   // compute length manually
+
+    char *dup = (char*)malloc(len + 1); // +1 for null terminator
+    if (!dup) return NULL;
+
+    for (size_t i = 0; i < len; i++) {
+        dup[i] = src[i];
+    }
+    dup[len] = '\0';
+
+    return dup;
+}
 
 // *****************************************************************************
 // Internal Data Structures
@@ -69,7 +91,7 @@ static cache_entry_t *alloc_entry(const char *key) {
     for (size_t i = 0; i < CACHE_TABLE_SIZE; i++) {
         size_t idx = (h + i) % CACHE_TABLE_SIZE;
         if (!cache_table[idx].in_use) {
-            cache_table[idx].key = strdup(key);
+            cache_table[idx].key = fossil_cacheshell_strdup(key);
             cache_table[idx].value = NULL;
             cache_table[idx].value_size = 0;
             cache_table[idx].expire_at = 0;
