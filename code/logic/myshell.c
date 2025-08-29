@@ -14,13 +14,10 @@
 #include "fossil/crabdb/myshell.h"
 
 // Helper macro for safe snprintf of key=value pairs
-// Safe snprintf for key=value pairs into fixed-size buffer
 #define SAFE_SNPRINTF_KV(buf, bufsize, key, value) \
-    do { \
-        size_t maxlen = (bufsize) - 1; \
-        size_t half = maxlen / 2; \
-        snprintf((buf), (bufsize), "%.*s=%.*s", (int)half, (key), (int)(maxlen - half), (value)); \
-    } while(0)
+    snprintf((buf), (bufsize), "%.*s=%.*s", \
+             (int)((bufsize)/2 - 1), (key), \
+             (int)((bufsize)/2 - 1), (value))
 
 #define MAX_OPEN_DBS 32
 
