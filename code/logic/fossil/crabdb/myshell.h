@@ -154,6 +154,16 @@ fossil_myshell_error_t fossil_myshell_restore_database(const char *backup_file, 
 // Query and data validation
 
 /**
+ * @brief Verifies the integrity of a .fdb database file by checking all record hashes.
+ * 
+ * @param file_name     The name of the database file.
+ * @return              FOSSIL_MYSHELL_ERROR_SUCCESS if all records pass,
+ *                      FOSSIL_MYSHELL_ERROR_CORRUPTED if any record fails,
+ *                      other error codes on I/O or invalid file.
+ */
+fossil_myshell_error_t fossil_myshell_verify_database(const char *file_name);
+
+/**
  * @brief Validates the file extension of a database file.
  * 
  * @param file_name     The name of the database file.
