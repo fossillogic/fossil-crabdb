@@ -16,35 +16,106 @@
 #include <string.h>
 #include <stdlib.h>
 
+
+static unsigned long fossil_myshell_hash(const char *str) {
+    unsigned long hash = 5381;
+    int c;
+    while ((c = *str++)) {
+        hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+    }
+    return hash;
+}
+
+static bool fossil_myshell_split_record(char *line, char **key, char **value, unsigned long *stored_hash) {
+    // Format: key=value|hash
+    char *hash_sep = strrchr(line, '|');
+    if (!hash_sep) return false;
+    *hash_sep = '\0';
+    *stored_hash = strtoul(hash_sep + 1, NULL, 10);
+
+    char *eq = strchr(line, '=');
+    if (!eq) return false;
+
+    *eq = '\0';
+    *key = line;
+    *value = eq + 1;
+
+    return true;
+}
+
+bool fossil_myshell_validate_extension(const char *file_name) {
+    const char *ext = strrchr(file_name, '.');
+    return ext && strcmp(ext, ".fdb") == 0;
+}
+
 // ===========================================================
 // CRUD Operations
 // ===========================================================
 
-fossil_myshell_error_t fossil_myshell_create_record(const char *file_name, const char *key, const char *value) {
-    FILE *file = fopen(file_name, "a");
-    if (!file) {
-        return FOSSIL_MYSHELL_ERROR_IO;
-    }
+fossil_myshell_error_t fossil_myshell_create_database(const char *file_name) {
+    if (!fossil_myshell_validate_extension(file_name))
+        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
 
-    fprintf(file, "%s=%s\n", key, value);
+    FILE *file = fopen(file_name, "w");
+    if (!file) return FOSSIL_MYSHELL_ERROR_IO;
+
+    fclose(file);
+    return FOSSIL_MYSHELL_ERROR_SUCCESS;
+}
+
+fossil_myshell_error_t fossil_myshell_open_database(const char *file_name) {
+    if (!fossil_myshell_validate_extension(file_name))
+        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+
+    FILE *file = fopen(file_name, "r");
+    if (!file) return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
+
+    fclose(file);
+    return FOSSIL_MYSHELL_ERROR_SUCCESS;
+}
+
+fossil_myshell_error_t fossil_myshell_create_record(const char *file_name, const char *key, const char *value) {
+    if (!fossil_myshell_validate_extension(file_name))
+        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+
+    FILE *file = fopen(file_name, "a");
+    if (!file) return FOSSIL_MYSHELL_ERROR_IO;
+
+    char record[512];
+    snprintf(record, sizeof(record), "%s=%s", key, value);
+    unsigned long hash = fossil_myshell_hash(record);
+
+    fprintf(file, "%s|%lu\n", record, hash);
     fclose(file);
 
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
 fossil_myshell_error_t fossil_myshell_read_record(const char *file_name, const char *key, char *value, size_t buffer_size) {
+    if (!fossil_myshell_validate_extension(file_name))
+        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+
     FILE *file = fopen(file_name, "r");
-    if (!file) {
-        return FOSSIL_MYSHELL_ERROR_IO;
-    }
+    if (!file) return FOSSIL_MYSHELL_ERROR_IO;
 
-    char line[256];
+    char line[512];
     while (fgets(line, sizeof(line), file)) {
-        char *line_key = strtok(line, "=");
-        char *line_value = strtok(NULL, "\n");
+        char *line_key, *line_value;
+        unsigned long stored_hash;
 
-        if (line_key && strcmp(line_key, key) == 0) {
+        if (!fossil_myshell_split_record(line, &line_key, &line_value, &stored_hash))
+            continue;
+
+        char temp[512];
+        snprintf(temp, sizeof(temp), "%s=%s", line_key, line_value);
+        unsigned long calc_hash = fossil_myshell_hash(temp);
+
+        if (calc_hash != stored_hash)
+            return FOSSIL_MYSHELL_ERROR_CORRUPTED;
+
+        if (strcmp(line_key, key) == 0) {
             strncpy(value, line_value, buffer_size);
+            value[buffer_size - 1] = '\0';
             fclose(file);
             return FOSSIL_MYSHELL_ERROR_SUCCESS;
         }
@@ -55,68 +126,102 @@ fossil_myshell_error_t fossil_myshell_read_record(const char *file_name, const c
 }
 
 fossil_myshell_error_t fossil_myshell_update_record(const char *file_name, const char *key, const char *new_value) {
-    FILE *file = fopen(file_name, "r+");
-    if (!file) {
-        return FOSSIL_MYSHELL_ERROR_IO;
-    }
+    if (!fossil_myshell_validate_extension(file_name))
+        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
 
-    char line[256];
-    long pos;
-    bool found = false;
-    while ((pos = ftell(file)) != -1 && fgets(line, sizeof(line), file)) {
-        char *line_key = strtok(line, "=");
-
-        if (line_key && strcmp(line_key, key) == 0) {
-            found = true;
-            break;
-        }
-    }
-
-    if (!found) {
-        fclose(file);
-        return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
-    }
-
-    fseek(file, pos, SEEK_SET);
-    fprintf(file, "%s=%s\n", key, new_value);
-    fclose(file);
-
-    return FOSSIL_MYSHELL_ERROR_SUCCESS;
-}
-
-fossil_myshell_error_t fossil_myshell_delete_record(const char *file_name, const char *key) {
     FILE *file = fopen(file_name, "r");
-    if (!file) {
-        return FOSSIL_MYSHELL_ERROR_IO;
-    }
+    if (!file) return FOSSIL_MYSHELL_ERROR_IO;
 
-    FILE *temp_file = fopen("temp.crabdb", "w");
-    if (!temp_file) {
+    FILE *temp = fopen("temp.fdb", "w");
+    if (!temp) {
         fclose(file);
         return FOSSIL_MYSHELL_ERROR_IO;
     }
 
-    char line[256];
-    bool deleted = false;
+    char line[512];
+    bool updated = false;
+
     while (fgets(line, sizeof(line), file)) {
-        char *line_key = strtok(line, "=");
-        if (line_key && strcmp(line_key, key) == 0) {
-            deleted = true;
+        char *line_key, *line_value;
+        unsigned long stored_hash;
+
+        if (!fossil_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
+            fputs(line, temp); // preserve invalid line
+            continue;
+        }
+
+        if (strcmp(line_key, key) == 0) {
+            char record[512];
+            snprintf(record, sizeof(record), "%s=%s", key, new_value);
+            unsigned long new_hash = fossil_myshell_hash(record);
+            fprintf(temp, "%s|%lu\n", record, new_hash);
+            updated = true;
         } else {
-            fputs(line, temp_file);
+            // preserve existing
+            char record[512];
+            snprintf(record, sizeof(record), "%s=%s", line_key, line_value);
+            fprintf(temp, "%s|%lu\n", record, stored_hash);
         }
     }
 
     fclose(file);
-    fclose(temp_file);
+    fclose(temp);
 
-    if (deleted) {
+    if (updated) {
         remove(file_name);
-        rename("temp.crabdb", file_name);
+        rename("temp.fdb", file_name);
         return FOSSIL_MYSHELL_ERROR_SUCCESS;
     }
 
-    remove("temp.crabdb");
+    remove("temp.fdb");
+    return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
+}
+
+fossil_myshell_error_t fossil_myshell_delete_record(const char *file_name, const char *key) {
+    if (!fossil_myshell_validate_extension(file_name))
+        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+
+    FILE *file = fopen(file_name, "r");
+    if (!file) return FOSSIL_MYSHELL_ERROR_IO;
+
+    FILE *temp = fopen("temp.fdb", "w");
+    if (!temp) {
+        fclose(file);
+        return FOSSIL_MYSHELL_ERROR_IO;
+    }
+
+    char line[512];
+    bool deleted = false;
+
+    while (fgets(line, sizeof(line), file)) {
+        char *line_key, *line_value;
+        unsigned long stored_hash;
+
+        if (!fossil_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
+            fputs(line, temp);
+            continue;
+        }
+
+        if (strcmp(line_key, key) == 0) {
+            deleted = true;
+            continue; // skip writing
+        }
+
+        char record[512];
+        snprintf(record, sizeof(record), "%s=%s", line_key, line_value);
+        fprintf(temp, "%s|%lu\n", record, stored_hash);
+    }
+
+    fclose(file);
+    fclose(temp);
+
+    if (deleted) {
+        remove(file_name);
+        rename("temp.fdb", file_name);
+        return FOSSIL_MYSHELL_ERROR_SUCCESS;
+    }
+
+    remove("temp.fdb");
     return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
 }
 
@@ -209,7 +314,7 @@ fossil_myshell_error_t fossil_myshell_restore_database(const char *backup_file, 
 // ===========================================================
 
 bool fossil_myshell_validate_extension(const char *file_name) {
-    return strstr(file_name, ".crabdb") != NULL;
+    return strstr(file_name, ".fdb") != NULL;
 }
 
 bool fossil_myshell_validate_data(const char *data) {
@@ -277,27 +382,71 @@ bool fossil_myshell_is_open(const char *file_name) {
 // Iteration Helpers
 // ============================================================================
 fossil_myshell_error_t fossil_myshell_first_key(const char *file_name, char *key_buffer, size_t buffer_size) {
-    if (!file_name || !key_buffer) return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+    if (!fossil_myshell_validate_extension(file_name))
+        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
 
     FILE *fp = fopen(file_name, "r");
     if (!fp) return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
 
-    char line[1024];
+    char line[512];
     if (!fgets(line, sizeof(line), fp)) {
         fclose(fp);
         return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
     }
-
     fclose(fp);
 
-    char *eq = strchr(line, '=');
-    if (!eq) return FOSSIL_MYSHELL_ERROR_CORRUPTED;
+    char *line_key, *line_value;
+    unsigned long stored_hash;
+    if (!fossil_myshell_split_record(line, &line_key, &line_value, &stored_hash))
+        return FOSSIL_MYSHELL_ERROR_CORRUPTED;
 
-    *eq = '\0'; // isolate key
-    strncpy(key_buffer, line, buffer_size);
-    key_buffer[buffer_size-1] = '\0';
+    char record[512];
+    snprintf(record, sizeof(record), "%s=%s", line_key, line_value);
+    if (fossil_myshell_hash(record) != stored_hash)
+        return FOSSIL_MYSHELL_ERROR_CORRUPTED;
 
+    strncpy(key_buffer, line_key, buffer_size);
+    key_buffer[buffer_size - 1] = '\0';
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
+}
+
+fossil_myshell_error_t fossil_myshell_next_key(const char *file_name, const char *prev_key, char *key_buffer, size_t buffer_size) {
+    if (!fossil_myshell_validate_extension(file_name))
+        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+
+    FILE *fp = fopen(file_name, "r");
+    if (!fp) return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
+
+    char line[512];
+    bool found = false;
+
+    while (fgets(line, sizeof(line), fp)) {
+        char *line_key, *line_value;
+        unsigned long stored_hash;
+
+        if (!fossil_myshell_split_record(line, &line_key, &line_value, &stored_hash))
+            continue;
+
+        char record[512];
+        snprintf(record, sizeof(record), "%s=%s", line_key, line_value);
+        if (fossil_myshell_hash(record) != stored_hash) {
+            fclose(fp);
+            return FOSSIL_MYSHELL_ERROR_CORRUPTED;
+        }
+
+        if (found) {
+            strncpy(key_buffer, line_key, buffer_size);
+            key_buffer[buffer_size - 1] = '\0';
+            fclose(fp);
+            return FOSSIL_MYSHELL_ERROR_SUCCESS;
+        }
+
+        if (strcmp(line_key, prev_key) == 0)
+            found = true;
+    }
+
+    fclose(fp);
+    return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
 }
 
 fossil_myshell_error_t fossil_myshell_next_key(const char *file_name, const char *prev_key, char *key_buffer, size_t buffer_size) {
