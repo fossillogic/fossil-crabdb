@@ -16,6 +16,10 @@
 #include <string.h>
 #include <stdlib.h>
 
+#define MAX_OPEN_DBS 32
+
+static const char* open_dbs[MAX_OPEN_DBS] = {0};
+
 
 static unsigned long fossil_myshell_hash(const char *str) {
     unsigned long hash = 5381;
@@ -51,17 +55,6 @@ bool fossil_myshell_validate_extension(const char *file_name) {
 // ===========================================================
 // CRUD Operations
 // ===========================================================
-
-fossil_myshell_error_t fossil_myshell_create_database(const char *file_name) {
-    if (!fossil_myshell_validate_extension(file_name))
-        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
-
-    FILE *file = fopen(file_name, "w");
-    if (!file) return FOSSIL_MYSHELL_ERROR_IO;
-
-    fclose(file);
-    return FOSSIL_MYSHELL_ERROR_SUCCESS;
-}
 
 fossil_myshell_error_t fossil_myshell_open_database(const char *file_name) {
     if (!fossil_myshell_validate_extension(file_name))
@@ -230,10 +223,11 @@ fossil_myshell_error_t fossil_myshell_delete_record(const char *file_name, const
 // ===========================================================
 
 fossil_myshell_error_t fossil_myshell_create_database(const char *file_name) {
+    if (!fossil_myshell_validate_extension(file_name))
+        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+
     FILE *file = fopen(file_name, "w");
-    if (!file) {
-        return FOSSIL_MYSHELL_ERROR_IO;
-    }
+    if (!file) return FOSSIL_MYSHELL_ERROR_IO;
 
     fclose(file);
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
@@ -261,51 +255,91 @@ fossil_myshell_error_t fossil_myshell_delete_database(const char *file_name) {
 // Backup and Restore
 // ===========================================================
 
-fossil_myshell_error_t fossil_myshell_backup_database(const char *source_file, const char *backup_file) {
-    FILE *source = fopen(source_file, "rb");
-    if (!source) {
+fossil_myshell_error_t fossil_myshell_backup_database(const char *src_file, const char *dst_file) {
+    if (!fossil_myshell_validate_extension(src_file) || !fossil_myshell_validate_extension(dst_file))
+        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+
+    FILE *in = fopen(src_file, "r");
+    if (!in) return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
+
+    FILE *out = fopen(dst_file, "w");
+    if (!out) {
+        fclose(in);
         return FOSSIL_MYSHELL_ERROR_IO;
     }
 
-    FILE *backup = fopen(backup_file, "wb");
-    if (!backup) {
-        fclose(source);
-        return FOSSIL_MYSHELL_ERROR_IO;
+    char line[512];
+    while (fgets(line, sizeof(line), in)) {
+        char *line_key, *line_value;
+        unsigned long stored_hash;
+
+        if (!fossil_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
+            fclose(in);
+            fclose(out);
+            remove(dst_file);
+            return FOSSIL_MYSHELL_ERROR_CORRUPTED;
+        }
+
+        char record[512];
+        snprintf(record, sizeof(record), "%s=%s", line_key, line_value);
+        unsigned long calc_hash = fossil_myshell_hash(record);
+
+        if (calc_hash != stored_hash) {
+            fclose(in);
+            fclose(out);
+            remove(dst_file);
+            return FOSSIL_MYSHELL_ERROR_CORRUPTED;
+        }
+
+        fprintf(out, "%s|%lu\n", record, stored_hash);
     }
 
-    char buffer[1024];
-    size_t bytes_read;
-    while ((bytes_read = fread(buffer, 1, sizeof(buffer), source)) > 0) {
-        fwrite(buffer, 1, bytes_read, backup);
-    }
-
-    fclose(source);
-    fclose(backup);
-
+    fclose(in);
+    fclose(out);
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
-fossil_myshell_error_t fossil_myshell_restore_database(const char *backup_file, const char *destination_file) {
-    FILE *backup = fopen(backup_file, "rb");
-    if (!backup) {
+fossil_myshell_error_t fossil_myshell_restore_database(const char *backup_file, const char *dst_file) {
+    if (!fossil_myshell_validate_extension(backup_file) || !fossil_myshell_validate_extension(dst_file))
+        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+
+    FILE *in = fopen(backup_file, "r");
+    if (!in) return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
+
+    FILE *out = fopen(dst_file, "w");
+    if (!out) {
+        fclose(in);
         return FOSSIL_MYSHELL_ERROR_IO;
     }
 
-    FILE *destination = fopen(destination_file, "wb");
-    if (!destination) {
-        fclose(backup);
-        return FOSSIL_MYSHELL_ERROR_IO;
+    char line[512];
+    while (fgets(line, sizeof(line), in)) {
+        char *line_key, *line_value;
+        unsigned long stored_hash;
+
+        if (!fossil_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
+            fclose(in);
+            fclose(out);
+            remove(dst_file);
+            return FOSSIL_MYSHELL_ERROR_CORRUPTED;
+        }
+
+        char record[512];
+        snprintf(record, sizeof(record), "%s=%s", line_key, line_value);
+        unsigned long calc_hash = fossil_myshell_hash(record);
+
+        if (calc_hash != stored_hash) {
+            fclose(in);
+            fclose(out);
+            remove(dst_file);
+            return FOSSIL_MYSHELL_ERROR_CORRUPTED;
+        }
+
+        fprintf(out, "%s|%lu\n", record, stored_hash);
     }
 
-    char buffer[1024];
-    size_t bytes_read;
-    while ((bytes_read = fread(buffer, 1, sizeof(buffer), backup)) > 0) {
-        fwrite(buffer, 1, bytes_read, destination);
-    }
-
-    fclose(backup);
-    fclose(destination);
-
+    fclose(in);
+    fclose(out);
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
@@ -324,9 +358,23 @@ bool fossil_myshell_validate_data(const char *data) {
 // ============================================================================
 // Internal: Track open databases
 // ============================================================================
-#define MAX_OPEN_DBS 32
 
-static const char* open_dbs[MAX_OPEN_DBS] = {0};
+/**
+ * @brief Allocates a new copy of a string.
+ *
+ * @param str   The input string to copy.
+ * @return      Pointer to the new string, or NULL on allocation failure.
+ */
+static char* fossil_myshell_strdup(const char *str) {
+    if (!str) return NULL;
+
+    size_t len = strlen(str) + 1;  // +1 for null terminator
+    char *copy = (char *)malloc(len);
+    if (!copy) return NULL;
+
+    memcpy(copy, str, len);
+    return copy;
+}
 
 // Helper: mark database as open
 static bool mark_db_open(const char *file_name) {
@@ -337,7 +385,7 @@ static bool mark_db_open(const char *file_name) {
     }
     for (int i = 0; i < MAX_OPEN_DBS; i++) {
         if (open_dbs[i] == NULL) {
-            open_dbs[i] = strdup(file_name);
+            open_dbs[i] = fossil_myshell_strdup(file_name);
             return true;
         }
     }
