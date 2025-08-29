@@ -16,6 +16,29 @@
 #define MAX_OPEN_DBS 32
 #define MAX_LOCKED_DBS 32
 
+/**
+ * @brief Custom strdup implementation.
+ * 
+ * @param src       The source string to duplicate.
+ * @return          Pointer to newly allocated string, or NULL on failure.
+ */
+char* fossil_noshell_strdup(const char *src) {
+    if (!src) return NULL;
+
+    size_t len = 0;
+    while (src[len] != '\0') len++;   // compute length manually
+
+    char *dup = (char*)malloc(len + 1); // +1 for null terminator
+    if (!dup) return NULL;
+
+    for (size_t i = 0; i < len; i++) {
+        dup[i] = src[i];
+    }
+    dup[len] = '\0';
+
+    return dup;
+}
+
 // ============================================================================
 // Internal State
 // ============================================================================
@@ -49,7 +72,7 @@ static bool mark_db_open(const char *file_name) {
         if (open_dbs[i] && strcmp(open_dbs[i], file_name)==0) return false;
     }
     for (int i=0;i<MAX_OPEN_DBS;i++) {
-        if (!open_dbs[i]) { open_dbs[i] = strdup(file_name); return true; }
+        if (!open_dbs[i]) { open_dbs[i] = fossil_noshell_strdup(file_name); return true; }
     }
     return false;
 }
