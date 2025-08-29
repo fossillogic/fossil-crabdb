@@ -314,7 +314,7 @@ fossil_myshell_error_t fossil_myshell_backup_database(const char *src_file, cons
         }
 
         char record[512];
-        snprintf(record, sizeof(record), "%s=%s", line_key, line_value);
+        SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
         unsigned long calc_hash = fossil_myshell_hash(record);
 
         if (calc_hash != stored_hash) {
@@ -358,7 +358,7 @@ fossil_myshell_error_t fossil_myshell_restore_database(const char *backup_file, 
         }
 
         char record[512];
-        snprintf(record, sizeof(record), "%s=%s", line_key, line_value);
+        SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
         unsigned long calc_hash = fossil_myshell_hash(record);
 
         if (calc_hash != stored_hash) {
@@ -408,7 +408,7 @@ fossil_myshell_error_t fossil_myshell_verify_database(const char *file_name) {
         }
 
         char record[512];
-        snprintf(record, sizeof(record), "%s=%s", line_key, line_value);
+        SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
         unsigned long calc_hash = fossil_myshell_hash(record);
 
         if (calc_hash != stored_hash) {
@@ -453,7 +453,7 @@ fossil_myshell_error_t fossil_myshell_first_key(const char *file_name, char *key
         return FOSSIL_MYSHELL_ERROR_CORRUPTED;
 
     char record[512];
-    snprintf(record, sizeof(record), "%s=%s", line_key, line_value);
+    SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
     if (fossil_myshell_hash(record) != stored_hash)
         return FOSSIL_MYSHELL_ERROR_CORRUPTED;
 
@@ -480,7 +480,7 @@ fossil_myshell_error_t fossil_myshell_next_key(const char *file_name, const char
             continue;
 
         char record[512];
-        snprintf(record, sizeof(record), "%s=%s", line_key, line_value);
+        SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
         if (fossil_myshell_hash(record) != stored_hash) {
             fclose(fp);
             return FOSSIL_MYSHELL_ERROR_CORRUPTED;
