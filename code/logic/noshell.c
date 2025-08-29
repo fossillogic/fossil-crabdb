@@ -90,7 +90,7 @@ static bool mark_db_closed(const char *file_name) {
 
 static bool mark_db_locked(const char *file_name) {
     for (int i=0;i<MAX_LOCKED_DBS;i++) if (locked_dbs[i] && strcmp(locked_dbs[i], file_name)==0) return false;
-    for (int i=0;i<MAX_LOCKED_DBS;i++) if (!locked_dbs[i]) { locked_dbs[i]=strdup(file_name); return true; }
+    for (int i=0;i<MAX_LOCKED_DBS;i++) if (!locked_dbs[i]) { locked_dbs[i]=fossil_noshell_strdup(file_name); return true; }
     return false;
 }
 
