@@ -12,9 +12,6 @@
  * -----------------------------------------------------------------------------
  */
 #include "fossil/crabdb/myshell.h"
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 
 #define MAX_OPEN_DBS 32
 
@@ -24,23 +21,6 @@ static const char* open_dbs[MAX_OPEN_DBS] = {0};
 // ============================================================================
 // Internal: Track open databases
 // ============================================================================
-
-/**
- * @brief Allocates a new copy of a string.
- *
- * @param str   The input string to copy.
- * @return      Pointer to the new string, or NULL on allocation failure.
- */
-static char* fossil_myshell_strdup(const char *str) {
-    if (!str) return NULL;
-
-    size_t len = strlen(str) + 1;  // +1 for null terminator
-    char *copy = (char *)malloc(len);
-    if (!copy) return NULL;
-
-    memcpy(copy, str, len);
-    return copy;
-}
 
 // Helper: mark database as closed
 static bool mark_db_closed(const char *file_name) {
