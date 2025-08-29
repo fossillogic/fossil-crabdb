@@ -215,3 +215,170 @@ bool fossil_myshell_validate_extension(const char *file_name) {
 bool fossil_myshell_validate_data(const char *data) {
     return data != NULL && strlen(data) > 0;
 }
+
+// ============================================================================
+// Internal: Track open databases
+// ============================================================================
+#define MAX_OPEN_DBS 32
+
+static const char* open_dbs[MAX_OPEN_DBS] = {0};
+
+// Helper: mark database as open
+static bool mark_db_open(const char *file_name) {
+    for (int i = 0; i < MAX_OPEN_DBS; i++) {
+        if (open_dbs[i] && strcmp(open_dbs[i], file_name) == 0) {
+            return false; // already open
+        }
+    }
+    for (int i = 0; i < MAX_OPEN_DBS; i++) {
+        if (open_dbs[i] == NULL) {
+            open_dbs[i] = strdup(file_name);
+            return true;
+        }
+    }
+    return false; // no space
+}
+
+// Helper: mark database as closed
+static bool mark_db_closed(const char *file_name) {
+    for (int i = 0; i < MAX_OPEN_DBS; i++) {
+        if (open_dbs[i] && strcmp(open_dbs[i], file_name) == 0) {
+            free((void*)open_dbs[i]);
+            open_dbs[i] = NULL;
+            return true;
+        }
+    }
+    return false;
+}
+
+// ============================================================================
+// Close / IsOpen
+// ============================================================================
+fossil_myshell_error_t fossil_myshell_close_database(const char *file_name) {
+    if (!file_name) return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+
+    if (!mark_db_closed(file_name)) {
+        return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
+    }
+    return FOSSIL_MYSHELL_ERROR_SUCCESS;
+}
+
+bool fossil_myshell_is_open(const char *file_name) {
+    if (!file_name) return false;
+    for (int i = 0; i < MAX_OPEN_DBS; i++) {
+        if (open_dbs[i] && strcmp(open_dbs[i], file_name) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// ============================================================================
+// Iteration Helpers
+// ============================================================================
+fossil_myshell_error_t fossil_myshell_first_key(const char *file_name, char *key_buffer, size_t buffer_size) {
+    if (!file_name || !key_buffer) return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+
+    FILE *fp = fopen(file_name, "r");
+    if (!fp) return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
+
+    char line[1024];
+    if (!fgets(line, sizeof(line), fp)) {
+        fclose(fp);
+        return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
+    }
+
+    fclose(fp);
+
+    char *eq = strchr(line, '=');
+    if (!eq) return FOSSIL_MYSHELL_ERROR_CORRUPTED;
+
+    *eq = '\0'; // isolate key
+    strncpy(key_buffer, line, buffer_size);
+    key_buffer[buffer_size-1] = '\0';
+
+    return FOSSIL_MYSHELL_ERROR_SUCCESS;
+}
+
+fossil_myshell_error_t fossil_myshell_next_key(const char *file_name, const char *prev_key, char *key_buffer, size_t buffer_size) {
+    if (!file_name || !prev_key || !key_buffer) return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+
+    FILE *fp = fopen(file_name, "r");
+    if (!fp) return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
+
+    char line[1024];
+    bool found = false;
+
+    while (fgets(line, sizeof(line), fp)) {
+        char *eq = strchr(line, '=');
+        if (!eq) continue;
+        *eq = '\0';
+
+        if (found) {
+            // this is the "next"
+            strncpy(key_buffer, line, buffer_size);
+            key_buffer[buffer_size-1] = '\0';
+            fclose(fp);
+            return FOSSIL_MYSHELL_ERROR_SUCCESS;
+        }
+
+        if (strcmp(line, prev_key) == 0) {
+            found = true;
+        }
+    }
+
+    fclose(fp);
+    return FOSSIL_MYSHELL_ERROR_NOT_FOUND; // no more keys
+}
+
+// ============================================================================
+// Metadata Helpers
+// ============================================================================
+fossil_myshell_error_t fossil_myshell_count_records(const char *file_name, size_t *count) {
+    if (!file_name || !count) return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+
+    FILE *fp = fopen(file_name, "r");
+    if (!fp) return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
+
+    size_t counter = 0;
+    char line[1024];
+    while (fgets(line, sizeof(line), fp)) {
+        if (strchr(line, '=')) counter++;
+    }
+    fclose(fp);
+
+    *count = counter;
+    return FOSSIL_MYSHELL_ERROR_SUCCESS;
+}
+
+fossil_myshell_error_t fossil_myshell_get_file_size(const char *file_name, size_t *size_bytes) {
+    if (!file_name || !size_bytes) return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+
+    struct stat st;
+    if (stat(file_name, &st) != 0) {
+        return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
+    }
+
+    *size_bytes = (size_t)st.st_size;
+    return FOSSIL_MYSHELL_ERROR_SUCCESS;
+}
+
+// ============================================================================
+// Error to String
+// ============================================================================
+const char* fossil_myshell_error_string(fossil_myshell_error_t error_code) {
+    switch (error_code) {
+        case FOSSIL_MYSHELL_ERROR_SUCCESS:        return "Success";
+        case FOSSIL_MYSHELL_ERROR_INVALID_FILE:   return "Invalid file";
+        case FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND: return "File not found";
+        case FOSSIL_MYSHELL_ERROR_IO:             return "I/O error";
+        case FOSSIL_MYSHELL_ERROR_INVALID_QUERY:  return "Invalid query";
+        case FOSSIL_MYSHELL_ERROR_CONCURRENCY:    return "Concurrency error";
+        case FOSSIL_MYSHELL_ERROR_NOT_FOUND:      return "Record not found";
+        case FOSSIL_MYSHELL_ERROR_ALREADY_EXISTS: return "Already exists";
+        case FOSSIL_MYSHELL_ERROR_BACKUP_FAILED:  return "Backup failed";
+        case FOSSIL_MYSHELL_ERROR_RESTORE_FAILED: return "Restore failed";
+        case FOSSIL_MYSHELL_ERROR_UNKNOWN:        return "Unknown error";
+        default:                                  return "Unrecognized error code";
+    }
+}
