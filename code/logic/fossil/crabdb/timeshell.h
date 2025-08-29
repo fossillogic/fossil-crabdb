@@ -32,16 +32,20 @@ extern "C" {
 // Enumerations for Error Codes
 // *****************************************************************************
 typedef enum {
-    FOSSIL_TIMESHELL_ERROR_SUCCESS = 0,
-    FOSSIL_TIMESHELL_ERROR_INVALID_FILE,
-    FOSSIL_TIMESHELL_ERROR_FILE_NOT_FOUND,
-    FOSSIL_TIMESHELL_ERROR_IO,
-    FOSSIL_TIMESHELL_ERROR_INVALID_INTERVAL,
-    FOSSIL_TIMESHELL_ERROR_NOT_FOUND,
-    FOSSIL_TIMESHELL_ERROR_ALREADY_EXISTS,
-    FOSSIL_TIMESHELL_ERROR_BACKUP_FAILED,
-    FOSSIL_TIMESHELL_ERROR_RESTORE_FAILED,
-    FOSSIL_TIMESHELL_ERROR_UNKNOWN
+    FOSSIL_TIMESHELL_ERROR_SUCCESS = 0,       /**< Operation completed successfully */
+    FOSSIL_TIMESHELL_ERROR_INVALID_FILE,      /**< File name or format is invalid */
+    FOSSIL_TIMESHELL_ERROR_FILE_NOT_FOUND,    /**< Database file not found */
+    FOSSIL_TIMESHELL_ERROR_IO,                /**< Input/output error during file operation */
+    FOSSIL_TIMESHELL_ERROR_INVALID_INTERVAL,  /**< Interval data is invalid */
+    FOSSIL_TIMESHELL_ERROR_NOT_FOUND,         /**< Requested interval not found */
+    FOSSIL_TIMESHELL_ERROR_ALREADY_EXISTS,    /**< Interval or database already exists */
+    FOSSIL_TIMESHELL_ERROR_BACKUP_FAILED,     /**< Database backup failed */
+    FOSSIL_TIMESHELL_ERROR_RESTORE_FAILED,    /**< Database restore failed */
+    FOSSIL_TIMESHELL_ERROR_LOCKED,            /**< Database is locked and cannot be accessed */
+    FOSSIL_TIMESHELL_ERROR_CORRUPTED,         /**< Database file is corrupted or hash mismatch */
+    FOSSIL_TIMESHELL_ERROR_MEMORY,            /**< Memory allocation failed */
+    FOSSIL_TIMESHELL_ERROR_UNSUPPORTED,       /**< Operation not supported */
+    FOSSIL_TIMESHELL_ERROR_UNKNOWN            /**< Unknown or unexpected error */
 } fossil_timeshell_error_t;
 
 // *****************************************************************************
