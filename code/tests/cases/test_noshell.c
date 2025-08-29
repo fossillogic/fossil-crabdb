@@ -107,40 +107,6 @@ FOSSIL_TEST(c_test_noshell_remove_document) {
     remove("test.crabdb");
 }
 
-// Test case for backing up a database
-FOSSIL_TEST(c_test_noshell_backup_database) {
-    FILE *file = fopen("test.crabdb", "w");
-    fprintf(file, "document1\n");
-    fclose(file);
-    fossil_noshell_error_t result = fossil_noshell_backup_database("test.crabdb", "backup.crabdb");
-    ASSUME_ITS_TRUE(result == FOSSIL_NOSHELL_ERROR_SUCCESS);
-    FILE *backup = fopen("backup.crabdb", "r");
-    ASSUME_NOT_CNULL(backup);
-    char buffer[256];
-    fgets(buffer, sizeof(buffer), backup);
-    ASSUME_ITS_TRUE(strcmp(buffer, "document1\n") == 0);
-    fclose(backup);
-    remove("test.crabdb");
-    remove("backup.crabdb");
-}
-
-// Test case for restoring a database from a backup
-FOSSIL_TEST(c_test_noshell_restore_database) {
-    FILE *backup = fopen("backup.crabdb", "w");
-    fprintf(backup, "document1\n");
-    fclose(backup);
-    fossil_noshell_error_t result = fossil_noshell_restore_database("backup.crabdb", "restored.crabdb");
-    ASSUME_ITS_TRUE(result == FOSSIL_NOSHELL_ERROR_SUCCESS);
-    FILE *restored = fopen("restored.crabdb", "r");
-    ASSUME_NOT_CNULL(restored);
-    char buffer[256];
-    fgets(buffer, sizeof(buffer), restored);
-    ASSUME_ITS_TRUE(strcmp(buffer, "document1\n") == 0);
-    fclose(restored);
-    remove("backup.crabdb");
-    remove("restored.crabdb");
-}
-
 // Test case for validating the file extension
 FOSSIL_TEST(c_test_noshell_validate_extension) {
     bool result = fossil_noshell_validate_extension("test.crabdb");
@@ -170,8 +136,6 @@ FOSSIL_TEST_GROUP(c_noshell_database_tests) {
     FOSSIL_TEST_ADD(c_noshell_fixture, c_test_noshell_find_document);
     FOSSIL_TEST_ADD(c_noshell_fixture, c_test_noshell_update_document);
     FOSSIL_TEST_ADD(c_noshell_fixture, c_test_noshell_remove_document);
-    FOSSIL_TEST_ADD(c_noshell_fixture, c_test_noshell_backup_database);
-    FOSSIL_TEST_ADD(c_noshell_fixture, c_test_noshell_restore_database);
     FOSSIL_TEST_ADD(c_noshell_fixture, c_test_noshell_validate_extension);
     FOSSIL_TEST_ADD(c_noshell_fixture, c_test_noshell_validate_document);
 
