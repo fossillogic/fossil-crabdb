@@ -5,7 +5,7 @@ dep = [
     meson.get_compiler('c').find_library('m', required : false)
     ]
 
-fossil_crabdb_lib = static_library('fossil-crabdb',
+fossil_crabdb_lib = library('fossil_crabdb',
     files('myshell.c', 'noshell.c'),
     install: true,
     dependencies: dep,
