@@ -49,7 +49,7 @@ static bool mark_db_closed(const char *file_name) {
  * 
  * Combines FNV-1a with bit mixing for better avalanche properties.
  */
-static uint64_t fossil_myshell_hash(const char *str) {
+static uint64_t fossil_bluecrab_myshell_hash(const char *str) {
     uint64_t hash = 14695981039346656037ULL; // FNV-1a 64-bit offset basis
     unsigned char c;
 
@@ -69,7 +69,7 @@ static uint64_t fossil_myshell_hash(const char *str) {
     return hash;
 }
 
-static bool fossil_myshell_split_record(char *line, char **key, char **value, unsigned long *stored_hash) {
+static bool fossil_bluecrab_myshell_split_record(char *line, char **key, char **value, unsigned long *stored_hash) {
     // Format: key=value|hash
     char *hash_sep = strrchr(line, '|');
     if (!hash_sep) return false;
@@ -90,8 +90,8 @@ static bool fossil_myshell_split_record(char *line, char **key, char **value, un
 // CRUD Operations
 // ===========================================================
 
-fossil_myshell_error_t fossil_myshell_create_record(const char *file_name, const char *key, const char *value) {
-    if (!fossil_myshell_validate_extension(file_name))
+fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_create_record(const char *file_name, const char *key, const char *value) {
+    if (!fossil_bluecrab_myshell_validate_extension(file_name))
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
 
     FILE *file = fopen(file_name, "a");
@@ -99,7 +99,7 @@ fossil_myshell_error_t fossil_myshell_create_record(const char *file_name, const
 
     char record[512];
     snprintf(record, sizeof(record), "%s=%s", key, value);
-    unsigned long hash = fossil_myshell_hash(record);
+    unsigned long hash = fossil_bluecrab_myshell_hash(record);
 
     fprintf(file, "%s|%lu\n", record, hash);
     fclose(file);
@@ -107,8 +107,8 @@ fossil_myshell_error_t fossil_myshell_create_record(const char *file_name, const
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
-fossil_myshell_error_t fossil_myshell_read_record(const char *file_name, const char *key, char *value, size_t buffer_size) {
-    if (!fossil_myshell_validate_extension(file_name))
+fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_read_record(const char *file_name, const char *key, char *value, size_t buffer_size) {
+    if (!fossil_bluecrab_myshell_validate_extension(file_name))
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
 
     FILE *file = fopen(file_name, "r");
@@ -119,12 +119,12 @@ fossil_myshell_error_t fossil_myshell_read_record(const char *file_name, const c
         char *line_key, *line_value;
         unsigned long stored_hash;
 
-        if (!fossil_myshell_split_record(line, &line_key, &line_value, &stored_hash))
+        if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash))
             continue;
 
         char temp[512];
         SAFE_SNPRINTF_KV(temp, sizeof(temp), line_key, line_value);
-        unsigned long calc_hash = fossil_myshell_hash(temp);
+        unsigned long calc_hash = fossil_bluecrab_myshell_hash(temp);
 
         if (calc_hash != stored_hash)
             return FOSSIL_MYSHELL_ERROR_CORRUPTED;
@@ -141,8 +141,8 @@ fossil_myshell_error_t fossil_myshell_read_record(const char *file_name, const c
     return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
 }
 
-fossil_myshell_error_t fossil_myshell_update_record(const char *file_name, const char *key, const char *new_value) {
-    if (!fossil_myshell_validate_extension(file_name))
+fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_update_record(const char *file_name, const char *key, const char *new_value) {
+    if (!fossil_bluecrab_myshell_validate_extension(file_name))
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
 
     FILE *file = fopen(file_name, "r");
@@ -161,7 +161,7 @@ fossil_myshell_error_t fossil_myshell_update_record(const char *file_name, const
         char *line_key, *line_value;
         unsigned long stored_hash;
 
-        if (!fossil_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
+        if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
             fputs(line, temp); // preserve invalid line
             continue;
         }
@@ -169,7 +169,7 @@ fossil_myshell_error_t fossil_myshell_update_record(const char *file_name, const
         if (strcmp(line_key, key) == 0) {
             char record[512];
             snprintf(record, sizeof(record), "%s=%s", key, new_value);
-            unsigned long new_hash = fossil_myshell_hash(record);
+            unsigned long new_hash = fossil_bluecrab_myshell_hash(record);
             fprintf(temp, "%s|%lu\n", record, new_hash);
             updated = true;
         } else {
@@ -193,8 +193,8 @@ fossil_myshell_error_t fossil_myshell_update_record(const char *file_name, const
     return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
 }
 
-fossil_myshell_error_t fossil_myshell_delete_record(const char *file_name, const char *key) {
-    if (!fossil_myshell_validate_extension(file_name))
+fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_delete_record(const char *file_name, const char *key) {
+    if (!fossil_bluecrab_myshell_validate_extension(file_name))
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
 
     FILE *file = fopen(file_name, "r");
@@ -213,7 +213,7 @@ fossil_myshell_error_t fossil_myshell_delete_record(const char *file_name, const
         char *line_key, *line_value;
         unsigned long stored_hash;
 
-        if (!fossil_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
+        if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
             fputs(line, temp);
             continue;
         }
@@ -245,8 +245,8 @@ fossil_myshell_error_t fossil_myshell_delete_record(const char *file_name, const
 // Database Management
 // ===========================================================
 
-fossil_myshell_error_t fossil_myshell_create_database(const char *file_name) {
-    if (!fossil_myshell_validate_extension(file_name))
+fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_create_database(const char *file_name) {
+    if (!fossil_bluecrab_myshell_validate_extension(file_name))
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
 
     FILE *file = fopen(file_name, "w");
@@ -256,8 +256,8 @@ fossil_myshell_error_t fossil_myshell_create_database(const char *file_name) {
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
-fossil_myshell_error_t fossil_myshell_open_database(const char *file_name) {
-    if (!fossil_myshell_validate_extension(file_name))
+fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_open_database(const char *file_name) {
+    if (!fossil_bluecrab_myshell_validate_extension(file_name))
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
 
     FILE *file = fopen(file_name, "r");
@@ -267,7 +267,7 @@ fossil_myshell_error_t fossil_myshell_open_database(const char *file_name) {
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
-fossil_myshell_error_t fossil_myshell_delete_database(const char *file_name) {
+fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_delete_database(const char *file_name) {
     if (remove(file_name) == 0) {
         return FOSSIL_MYSHELL_ERROR_SUCCESS;
     }
@@ -275,7 +275,7 @@ fossil_myshell_error_t fossil_myshell_delete_database(const char *file_name) {
     return FOSSIL_MYSHELL_ERROR_IO;
 }
 
-fossil_myshell_error_t fossil_myshell_close_database(const char *file_name) {
+fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_close_database(const char *file_name) {
     if (!file_name) return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
 
     if (!mark_db_closed(file_name)) {
@@ -288,8 +288,8 @@ fossil_myshell_error_t fossil_myshell_close_database(const char *file_name) {
 // Backup and Restore
 // ===========================================================
 
-fossil_myshell_error_t fossil_myshell_backup_database(const char *src_file, const char *dst_file) {
-    if (!fossil_myshell_validate_extension(src_file) || !fossil_myshell_validate_extension(dst_file))
+fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_backup_database(const char *src_file, const char *dst_file) {
+    if (!fossil_bluecrab_myshell_validate_extension(src_file) || !fossil_bluecrab_myshell_validate_extension(dst_file))
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
 
     FILE *in = fopen(src_file, "r");
@@ -306,7 +306,7 @@ fossil_myshell_error_t fossil_myshell_backup_database(const char *src_file, cons
         char *line_key, *line_value;
         unsigned long stored_hash;
 
-        if (!fossil_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
+        if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
             fclose(in);
             fclose(out);
             remove(dst_file);
@@ -315,7 +315,7 @@ fossil_myshell_error_t fossil_myshell_backup_database(const char *src_file, cons
 
         char record[512];
         SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
-        unsigned long calc_hash = fossil_myshell_hash(record);
+        unsigned long calc_hash = fossil_bluecrab_myshell_hash(record);
 
         if (calc_hash != stored_hash) {
             fclose(in);
@@ -332,8 +332,8 @@ fossil_myshell_error_t fossil_myshell_backup_database(const char *src_file, cons
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
-fossil_myshell_error_t fossil_myshell_restore_database(const char *backup_file, const char *dst_file) {
-    if (!fossil_myshell_validate_extension(backup_file) || !fossil_myshell_validate_extension(dst_file))
+fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_restore_database(const char *backup_file, const char *dst_file) {
+    if (!fossil_bluecrab_myshell_validate_extension(backup_file) || !fossil_bluecrab_myshell_validate_extension(dst_file))
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
 
     FILE *in = fopen(backup_file, "r");
@@ -350,7 +350,7 @@ fossil_myshell_error_t fossil_myshell_restore_database(const char *backup_file, 
         char *line_key, *line_value;
         unsigned long stored_hash;
 
-        if (!fossil_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
+        if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
             fclose(in);
             fclose(out);
             remove(dst_file);
@@ -359,7 +359,7 @@ fossil_myshell_error_t fossil_myshell_restore_database(const char *backup_file, 
 
         char record[512];
         SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
-        unsigned long calc_hash = fossil_myshell_hash(record);
+        unsigned long calc_hash = fossil_bluecrab_myshell_hash(record);
 
         if (calc_hash != stored_hash) {
             fclose(in);
@@ -380,7 +380,7 @@ fossil_myshell_error_t fossil_myshell_restore_database(const char *backup_file, 
 // Query and Data Validation
 // ===========================================================
 
-bool fossil_myshell_is_open(const char *file_name) {
+bool fossil_bluecrab_myshell_is_open(const char *file_name) {
     if (!file_name) return false;
     for (int i = 0; i < MAX_OPEN_DBS; i++) {
         if (open_dbs[i] && strcmp(open_dbs[i], file_name) == 0) {
@@ -390,8 +390,8 @@ bool fossil_myshell_is_open(const char *file_name) {
     return false;
 }
 
-fossil_myshell_error_t fossil_myshell_verify_database(const char *file_name) {
-    if (!fossil_myshell_validate_extension(file_name))
+fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_verify_database(const char *file_name) {
+    if (!fossil_bluecrab_myshell_validate_extension(file_name))
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
 
     FILE *file = fopen(file_name, "r");
@@ -402,14 +402,14 @@ fossil_myshell_error_t fossil_myshell_verify_database(const char *file_name) {
         char *line_key, *line_value;
         unsigned long stored_hash;
 
-        if (!fossil_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
+        if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
             fclose(file);
             return FOSSIL_MYSHELL_ERROR_CORRUPTED;
         }
 
         char record[512];
         SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
-        unsigned long calc_hash = fossil_myshell_hash(record);
+        unsigned long calc_hash = fossil_bluecrab_myshell_hash(record);
 
         if (calc_hash != stored_hash) {
             fclose(file);
@@ -421,20 +421,20 @@ fossil_myshell_error_t fossil_myshell_verify_database(const char *file_name) {
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
-bool fossil_myshell_validate_extension(const char *file_name) {
+bool fossil_bluecrab_myshell_validate_extension(const char *file_name) {
     const char *ext = strrchr(file_name, '.');
     return ext && strcmp(ext, ".fdb") == 0;
 }
 
-bool fossil_myshell_validate_data(const char *data) {
+bool fossil_bluecrab_myshell_validate_data(const char *data) {
     return data != NULL && strlen(data) > 0;
 }
 
 // ============================================================================
 // Iteration Helpers
 // ============================================================================
-fossil_myshell_error_t fossil_myshell_first_key(const char *file_name, char *key_buffer, size_t buffer_size) {
-    if (!fossil_myshell_validate_extension(file_name))
+fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_first_key(const char *file_name, char *key_buffer, size_t buffer_size) {
+    if (!fossil_bluecrab_myshell_validate_extension(file_name))
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
 
     FILE *fp = fopen(file_name, "r");
@@ -449,12 +449,12 @@ fossil_myshell_error_t fossil_myshell_first_key(const char *file_name, char *key
 
     char *line_key, *line_value;
     unsigned long stored_hash;
-    if (!fossil_myshell_split_record(line, &line_key, &line_value, &stored_hash))
+    if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash))
         return FOSSIL_MYSHELL_ERROR_CORRUPTED;
 
     char record[512];
     SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
-    if (fossil_myshell_hash(record) != stored_hash)
+    if (fossil_bluecrab_myshell_hash(record) != stored_hash)
         return FOSSIL_MYSHELL_ERROR_CORRUPTED;
 
     strncpy(key_buffer, line_key, buffer_size);
@@ -462,8 +462,8 @@ fossil_myshell_error_t fossil_myshell_first_key(const char *file_name, char *key
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
-fossil_myshell_error_t fossil_myshell_next_key(const char *file_name, const char *prev_key, char *key_buffer, size_t buffer_size) {
-    if (!fossil_myshell_validate_extension(file_name))
+fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_next_key(const char *file_name, const char *prev_key, char *key_buffer, size_t buffer_size) {
+    if (!fossil_bluecrab_myshell_validate_extension(file_name))
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
 
     FILE *fp = fopen(file_name, "r");
@@ -476,12 +476,12 @@ fossil_myshell_error_t fossil_myshell_next_key(const char *file_name, const char
         char *line_key, *line_value;
         unsigned long stored_hash;
 
-        if (!fossil_myshell_split_record(line, &line_key, &line_value, &stored_hash))
+        if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash))
             continue;
 
         char record[512];
         SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
-        if (fossil_myshell_hash(record) != stored_hash) {
+        if (fossil_bluecrab_myshell_hash(record) != stored_hash) {
             fclose(fp);
             return FOSSIL_MYSHELL_ERROR_CORRUPTED;
         }
@@ -504,7 +504,7 @@ fossil_myshell_error_t fossil_myshell_next_key(const char *file_name, const char
 // ============================================================================
 // Metadata Helpers
 // ============================================================================
-fossil_myshell_error_t fossil_myshell_count_records(const char *file_name, size_t *count) {
+fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_count_records(const char *file_name, size_t *count) {
     if (!file_name || !count) return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
 
     FILE *fp = fopen(file_name, "r");
@@ -521,7 +521,7 @@ fossil_myshell_error_t fossil_myshell_count_records(const char *file_name, size_
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
-fossil_myshell_error_t fossil_myshell_get_file_size(const char *file_name, size_t *size_bytes) {
+fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_get_file_size(const char *file_name, size_t *size_bytes) {
     if (!file_name || !size_bytes) return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
 
     struct stat st;
@@ -536,7 +536,7 @@ fossil_myshell_error_t fossil_myshell_get_file_size(const char *file_name, size_
 // ============================================================================
 // Error to String
 // ============================================================================
-const char* fossil_myshell_error_string(fossil_myshell_error_t error_code) {
+const char* fossil_bluecrab_myshell_error_string(fossil_bluecrab_myshell_error_t error_code) {
     switch (error_code) {
         case FOSSIL_MYSHELL_ERROR_SUCCESS:        return "Success";
         case FOSSIL_MYSHELL_ERROR_INVALID_FILE:   return "Invalid file";

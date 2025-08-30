@@ -38,7 +38,7 @@ FOSSIL_TEARDOWN(c_noshell_fixture) {
 
 // Test case for creating a new database
 FOSSIL_TEST(c_test_noshell_create_database) {
-    fossil_noshell_error_t result = fossil_noshell_create_database("test.crabdb");
+    fossil_bluecrab_noshell_error_t result = fossil_bluecrab_noshell_create_database("test.crabdb");
     ASSUME_ITS_TRUE(result == FOSSIL_NOSHELL_ERROR_SUCCESS);
     remove("test.crabdb");
 }
@@ -47,7 +47,7 @@ FOSSIL_TEST(c_test_noshell_create_database) {
 FOSSIL_TEST(c_test_noshell_open_database) {
     FILE *file = fopen("test.crabdb", "w");
     fclose(file);
-    fossil_noshell_error_t result = fossil_noshell_open_database("test.crabdb");
+    fossil_bluecrab_noshell_error_t result = fossil_bluecrab_noshell_open_database("test.crabdb");
     ASSUME_ITS_TRUE(result == FOSSIL_NOSHELL_ERROR_SUCCESS);
     remove("test.crabdb");
 }
@@ -56,7 +56,7 @@ FOSSIL_TEST(c_test_noshell_open_database) {
 FOSSIL_TEST(c_test_noshell_delete_database) {
     FILE *file = fopen("test.crabdb", "w");
     fclose(file);
-    fossil_noshell_error_t result = fossil_noshell_delete_database("test.crabdb");
+    fossil_bluecrab_noshell_error_t result = fossil_bluecrab_noshell_delete_database("test.crabdb");
     ASSUME_ITS_TRUE(result == FOSSIL_NOSHELL_ERROR_SUCCESS);
 }
 
@@ -64,7 +64,7 @@ FOSSIL_TEST(c_test_noshell_delete_database) {
 FOSSIL_TEST(c_test_noshell_insert_document) {
     FILE *file = fopen("test.crabdb", "w");
     fclose(file);
-    fossil_noshell_error_t result = fossil_noshell_insert("test.crabdb", "document1");
+    fossil_bluecrab_noshell_error_t result = fossil_bluecrab_noshell_insert("test.crabdb", "document1");
     ASSUME_ITS_TRUE(result == FOSSIL_NOSHELL_ERROR_SUCCESS);
     remove("test.crabdb");
 }
@@ -75,7 +75,7 @@ FOSSIL_TEST(c_test_noshell_find_document) {
     fprintf(file, "document1\n");
     fclose(file);
     char result[256];
-    fossil_noshell_error_t error = fossil_noshell_find("test.crabdb", "document1", result, sizeof(result));
+    fossil_bluecrab_noshell_error_t error = fossil_bluecrab_noshell_find("test.crabdb", "document1", result, sizeof(result));
     ASSUME_ITS_TRUE(error == FOSSIL_NOSHELL_ERROR_SUCCESS);
     ASSUME_ITS_TRUE(strcmp(result, "document1\n") == 0);
     remove("test.crabdb");
@@ -86,10 +86,10 @@ FOSSIL_TEST(c_test_noshell_update_document) {
     FILE *file = fopen("test.crabdb", "w");
     fprintf(file, "document1\n");
     fclose(file);
-    fossil_noshell_error_t result = fossil_noshell_update("test.crabdb", "document1", "new_document1");
+    fossil_bluecrab_noshell_error_t result = fossil_bluecrab_noshell_update("test.crabdb", "document1", "new_document1");
     ASSUME_ITS_TRUE(result == FOSSIL_NOSHELL_ERROR_SUCCESS);
     char updated_result[256];
-    fossil_noshell_find("test.crabdb", "new_document1", updated_result, sizeof(updated_result));
+    fossil_bluecrab_noshell_find("test.crabdb", "new_document1", updated_result, sizeof(updated_result));
     ASSUME_ITS_TRUE(strcmp(updated_result, "new_document1\n") == 0);
     remove("test.crabdb");
 }
@@ -99,29 +99,29 @@ FOSSIL_TEST(c_test_noshell_remove_document) {
     FILE *file = fopen("test.crabdb", "w");
     fprintf(file, "document1\n");
     fclose(file);
-    fossil_noshell_error_t result = fossil_noshell_remove("test.crabdb", "document1");
+    fossil_bluecrab_noshell_error_t result = fossil_bluecrab_noshell_remove("test.crabdb", "document1");
     ASSUME_ITS_TRUE(result == FOSSIL_NOSHELL_ERROR_SUCCESS);
     char removed_result[256];
-    fossil_noshell_error_t error = fossil_noshell_find("test.crabdb", "document1", removed_result, sizeof(removed_result));
+    fossil_bluecrab_noshell_error_t error = fossil_bluecrab_noshell_find("test.crabdb", "document1", removed_result, sizeof(removed_result));
     ASSUME_ITS_TRUE(error == FOSSIL_NOSHELL_ERROR_NOT_FOUND);
     remove("test.crabdb");
 }
 
 // Test case for validating the file extension
 FOSSIL_TEST(c_test_noshell_validate_extension) {
-    bool result = fossil_noshell_validate_extension("test.crabdb");
+    bool result = fossil_bluecrab_noshell_validate_extension("test.crabdb");
     ASSUME_ITS_TRUE(result);
-    result = fossil_noshell_validate_extension("test.txt");
+    result = fossil_bluecrab_noshell_validate_extension("test.txt");
     ASSUME_ITS_FALSE(result);
 }
 
 // Test case for validating a document
 FOSSIL_TEST(c_test_noshell_validate_document) {
-    bool result = fossil_noshell_validate_document("document1");
+    bool result = fossil_bluecrab_noshell_validate_document("document1");
     ASSUME_ITS_TRUE(result);
-    result = fossil_noshell_validate_document("");
+    result = fossil_bluecrab_noshell_validate_document("");
     ASSUME_ITS_FALSE(result);
-    result = fossil_noshell_validate_document(NULL);
+    result = fossil_bluecrab_noshell_validate_document(NULL);
     ASSUME_ITS_FALSE(result);
 }
 
