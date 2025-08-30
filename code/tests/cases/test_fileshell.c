@@ -1,0 +1,147 @@
+/*
+ * -----------------------------------------------------------------------------
+ * Project: Fossil Logic
+ *
+ * This file is part of the Fossil Logic project, which aims to develop high-
+ * performance, cross-platform applications and libraries. The code contained
+ * herein is subject to the terms and conditions defined in the project license.
+ *
+ * Author: Michael Gene Brockus (Dreamer)
+ *
+ * Copyright (C) 2024 Fossil Logic. All rights reserved.
+ * -----------------------------------------------------------------------------
+ */
+#include <fossil/pizza/framework.h>
+
+#include "fossil/crabdb/framework.h"
+
+// * * * * * * * * * * * * * * * * * * * * * * * *
+// * Fossil Logic Test Utilities
+// * * * * * * * * * * * * * * * * * * * * * * * *
+// Setup steps for things like test fixtures and
+// mock objects are set here.
+// * * * * * * * * * * * * * * * * * * * * * * * *
+
+FOSSIL_SUITE(c_fileshell_fixture);
+
+FOSSIL_SETUP(c_fileshell_fixture) {
+    // Setup the test fixture
+}
+
+FOSSIL_TEARDOWN(c_fileshell_fixture) {
+    // Teardown the test fixture
+}
+
+// * * * * * * * * * * * * * * * * * * * * * * * *
+// * Fossil Logic Test Blue CrabDB Database
+// * * * * * * * * * * * * * * * * * * * * * * * *
+
+// Tests for fossil_bluecrab_fileshell_write, append, read, delete, exists, size, list
+FOSSIL_TEST(c_test_fileshell_write_and_read) {
+    const char *file_name = "test_file.txt";
+    const char *data = "Hello, Fossil!";
+    char buffer[64];
+
+    // Write data
+    ASSUME_ITS_TRUE(fossil_bluecrab_fileshell_write(file_name, data));
+
+    // Read data
+    ASSUME_ITS_TRUE(fossil_bluecrab_fileshell_read(file_name, buffer, sizeof(buffer)));
+    ASSUME_ITS_TRUE(strcmp(buffer, data) == 0);
+
+    // Cleanup
+    fossil_bluecrab_fileshell_delete(file_name);
+}
+
+FOSSIL_TEST(c_test_fileshell_append) {
+    const char *file_name = "test_append.txt";
+    const char *data1 = "First line.\n";
+    const char *data2 = "Second line.";
+    char buffer[128];
+
+    // Write initial data
+    ASSUME_ITS_TRUE(fossil_bluecrab_fileshell_write(file_name, data1));
+    // Append data
+    ASSUME_ITS_TRUE(fossil_bluecrab_fileshell_append(file_name, data2));
+
+    // Read and check
+    ASSUME_ITS_TRUE(fossil_bluecrab_fileshell_read(file_name, buffer, sizeof(buffer)));
+    ASSUME_ITS_TRUE(strstr(buffer, data1) != NULL);
+    ASSUME_ITS_TRUE(strstr(buffer, data2) != NULL);
+
+    fossil_bluecrab_fileshell_delete(file_name);
+}
+
+FOSSIL_TEST(c_test_fileshell_delete_and_exists) {
+    const char *file_name = "test_delete.txt";
+    const char *data = "Delete me!";
+
+    fossil_bluecrab_fileshell_write(file_name, data);
+    ASSUME_ITS_TRUE(fossil_bluecrab_fileshell_exists(file_name));
+    ASSUME_ITS_TRUE(fossil_bluecrab_fileshell_delete(file_name));
+    ASSUME_ITS_FALSE(fossil_bluecrab_fileshell_exists(file_name));
+}
+
+FOSSIL_TEST(c_test_fileshell_size) {
+    const char *file_name = "test_size.txt";
+    const char *data = "1234567890";
+    fossil_bluecrab_fileshell_write(file_name, data);
+
+    long size = fossil_bluecrab_fileshell_size(file_name);
+    ASSUME_ITS_TRUE(size == (long)strlen(data));
+
+    fossil_bluecrab_fileshell_delete(file_name);
+}
+
+FOSSIL_TEST(c_test_fileshell_list) {
+    const char *dir_name = ".";
+    char *files[16];
+    int count = fossil_bluecrab_fileshell_list(dir_name, files, 16);
+
+    ASSUME_ITS_TRUE(count > 0);
+    for (int i = 0; i < count; ++i) {
+        // Optionally check for a specific file, but do not use 'found'
+        // if (strcmp(files[i], "test_fileshell_list") == 0) { /* found */ }
+        free(files[i]);
+    }
+    // Not all systems will have the test file, so just check count > 0
+    ASSUME_ITS_TRUE(count > 0);
+}
+
+FOSSIL_TEST(c_test_fileshell_read_nonexistent_file) {
+    char buffer[32];
+    ASSUME_ITS_FALSE(fossil_bluecrab_fileshell_read("no_such_file.txt", buffer, sizeof(buffer)));
+}
+
+FOSSIL_TEST(c_test_fileshell_write_null_args) {
+    ASSUME_ITS_FALSE(fossil_bluecrab_fileshell_write(NULL, "data"));
+    ASSUME_ITS_FALSE(fossil_bluecrab_fileshell_write("file.txt", NULL));
+}
+
+FOSSIL_TEST(c_test_fileshell_append_null_args) {
+    ASSUME_ITS_FALSE(fossil_bluecrab_fileshell_append(NULL, "data"));
+    ASSUME_ITS_FALSE(fossil_bluecrab_fileshell_append("file.txt", NULL));
+}
+
+FOSSIL_TEST(c_test_fileshell_list_invalid_dir) {
+    char *files[4];
+    int count = fossil_bluecrab_fileshell_list("no_such_dir", files, 4);
+    ASSUME_ITS_TRUE(count == -1);
+}
+
+// * * * * * * * * * * * * * * * * * * * * * * * *
+// * Fossil Logic Test Pool
+// * * * * * * * * * * * * * * * * * * * * * * * *
+FOSSIL_TEST_GROUP(c_fileshell_database_tests) {
+    FOSSIL_TEST_ADD(c_fileshell_fixture, c_test_fileshell_write_and_read);
+    FOSSIL_TEST_ADD(c_fileshell_fixture, c_test_fileshell_append);
+    FOSSIL_TEST_ADD(c_fileshell_fixture, c_test_fileshell_delete_and_exists);
+    FOSSIL_TEST_ADD(c_fileshell_fixture, c_test_fileshell_size);
+    FOSSIL_TEST_ADD(c_fileshell_fixture, c_test_fileshell_list);
+    FOSSIL_TEST_ADD(c_fileshell_fixture, c_test_fileshell_read_nonexistent_file);
+    FOSSIL_TEST_ADD(c_fileshell_fixture, c_test_fileshell_write_null_args);
+    FOSSIL_TEST_ADD(c_fileshell_fixture, c_test_fileshell_append_null_args);
+    FOSSIL_TEST_ADD(c_fileshell_fixture, c_test_fileshell_list_invalid_dir);
+
+    FOSSIL_TEST_REGISTER(c_fileshell_fixture);
+} // end of tests

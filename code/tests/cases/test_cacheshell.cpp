@@ -1,0 +1,168 @@
+/*
+ * -----------------------------------------------------------------------------
+ * Project: Fossil Logic
+ *
+ * This file is part of the Fossil Logic project, which aims to develop high-
+ * performance, cross-platform applications and libraries. The code contained
+ * herein is subject to the terms and conditions defined in the project license.
+ *
+ * Author: Michael Gene Brockus (Dreamer)
+ *
+ * Copyright (C) 2024 Fossil Logic. All rights reserved.
+ * -----------------------------------------------------------------------------
+ */
+#include <fossil/pizza/framework.h>
+
+#include "fossil/crabdb/framework.h"
+
+// * * * * * * * * * * * * * * * * * * * * * * * *
+// * Fossil Logic Test Utilities
+// * * * * * * * * * * * * * * * * * * * * * * * *
+// Setup steps for things like test fixtures and
+// mock objects are set here.
+// * * * * * * * * * * * * * * * * * * * * * * * *
+
+FOSSIL_SUITE(cpp_cacheshell_fixture);
+
+FOSSIL_SETUP(cpp_cacheshell_fixture) {
+    // Setup the test fixture
+}
+
+FOSSIL_TEARDOWN(cpp_cacheshell_fixture) {
+    // Teardown the test fixture
+}
+
+// * * * * * * * * * * * * * * * * * * * * * * * *
+// * Fossil Logic Test Blue CrabDB Database
+// * * * * * * * * * * * * * * * * * * * * * * * *
+
+// CacheShell API tests
+
+FOSSIL_TEST(cpp_test_cacheshell_set_and_get) {
+    fossil::bluecrab::CacheShell::clear();
+    std::string key = "foo";
+    std::string value = "bar";
+    std::string out;
+
+    ASSUME_ITS_TRUE(fossil::bluecrab::CacheShell::set(key, value));
+    ASSUME_ITS_TRUE(fossil::bluecrab::CacheShell::get(key, out));
+    ASSUME_ITS_TRUE(out == value);
+}
+
+FOSSIL_TEST(cpp_test_cacheshell_overwrite_value) {
+    fossil::bluecrab::CacheShell::clear();
+    std::string key = "foo";
+    std::string value1 = "bar";
+    std::string value2 = "baz";
+    std::string out;
+
+    ASSUME_ITS_TRUE(fossil::bluecrab::CacheShell::set(key, value1));
+    ASSUME_ITS_TRUE(fossil::bluecrab::CacheShell::set(key, value2));
+    ASSUME_ITS_TRUE(fossil::bluecrab::CacheShell::get(key, out));
+    ASSUME_ITS_TRUE(out == value2);
+}
+
+FOSSIL_TEST(cpp_test_cacheshell_remove) {
+    fossil::bluecrab::CacheShell::clear();
+    std::string key = "foo";
+    std::string value = "bar";
+    std::string out;
+
+    ASSUME_ITS_TRUE(fossil::bluecrab::CacheShell::set(key, value));
+    ASSUME_ITS_TRUE(fossil::bluecrab::CacheShell::remove(key));
+    ASSUME_ITS_FALSE(fossil::bluecrab::CacheShell::get(key, out));
+}
+
+FOSSIL_TEST(cpp_test_cacheshell_set_with_ttl_and_expire) {
+    fossil::bluecrab::CacheShell::clear();
+    std::string key = "ttlkey";
+    std::string value = "ttlvalue";
+    std::string out;
+
+    ASSUME_ITS_TRUE(fossil::bluecrab::CacheShell::set_with_ttl(key, value, 1));
+    ASSUME_ITS_TRUE(fossil::bluecrab::CacheShell::get(key, out));
+    ASSUME_ITS_TRUE(out == value);
+
+    // Wait for TTL to expire
+    sleep(2);
+    ASSUME_ITS_FALSE(fossil::bluecrab::CacheShell::get(key, out));
+}
+
+FOSSIL_TEST(cpp_test_cacheshell_expire_and_ttl) {
+    fossil::bluecrab::CacheShell::clear();
+    std::string key = "expirekey";
+    std::string value = "expirevalue";
+
+    ASSUME_ITS_TRUE(fossil::bluecrab::CacheShell::set(key, value));
+    ASSUME_ITS_TRUE(fossil::bluecrab::CacheShell::expire(key, 2));
+    int ttl = fossil::bluecrab::CacheShell::ttl(key);
+    ASSUME_ITS_TRUE(ttl > 0 && ttl <= 2);
+
+    sleep(3);
+    ttl = fossil::bluecrab::CacheShell::ttl(key);
+    ASSUME_ITS_TRUE(ttl == -1);
+}
+
+FOSSIL_TEST(cpp_test_cacheshell_clear_and_count) {
+    fossil::bluecrab::CacheShell::clear();
+    ASSUME_ITS_TRUE(fossil::bluecrab::CacheShell::count() == 0);
+
+    fossil::bluecrab::CacheShell::set("a", "1");
+    fossil::bluecrab::CacheShell::set("b", "2");
+    ASSUME_ITS_TRUE(fossil::bluecrab::CacheShell::count() == 2);
+
+    fossil::bluecrab::CacheShell::clear();
+    ASSUME_ITS_TRUE(fossil::bluecrab::CacheShell::count() == 0);
+}
+
+FOSSIL_TEST(cpp_test_cacheshell_exists) {
+    fossil::bluecrab::CacheShell::clear();
+    std::string key = "existkey";
+    ASSUME_ITS_FALSE(fossil::bluecrab::CacheShell::exists(key));
+    fossil::bluecrab::CacheShell::set(key, "val");
+    ASSUME_ITS_TRUE(fossil::bluecrab::CacheShell::exists(key));
+    fossil::bluecrab::CacheShell::remove(key);
+    ASSUME_ITS_FALSE(fossil::bluecrab::CacheShell::exists(key));
+}
+
+FOSSIL_TEST(cpp_test_cacheshell_set_and_get_binary) {
+    fossil::bluecrab::CacheShell::clear();
+    std::string key = "bin";
+    unsigned char data[4] = {0xde, 0xad, 0xbe, 0xef};
+    unsigned char out[4] = {0};
+    size_t out_size = 0;
+
+    ASSUME_ITS_TRUE(fossil::bluecrab::CacheShell::set_binary(key, data, sizeof(data)));
+    ASSUME_ITS_TRUE(fossil::bluecrab::CacheShell::get_binary(key, out, sizeof(out), &out_size));
+    ASSUME_ITS_TRUE(out_size == sizeof(data));
+    ASSUME_ITS_TRUE(memcmp(data, out, sizeof(data)) == 0);
+}
+
+FOSSIL_TEST(cpp_test_cacheshell_get_nonexistent_key) {
+    fossil::bluecrab::CacheShell::clear();
+    std::string out;
+    ASSUME_ITS_FALSE(fossil::bluecrab::CacheShell::get("nope", out));
+}
+
+FOSSIL_TEST(cpp_test_cacheshell_remove_nonexistent_key) {
+    fossil::bluecrab::CacheShell::clear();
+    ASSUME_ITS_FALSE(fossil::bluecrab::CacheShell::remove("nope"));
+}
+
+// * * * * * * * * * * * * * * * * * * * * * * * *
+// * Fossil Logic Test Pool
+// * * * * * * * * * * * * * * * * * * * * * * * *
+FOSSIL_TEST_GROUP(cpp_cacheshell_database_tests) {
+    FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_set_and_get);
+    FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_overwrite_value);
+    FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_remove);
+    FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_set_with_ttl_and_expire);
+    FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_expire_and_ttl);
+    FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_clear_and_count);
+    FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_exists);
+    FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_set_and_get_binary);
+    FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_get_nonexistent_key);
+    FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_remove_nonexistent_key);
+
+    FOSSIL_TEST_REGISTER(cpp_cacheshell_fixture);
+} // end of tests
