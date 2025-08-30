@@ -109,6 +109,8 @@ int fossil_bluecrab_fileshell_list(const char *dir_path, char **out_files, size_
 #ifdef __cplusplus
 }
 #include <string>
+#include <vector>
+#include <algorithm>
 
 namespace fossil {
 
