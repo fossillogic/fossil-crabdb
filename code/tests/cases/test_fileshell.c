@@ -99,9 +99,9 @@ FOSSIL_TEST(c_test_fileshell_list) {
     int count = fossil_bluecrab_fileshell_list(dir_name, files, 16);
 
     ASSUME_ITS_TRUE(count > 0);
-    bool found = false;
     for (int i = 0; i < count; ++i) {
-        if (strcmp(files[i], "test_fileshell_list") == 0) found = true;
+        // Optionally check for a specific file, but do not use 'found'
+        // if (strcmp(files[i], "test_fileshell_list") == 0) { /* found */ }
         free(files[i]);
     }
     // Not all systems will have the test file, so just check count > 0
