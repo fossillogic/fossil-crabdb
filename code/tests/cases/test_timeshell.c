@@ -41,7 +41,7 @@ FOSSIL_TEST(c_test_timeshell_insert_interval) {
     const char *file_name = "test.crabdb";
     fossil_bluecrab_timeshell_create_database(file_name);
 
-    fossil_timeshell_interval_t interval = { .start = 100, .end = 200 };
+    fossil_timeshell_interval_t interval = { .begin = 100, .finish = 200 };
     fossil_timeshell_error_t result = fossil_bluecrab_timeshell_insert(file_name, &interval);
     ASSUME_ITS_TRUE(result == FOSSIL_TIMESHELL_ERROR_SUCCESS);
 
@@ -59,14 +59,14 @@ FOSSIL_TEST(c_test_timeshell_find_overlap) {
     fossil_bluecrab_timeshell_create_database(file_name);
 
     fossil_timeshell_interval_t intervals[] = {
-        { .start = 10, .end = 20 },
-        { .start = 15, .end = 25 },
-        { .start = 30, .end = 40 }
+        { .begin = 10, .finish = 20 },
+        { .begin = 15, .finish = 25 },
+        { .begin = 30, .finish = 40 }
     };
     for (size_t i = 0; i < 3; ++i)
         fossil_bluecrab_timeshell_insert(file_name, &intervals[i]);
 
-    fossil_timeshell_interval_t query = { .start = 18, .end = 35 };
+    fossil_timeshell_interval_t query = { .begin = 18, .finish = 35 };
     fossil_timeshell_interval_t results[3];
     size_t found = 0;
     fossil_timeshell_error_t result = fossil_bluecrab_timeshell_find(file_name, &query, results, 3, &found);
@@ -81,20 +81,20 @@ FOSSIL_TEST(c_test_timeshell_update_interval) {
     const char *file_name = "test.crabdb";
     fossil_bluecrab_timeshell_create_database(file_name);
 
-    fossil_timeshell_interval_t old_interval = { .start = 50, .end = 60 };
-    fossil_timeshell_interval_t new_interval = { .start = 55, .end = 65 };
+    fossil_timeshell_interval_t old_interval = { .begin = 50, .finish = 60 };
+    fossil_timeshell_interval_t new_interval = { .begin = 55, .finish = 65 };
     fossil_bluecrab_timeshell_insert(file_name, &old_interval);
 
     fossil_timeshell_error_t result = fossil_bluecrab_timeshell_update(file_name, &old_interval, &new_interval);
     ASSUME_ITS_TRUE(result == FOSSIL_TIMESHELL_ERROR_SUCCESS);
 
-    fossil_timeshell_interval_t query = { .start = 55, .end = 65 };
+    fossil_timeshell_interval_t query = { .begin = 55, .finish = 65 };
     fossil_timeshell_interval_t results[1];
     size_t found = 0;
     result = fossil_bluecrab_timeshell_find(file_name, &query, results, 1, &found);
     ASSUME_ITS_TRUE(result == FOSSIL_TIMESHELL_ERROR_SUCCESS);
     ASSUME_ITS_TRUE(found == 1);
-    ASSUME_ITS_TRUE(results[0].start == 55 && results[0].end == 65);
+    ASSUME_ITS_TRUE(results[0].begin == 55 && results[0].finish == 65);
 
     fossil_bluecrab_timeshell_delete_database(file_name);
 }
@@ -104,7 +104,7 @@ FOSSIL_TEST(c_test_timeshell_remove_interval) {
     const char *file_name = "test.crabdb";
     fossil_bluecrab_timeshell_create_database(file_name);
 
-    fossil_timeshell_interval_t interval = { .start = 70, .end = 80 };
+    fossil_timeshell_interval_t interval = { .begin = 70, .finish = 80 };
     fossil_bluecrab_timeshell_insert(file_name, &interval);
 
     fossil_timeshell_error_t result = fossil_bluecrab_timeshell_remove(file_name, &interval);
@@ -124,7 +124,7 @@ FOSSIL_TEST(c_test_timeshell_backup_restore) {
     const char *backup_file = "backup.crabdb";
     fossil_bluecrab_timeshell_create_database(file_name);
 
-    fossil_timeshell_interval_t interval = { .start = 1, .end = 2 };
+    fossil_timeshell_interval_t interval = { .begin = 1, .finish = 2 };
     fossil_bluecrab_timeshell_insert(file_name, &interval);
 
     fossil_timeshell_error_t result = fossil_bluecrab_timeshell_backup_database(file_name, backup_file);
@@ -151,8 +151,8 @@ FOSSIL_TEST(c_test_timeshell_validate_extension) {
 
 // Test case for validating time intervals
 FOSSIL_TEST(c_test_timeshell_validate_interval) {
-    fossil_timeshell_interval_t valid = { .start = 1, .end = 2 };
-    fossil_timeshell_interval_t invalid = { .start = 5, .end = 2 };
+    fossil_timeshell_interval_t valid = { .begin = 1, .finish = 2 };
+    fossil_timeshell_interval_t invalid = { .begin = 5, .finish = 2 };
     ASSUME_ITS_TRUE(fossil_bluecrab_timeshell_validate_interval(&valid));
     ASSUME_ITS_FALSE(fossil_bluecrab_timeshell_validate_interval(&invalid));
 }
@@ -161,10 +161,10 @@ FOSSIL_TEST(c_test_timeshell_validate_interval) {
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
 FOSSIL_TEST_GROUP(c_timeshell_database_tests) {
-    FOSSIL_TEST_ADD(c_timeshell_fixture, c_test_timeshell_create_record);
-    FOSSIL_TEST_ADD(c_timeshell_fixture, c_test_timeshell_read_nonexistent_record);
-    FOSSIL_TEST_ADD(c_timeshell_fixture, c_test_timeshell_update_nonexistent_record);
-    FOSSIL_TEST_ADD(c_timeshell_fixture, c_test_timeshell_delete_nonexistent_record);
+    FOSSIL_TEST_ADD(c_timeshell_fixture, c_test_timeshell_insert_interval);
+    FOSSIL_TEST_ADD(c_timeshell_fixture, c_test_timeshell_find_overlap);
+    FOSSIL_TEST_ADD(c_timeshell_fixture, c_test_timeshell_update_interval);
+    FOSSIL_TEST_ADD(c_timeshell_fixture, c_test_timeshell_remove_interval);
     FOSSIL_TEST_ADD(c_timeshell_fixture, c_test_timeshell_backup_restore);
     FOSSIL_TEST_ADD(c_timeshell_fixture, c_test_timeshell_validate_extension);
     FOSSIL_TEST_ADD(c_timeshell_fixture, c_test_timeshell_validate_interval);
