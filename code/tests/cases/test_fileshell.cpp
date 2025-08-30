@@ -166,14 +166,17 @@ FOSSIL_TEST(cpp_test_fileshell_write_empty_string) {
 // * * * * * * * * * * * * * * * * * * * * * * * *
 FOSSIL_TEST_GROUP(cpp_fileshell_database_tests) {
     FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_write_and_read);
-    FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_append);
-    FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_delete_and_exists);
+    FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_overwrite);
+    FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_append_creates_file);
+    FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_append_to_existing);
+    FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_exists_and_remove);
     FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_size);
-    FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_list);
-    FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_read_nonexistent_file);
-    FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_write_null_args);
-    FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_append_null_args);
-    FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_list_invalid_dir);
+    FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_read_nonexistent);
+    FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_remove_nonexistent);
+    FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_list_directory);
+    FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_list_invalid_directory);
+    FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_size_nonexistent);
+    FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_write_empty_string);
 
     FOSSIL_TEST_REGISTER(cpp_fileshell_fixture);
 } // end of tests
