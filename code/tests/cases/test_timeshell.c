@@ -42,8 +42,8 @@ FOSSIL_TEST(c_test_timeshell_insert_interval) {
     fossil_bluecrab_timeshell_create_database(file_name);
 
     fossil_timeshell_interval_t interval;
-    interval.start = 100;
-    interval.end = 200;
+    interval.begin = 100;
+    interval.finish = 200;
     fossil_timeshell_error_t result = fossil_bluecrab_timeshell_insert(file_name, &interval);
     ASSUME_ITS_TRUE(result == FOSSIL_TIMESHELL_ERROR_SUCCESS);
 
@@ -61,15 +61,15 @@ FOSSIL_TEST(c_test_timeshell_find_overlap) {
     fossil_bluecrab_timeshell_create_database(file_name);
 
     fossil_timeshell_interval_t intervals[3];
-    intervals[0].start = 10; intervals[0].end = 20;
-    intervals[1].start = 15; intervals[1].end = 25;
-    intervals[2].start = 30; intervals[2].end = 40;
+    intervals[0].begin = 10; intervals[0].finish = 20;
+    intervals[1].begin = 15; intervals[1].finish = 25;
+    intervals[2].begin = 30; intervals[2].finish = 40;
     for (size_t i = 0; i < 3; ++i)
         fossil_bluecrab_timeshell_insert(file_name, &intervals[i]);
 
     fossil_timeshell_interval_t query;
-    query.start = 18;
-    query.end = 35;
+    query.begin = 18;
+    query.finish = 35;
     fossil_timeshell_interval_t results[3];
     size_t found = 0;
     fossil_timeshell_error_t result = fossil_bluecrab_timeshell_find(file_name, &query, results, 3, &found);
@@ -85,25 +85,25 @@ FOSSIL_TEST(c_test_timeshell_update_interval) {
     fossil_bluecrab_timeshell_create_database(file_name);
 
     fossil_timeshell_interval_t old_interval;
-    old_interval.start = 50;
-    old_interval.end = 60;
+    old_interval.begin = 50;
+    old_interval.finish = 60;
     fossil_timeshell_interval_t new_interval;
-    new_interval.start = 55;
-    new_interval.end = 65;
+    new_interval.begin = 55;
+    new_interval.finish = 65;
     fossil_bluecrab_timeshell_insert(file_name, &old_interval);
 
     fossil_timeshell_error_t result = fossil_bluecrab_timeshell_update(file_name, &old_interval, &new_interval);
     ASSUME_ITS_TRUE(result == FOSSIL_TIMESHELL_ERROR_SUCCESS);
 
     fossil_timeshell_interval_t query;
-    query.start = 55;
-    query.end = 65;
+    query.begin = 55;
+    query.finish = 65;
     fossil_timeshell_interval_t results[1];
     size_t found = 0;
     result = fossil_bluecrab_timeshell_find(file_name, &query, results, 1, &found);
     ASSUME_ITS_TRUE(result == FOSSIL_TIMESHELL_ERROR_SUCCESS);
     ASSUME_ITS_TRUE(found == 1);
-    ASSUME_ITS_TRUE(results[0].start == 55 && results[0].end == 65);
+    ASSUME_ITS_TRUE(results[0].begin == 55 && results[0].finish == 65);
 
     fossil_bluecrab_timeshell_delete_database(file_name);
 }
@@ -114,8 +114,8 @@ FOSSIL_TEST(c_test_timeshell_remove_interval) {
     fossil_bluecrab_timeshell_create_database(file_name);
 
     fossil_timeshell_interval_t interval;
-    interval.start = 70;
-    interval.end = 80;
+    interval.begin = 70;
+    interval.finish = 80;
     fossil_bluecrab_timeshell_insert(file_name, &interval);
 
     fossil_timeshell_error_t result = fossil_bluecrab_timeshell_remove(file_name, &interval);
@@ -136,8 +136,8 @@ FOSSIL_TEST(c_test_timeshell_backup_restore) {
     fossil_bluecrab_timeshell_create_database(file_name);
 
     fossil_timeshell_interval_t interval;
-    interval.start = 1;
-    interval.end = 2;
+    interval.begin = 1;
+    interval.finish = 2;
     fossil_bluecrab_timeshell_insert(file_name, &interval);
 
     fossil_timeshell_error_t result = fossil_bluecrab_timeshell_backup_database(file_name, backup_file);
@@ -165,11 +165,11 @@ FOSSIL_TEST(c_test_timeshell_validate_extension) {
 /* Test case for validating time intervals */
 FOSSIL_TEST(c_test_timeshell_validate_interval) {
     fossil_timeshell_interval_t valid;
-    valid.start = 1;
-    valid.end = 2;
+    valid.begin = 1;
+    valid.finish = 2;
     fossil_timeshell_interval_t invalid;
-    invalid.start = 5;
-    invalid.end = 2;
+    invalid.begin = 5;
+    invalid.finish = 2;
     ASSUME_ITS_TRUE(fossil_bluecrab_timeshell_validate_interval(&valid));
     ASSUME_ITS_FALSE(fossil_bluecrab_timeshell_validate_interval(&invalid));
 }
