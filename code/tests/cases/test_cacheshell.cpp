@@ -22,13 +22,13 @@
 // mock objects are set here.
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
-FOSSIL_SUITE(c_cacheshell_fixture);
+FOSSIL_SUITE(cpp_cacheshell_fixture);
 
-FOSSIL_SETUP(c_cacheshell_fixture) {
+FOSSIL_SETUP(cpp_cacheshell_fixture) {
     // Setup the test fixture
 }
 
-FOSSIL_TEARDOWN(c_cacheshell_fixture) {
+FOSSIL_TEARDOWN(cpp_cacheshell_fixture) {
     // Teardown the test fixture
 }
 
@@ -38,7 +38,7 @@ FOSSIL_TEARDOWN(c_cacheshell_fixture) {
 
 // CacheShell API tests
 
-FOSSIL_TEST(c_test_cacheshell_set_and_get) {
+FOSSIL_TEST(cpp_test_cacheshell_set_and_get) {
     fossil::bluecrab::CacheShell::clear();
     std::string key = "foo";
     std::string value = "bar";
@@ -49,7 +49,7 @@ FOSSIL_TEST(c_test_cacheshell_set_and_get) {
     ASSUME_ITS_TRUE(out == value);
 }
 
-FOSSIL_TEST(c_test_cacheshell_overwrite_value) {
+FOSSIL_TEST(cpp_test_cacheshell_overwrite_value) {
     fossil::bluecrab::CacheShell::clear();
     std::string key = "foo";
     std::string value1 = "bar";
@@ -62,7 +62,7 @@ FOSSIL_TEST(c_test_cacheshell_overwrite_value) {
     ASSUME_ITS_TRUE(out == value2);
 }
 
-FOSSIL_TEST(c_test_cacheshell_remove) {
+FOSSIL_TEST(cpp_test_cacheshell_remove) {
     fossil::bluecrab::CacheShell::clear();
     std::string key = "foo";
     std::string value = "bar";
@@ -73,7 +73,7 @@ FOSSIL_TEST(c_test_cacheshell_remove) {
     ASSUME_ITS_FALSE(fossil::bluecrab::CacheShell::get(key, out));
 }
 
-FOSSIL_TEST(c_test_cacheshell_set_with_ttl_and_expire) {
+FOSSIL_TEST(cpp_test_cacheshell_set_with_ttl_and_expire) {
     fossil::bluecrab::CacheShell::clear();
     std::string key = "ttlkey";
     std::string value = "ttlvalue";
@@ -88,7 +88,7 @@ FOSSIL_TEST(c_test_cacheshell_set_with_ttl_and_expire) {
     ASSUME_ITS_FALSE(fossil::bluecrab::CacheShell::get(key, out));
 }
 
-FOSSIL_TEST(c_test_cacheshell_expire_and_ttl) {
+FOSSIL_TEST(cpp_test_cacheshell_expire_and_ttl) {
     fossil::bluecrab::CacheShell::clear();
     std::string key = "expirekey";
     std::string value = "expirevalue";
@@ -103,7 +103,7 @@ FOSSIL_TEST(c_test_cacheshell_expire_and_ttl) {
     ASSUME_ITS_TRUE(ttl == -1);
 }
 
-FOSSIL_TEST(c_test_cacheshell_clear_and_count) {
+FOSSIL_TEST(cpp_test_cacheshell_clear_and_count) {
     fossil::bluecrab::CacheShell::clear();
     ASSUME_ITS_TRUE(fossil::bluecrab::CacheShell::count() == 0);
 
@@ -115,7 +115,7 @@ FOSSIL_TEST(c_test_cacheshell_clear_and_count) {
     ASSUME_ITS_TRUE(fossil::bluecrab::CacheShell::count() == 0);
 }
 
-FOSSIL_TEST(c_test_cacheshell_exists) {
+FOSSIL_TEST(cpp_test_cacheshell_exists) {
     fossil::bluecrab::CacheShell::clear();
     std::string key = "existkey";
     ASSUME_ITS_FALSE(fossil::bluecrab::CacheShell::exists(key));
@@ -125,7 +125,7 @@ FOSSIL_TEST(c_test_cacheshell_exists) {
     ASSUME_ITS_FALSE(fossil::bluecrab::CacheShell::exists(key));
 }
 
-FOSSIL_TEST(c_test_cacheshell_set_and_get_binary) {
+FOSSIL_TEST(cpp_test_cacheshell_set_and_get_binary) {
     fossil::bluecrab::CacheShell::clear();
     std::string key = "bin";
     unsigned char data[4] = {0xde, 0xad, 0xbe, 0xef};
@@ -138,13 +138,13 @@ FOSSIL_TEST(c_test_cacheshell_set_and_get_binary) {
     ASSUME_ITS_TRUE(memcmp(data, out, sizeof(data)) == 0);
 }
 
-FOSSIL_TEST(c_test_cacheshell_get_nonexistent_key) {
+FOSSIL_TEST(cpp_test_cacheshell_get_nonexistent_key) {
     fossil::bluecrab::CacheShell::clear();
     std::string out;
     ASSUME_ITS_FALSE(fossil::bluecrab::CacheShell::get("nope", out));
 }
 
-FOSSIL_TEST(c_test_cacheshell_remove_nonexistent_key) {
+FOSSIL_TEST(cpp_test_cacheshell_remove_nonexistent_key) {
     fossil::bluecrab::CacheShell::clear();
     ASSUME_ITS_FALSE(fossil::bluecrab::CacheShell::remove("nope"));
 }
@@ -152,17 +152,17 @@ FOSSIL_TEST(c_test_cacheshell_remove_nonexistent_key) {
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
-FOSSIL_TEST_GROUP(c_cacheshell_database_tests) {
-    FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_set_and_get);
-    FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_overwrite_value);
-    FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_remove);
-    FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_set_with_ttl_and_expire);
-    FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_expire_and_ttl);
-    FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_clear_and_count);
-    FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_exists);
-    FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_set_and_get_binary);
-    FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_get_nonexistent_key);
-    FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_remove_nonexistent_key);
+FOSSIL_TEST_GROUP(cpp_cacheshell_database_tests) {
+    FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_set_and_get);
+    FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_overwrite_value);
+    FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_remove);
+    FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_set_with_ttl_and_expire);
+    FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_expire_and_ttl);
+    FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_clear_and_count);
+    FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_exists);
+    FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_set_and_get_binary);
+    FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_get_nonexistent_key);
+    FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_remove_nonexistent_key);
 
-    FOSSIL_TEST_REGISTER(c_cacheshell_fixture);
+    FOSSIL_TEST_REGISTER(cpp_cacheshell_fixture);
 } // end of tests
