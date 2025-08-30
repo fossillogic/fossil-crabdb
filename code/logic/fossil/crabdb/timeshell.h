@@ -63,7 +63,7 @@ typedef struct {
 /**
  * @brief Inserts a new time interval into the database.
  * 
- * @param file_name     Database file name (.fdb enforced)
+ * @param file_name     Database file name (.crabdb enforced)
  * @param interval      Pointer to interval to insert
  * @return              FOSSIL_TIMESHELL_ERROR_SUCCESS on success, otherwise error code
  */
@@ -132,7 +132,7 @@ fossil_timeshell_error_t fossil_bluecrab_timeshell_count_intervals(const char *f
 fossil_timeshell_error_t fossil_bluecrab_timeshell_get_file_size(const char *file_name, size_t *size_bytes);
 
 /**
- * @brief Validates the file extension (.fdb)
+ * @brief Validates the file extension (.crabdb)
  */
 bool fossil_bluecrab_timeshell_validate_extension(const char *file_name);
 
@@ -160,7 +160,7 @@ namespace fossil {
         public:
             /**
              * @brief Inserts a new time interval into the database.
-             * @param file_name Database file name (.fdb enforced)
+             * @param file_name Database file name (.crabdb enforced)
              * @param interval Pointer to interval to insert
              * @return Error code (see fossil_timeshell_error_t)
              */
@@ -206,7 +206,7 @@ namespace fossil {
 
             /**
              * @brief Creates a new database file.
-             * @param file_name Database file name (.fdb enforced)
+             * @param file_name Database file name (.crabdb enforced)
              * @return Error code (see fossil_timeshell_error_t)
              */
             static fossil_timeshell_error_t create_database(const std::string& file_name) {
@@ -272,7 +272,7 @@ namespace fossil {
             }
 
             /**
-             * @brief Validates the file extension (.fdb).
+             * @brief Validates the file extension (.crabdb).
              * @param file_name Database file name
              * @return True if extension is valid, false otherwise
              */

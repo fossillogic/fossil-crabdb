@@ -14,7 +14,7 @@
 #include "fossil/crabdb/timeshell.h"
 
 #define TIMESHELL_LINE_MAX 256
-#define TIMESHELL_TEMP_FILE "tmp_timeshell.fdb"
+#define TIMESHELL_TEMP_FILE "tmp_timeshell.crabdb"
 
 // ============================================================================
 // Internal 64-bit enhanced hash (FNV-1a + mixing)
@@ -95,7 +95,7 @@ static void timeshell_format_record(char *buf, size_t bufsize, uint64_t start, u
 bool fossil_bluecrab_timeshell_validate_extension(const char *file_name) {
     if (!file_name) return false;
     const char *ext = strrchr(file_name, '.');
-    return ext && strcmp(ext, ".fdb") == 0;
+    return ext && strcmp(ext, ".crabdb") == 0;
 }
 
 bool fossil_bluecrab_timeshell_validate_interval(const fossil_timeshell_interval_t *interval) {

@@ -56,7 +56,7 @@ typedef enum {
 /**
  * @brief Inserts a new document into the database.
  * 
- * @param file_name     The database file name (.fdb enforced).
+ * @param file_name     The database file name (.crabdb enforced).
  * @param document      The document string to insert.
  * @return              FOSSIL_NOSHELL_ERROR_SUCCESS on success, otherwise error code.
  */
@@ -65,7 +65,7 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_insert(const char *file_
 /**
  * @brief Inserts a document and returns a unique internal ID.
  * 
- * @param file_name     The database file name (.fdb enforced).
+ * @param file_name     The database file name (.crabdb enforced).
  * @param document      The document string to insert.
  * @param out_id        Buffer to store generated document ID.
  * @param id_size       Size of the buffer.
@@ -120,7 +120,7 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_remove(const char *file_
 /**
  * @brief Creates a new database file.
  * 
- * @param file_name     The database file name (.fdb enforced).
+ * @param file_name     The database file name (.crabdb enforced).
  * @return              FOSSIL_NOSHELL_ERROR_SUCCESS on success, otherwise error code.
  */
 fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_create_database(const char *file_name);
@@ -251,7 +251,7 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_get_file_size(const char
  * @brief Validates the file extension of a database file.
  * 
  * @param file_name     The database file name.
- * @return              true if the extension is valid (.fdb), false otherwise.
+ * @return              true if the extension is valid (.crabdb), false otherwise.
  */
 bool fossil_bluecrab_noshell_validate_extension(const char *file_name);
 
@@ -280,7 +280,7 @@ namespace fossil {
         public:
             /**
              * @brief Inserts a new document into the database.
-             * @param file_name The database file name (.fdb enforced).
+             * @param file_name The database file name (.crabdb enforced).
              * @param document The document string to insert.
              * @return FOSSIL_NOSHELL_ERROR_SUCCESS on success, otherwise error code.
              */
@@ -290,7 +290,7 @@ namespace fossil {
 
             /**
              * @brief Inserts a document and returns a unique internal ID.
-             * @param file_name The database file name (.fdb enforced).
+             * @param file_name The database file name (.crabdb enforced).
              * @param document The document string to insert.
              * @param out_id Reference to a string to store the generated document ID.
              * @return FOSSIL_NOSHELL_ERROR_SUCCESS on success, otherwise error code.
@@ -343,7 +343,7 @@ namespace fossil {
 
             /**
              * @brief Creates a new database file.
-             * @param file_name The database file name (.fdb enforced).
+             * @param file_name The database file name (.crabdb enforced).
              * @return FOSSIL_NOSHELL_ERROR_SUCCESS on success, otherwise error code.
              */
             static fossil_bluecrab_noshell_error_t create_database(const std::string& file_name) {
@@ -478,7 +478,7 @@ namespace fossil {
             /**
              * @brief Validates the file extension of a database file.
              * @param file_name The database file name.
-             * @return true if the extension is valid (.fdb), false otherwise.
+             * @return true if the extension is valid (.crabdb), false otherwise.
              */
             static bool validate_extension(const std::string& file_name) {
                 return fossil_bluecrab_noshell_validate_extension(file_name.c_str());

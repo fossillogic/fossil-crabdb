@@ -150,7 +150,7 @@ fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_restore_database(const c
 // Query and data validation
 
 /**
- * @brief Verifies the integrity of a .fdb database file by checking all record hashes.
+ * @brief Verifies the integrity of a .crabdb database file by checking all record hashes.
  * 
  * @param file_name     The name of the database file.
  * @return              FOSSIL_MYSHELL_ERROR_SUCCESS if all records pass,

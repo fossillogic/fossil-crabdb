@@ -148,7 +148,7 @@ fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_update_record(const char
     FILE *file = fopen(file_name, "r");
     if (!file) return FOSSIL_MYSHELL_ERROR_IO;
 
-    FILE *temp = fopen("temp.fdb", "w");
+    FILE *temp = fopen("temp.crabdb", "w");
     if (!temp) {
         fclose(file);
         return FOSSIL_MYSHELL_ERROR_IO;
@@ -185,11 +185,11 @@ fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_update_record(const char
 
     if (updated) {
         remove(file_name);
-        rename("temp.fdb", file_name);
+        rename("temp.crabdb", file_name);
         return FOSSIL_MYSHELL_ERROR_SUCCESS;
     }
 
-    remove("temp.fdb");
+    remove("temp.crabdb");
     return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
 }
 
@@ -200,7 +200,7 @@ fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_delete_record(const char
     FILE *file = fopen(file_name, "r");
     if (!file) return FOSSIL_MYSHELL_ERROR_IO;
 
-    FILE *temp = fopen("temp.fdb", "w");
+    FILE *temp = fopen("temp.crabdb", "w");
     if (!temp) {
         fclose(file);
         return FOSSIL_MYSHELL_ERROR_IO;
@@ -233,11 +233,11 @@ fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_delete_record(const char
 
     if (deleted) {
         remove(file_name);
-        rename("temp.fdb", file_name);
+        rename("temp.crabdb", file_name);
         return FOSSIL_MYSHELL_ERROR_SUCCESS;
     }
 
-    remove("temp.fdb");
+    remove("temp.crabdb");
     return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
 }
 
@@ -423,7 +423,7 @@ fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_verify_database(const ch
 
 bool fossil_bluecrab_myshell_validate_extension(const char *file_name) {
     const char *ext = strrchr(file_name, '.');
-    return ext && strcmp(ext, ".fdb") == 0;
+    return ext && strcmp(ext, ".crabdb") == 0;
 }
 
 bool fossil_bluecrab_myshell_validate_data(const char *data) {
