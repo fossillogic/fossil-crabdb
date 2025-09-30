@@ -98,6 +98,188 @@ static bool fossil_bluecrab_myshell_split_record(char *line, char **key, char **
 }
 
 // ===========================================================
+// FSON v2 support 
+// ===========================================================
+
+// portable case-insensitive compare
+static int myshell_stricmp(const char *a, const char *b) {
+    if (!a || !b) return (a == b) ? 0 : (a ? 1 : -1);
+
+    while (*a && *b) {
+        unsigned char ca = (unsigned char)tolower((unsigned char)*a);
+        unsigned char cb = (unsigned char)tolower((unsigned char)*b);
+        if (ca != cb) return (int)ca - (int)cb;
+        ++a;
+        ++b;
+    }
+    return (int)(unsigned char)*a - (int)(unsigned char)*b;
+}
+
+static const char* myshell_fson_type_to_string(fossil_bluecrab_myshell_fson_type_t type) {
+    switch (type) {
+        case MYSHELL_FSON_TYPE_NULL:     return "null";
+        case MYSHELL_FSON_TYPE_BOOL:     return "bool";
+        case MYSHELL_FSON_TYPE_I8:       return "i8";
+        case MYSHELL_FSON_TYPE_I16:      return "i16";
+        case MYSHELL_FSON_TYPE_I32:      return "i32";
+        case MYSHELL_FSON_TYPE_I64:      return "i64";
+        case MYSHELL_FSON_TYPE_U8:       return "u8";
+        case MYSHELL_FSON_TYPE_U16:      return "u16";
+        case MYSHELL_FSON_TYPE_U32:      return "u32";
+        case MYSHELL_FSON_TYPE_U64:      return "u64";
+        case MYSHELL_FSON_TYPE_F32:      return "f32";
+        case MYSHELL_FSON_TYPE_F64:      return "f64";
+        case MYSHELL_FSON_TYPE_OCT:      return "oct";
+        case MYSHELL_FSON_TYPE_HEX:      return "hex";
+        case MYSHELL_FSON_TYPE_BIN:      return "bin";
+        case MYSHELL_FSON_TYPE_CHAR:     return "char";
+        case MYSHELL_FSON_TYPE_CSTR:     return "cstr";
+        case MYSHELL_FSON_TYPE_ARRAY:    return "array";
+        case MYSHELL_FSON_TYPE_OBJECT:   return "object";
+        case MYSHELL_FSON_TYPE_ENUM:     return "enum";
+        case MYSHELL_FSON_TYPE_DATETIME: return "datetime";
+        case MYSHELL_FSON_TYPE_DURATION: return "duration";
+        default: return "unknown";
+    }
+}
+
+static fossil_bluecrab_myshell_fson_type_t myshell_fson_type_from_string(const char *s) {
+    if (!s) return MYSHELL_FSON_TYPE_NULL;
+
+    if (myshell_stricmp(s, "null")     == 0) return MYSHELL_FSON_TYPE_NULL;
+    if (myshell_stricmp(s, "bool")     == 0) return MYSHELL_FSON_TYPE_BOOL;
+    if (myshell_stricmp(s, "i8")       == 0) return MYSHELL_FSON_TYPE_I8;
+    if (myshell_stricmp(s, "i16")      == 0) return MYSHELL_FSON_TYPE_I16;
+    if (myshell_stricmp(s, "i32")      == 0) return MYSHELL_FSON_TYPE_I32;
+    if (myshell_stricmp(s, "i64")      == 0) return MYSHELL_FSON_TYPE_I64;
+    if (myshell_stricmp(s, "u8")       == 0) return MYSHELL_FSON_TYPE_U8;
+    if (myshell_stricmp(s, "u16")      == 0) return MYSHELL_FSON_TYPE_U16;
+    if (myshell_stricmp(s, "u32")      == 0) return MYSHELL_FSON_TYPE_U32;
+    if (myshell_stricmp(s, "u64")      == 0) return MYSHELL_FSON_TYPE_U64;
+    if (myshell_stricmp(s, "f32")      == 0) return MYSHELL_FSON_TYPE_F32;
+    if (myshell_stricmp(s, "f64")      == 0) return MYSHELL_FSON_TYPE_F64;
+    if (myshell_stricmp(s, "oct")      == 0) return MYSHELL_FSON_TYPE_OCT;
+    if (myshell_stricmp(s, "hex")      == 0) return MYSHELL_FSON_TYPE_HEX;
+    if (myshell_stricmp(s, "bin")      == 0) return MYSHELL_FSON_TYPE_BIN;
+    if (myshell_stricmp(s, "char")     == 0) return MYSHELL_FSON_TYPE_CHAR;
+    if (myshell_stricmp(s, "cstr")     == 0) return MYSHELL_FSON_TYPE_CSTR;
+    if (myshell_stricmp(s, "array")    == 0) return MYSHELL_FSON_TYPE_ARRAY;
+    if (myshell_stricmp(s, "object")   == 0) return MYSHELL_FSON_TYPE_OBJECT;
+    if (myshell_stricmp(s, "enum")     == 0) return MYSHELL_FSON_TYPE_ENUM;
+    if (myshell_stricmp(s, "datetime") == 0) return MYSHELL_FSON_TYPE_DATETIME;
+    if (myshell_stricmp(s, "duration") == 0) return MYSHELL_FSON_TYPE_DURATION;
+
+    return MYSHELL_FSON_TYPE_NULL; // fallback
+}
+
+static void myshell_fson_value_to_string(
+    const fossil_bluecrab_myshell_fson_value_t *val,
+    char *out, size_t out_size)
+{
+    const char *tname = myshell_fson_type_to_string(val->type);
+
+    switch (val->type) {
+        case MYSHELL_FSON_TYPE_NULL:
+            snprintf(out, out_size, "%s:null", tname);
+            break;
+        case MYSHELL_FSON_TYPE_BOOL:
+            snprintf(out, out_size, "%s:%s", tname, val->as.b ? "true" : "false");
+            break;
+
+        case MYSHELL_FSON_TYPE_I8:  snprintf(out, out_size, "%s:%" PRId8,  tname, val->as.i8); break;
+        case MYSHELL_FSON_TYPE_I16: snprintf(out, out_size, "%s:%" PRId16, tname, val->as.i16); break;
+        case MYSHELL_FSON_TYPE_I32: snprintf(out, out_size, "%s:%" PRId32, tname, val->as.i32); break;
+        case MYSHELL_FSON_TYPE_I64: snprintf(out, out_size, "%s:%" PRId64, tname, val->as.i64); break;
+
+        case MYSHELL_FSON_TYPE_U8:  snprintf(out, out_size, "%s:%" PRIu8,  tname, val->as.u8); break;
+        case MYSHELL_FSON_TYPE_U16: snprintf(out, out_size, "%s:%" PRIu16, tname, val->as.u16); break;
+        case MYSHELL_FSON_TYPE_U32: snprintf(out, out_size, "%s:%" PRIu32, tname, val->as.u32); break;
+        case MYSHELL_FSON_TYPE_U64: snprintf(out, out_size, "%s:%" PRIu64, tname, val->as.u64); break;
+
+        case MYSHELL_FSON_TYPE_F32: snprintf(out, out_size, "%s:%g",   tname, val->as.f32); break;
+        case MYSHELL_FSON_TYPE_F64: snprintf(out, out_size, "%s:%lf",  tname, val->as.f64); break;
+
+        case MYSHELL_FSON_TYPE_CHAR:
+            snprintf(out, out_size, "%s:%c", tname, val->as.c);
+            break;
+
+        // heap-allocated/string-likes
+        case MYSHELL_FSON_TYPE_CSTR:
+        case MYSHELL_FSON_TYPE_OCT:
+        case MYSHELL_FSON_TYPE_HEX:
+        case MYSHELL_FSON_TYPE_BIN:
+        case MYSHELL_FSON_TYPE_ARRAY:
+        case MYSHELL_FSON_TYPE_OBJECT:
+        case MYSHELL_FSON_TYPE_ENUM:
+        case MYSHELL_FSON_TYPE_DATETIME:
+        case MYSHELL_FSON_TYPE_DURATION:
+            snprintf(out, out_size, "%s:%s", tname, val->as.cstr ? val->as.cstr : "");
+            break;
+
+        default:
+            snprintf(out, out_size, "unknown:null");
+            break;
+    }
+}
+
+// parse "type:value" into union
+static bool myshell_fson_value_from_string(
+    const char *encoded,
+    fossil_bluecrab_myshell_fson_value_t *out)
+{
+    if (!encoded || !out) return false;
+
+    const char *colon = strchr(encoded, ':');
+    if (!colon) return false;
+
+    size_t type_len = (size_t)(colon - encoded);
+    char type_buf[32];
+    if (type_len >= sizeof(type_buf)) return false;
+
+    memcpy(type_buf, encoded, type_len);
+    type_buf[type_len] = '\0';
+
+    const char *value = colon + 1;
+    fossil_bluecrab_myshell_fson_type_t t = myshell_fson_type_from_string(type_buf);
+    out->type = t;
+
+    switch (t) {
+        case MYSHELL_FSON_TYPE_NULL:
+            break;
+        case MYSHELL_FSON_TYPE_BOOL:
+            out->as.b = (strcasecmp(value, "true") == 0);
+            break;
+        case MYSHELL_FSON_TYPE_I8:  out->as.i8  = (int8_t) strtol(value, NULL, 10); break;
+        case MYSHELL_FSON_TYPE_I16: out->as.i16 = (int16_t)strtol(value, NULL, 10); break;
+        case MYSHELL_FSON_TYPE_I32: out->as.i32 = (int32_t)strtol(value, NULL, 10); break;
+        case MYSHELL_FSON_TYPE_I64: out->as.i64 = (int64_t)strtoll(value, NULL, 10); break;
+        case MYSHELL_FSON_TYPE_U8:  out->as.u8  = (uint8_t) strtoul(value, NULL, 10); break;
+        case MYSHELL_FSON_TYPE_U16: out->as.u16 = (uint16_t)strtoul(value, NULL, 10); break;
+        case MYSHELL_FSON_TYPE_U32: out->as.u32 = (uint32_t)strtoul(value, NULL, 10); break;
+        case MYSHELL_FSON_TYPE_U64: out->as.u64 = (uint64_t)strtoull(value, NULL, 10); break;
+        case MYSHELL_FSON_TYPE_F32: out->as.f32 = strtof(value, NULL); break;
+        case MYSHELL_FSON_TYPE_F64: out->as.f64 = strtod(value, NULL); break;
+        case MYSHELL_FSON_TYPE_CHAR: out->as.c  = value[0]; break;
+
+        case MYSHELL_FSON_TYPE_CSTR:
+        case MYSHELL_FSON_TYPE_OCT:
+        case MYSHELL_FSON_TYPE_HEX:
+        case MYSHELL_FSON_TYPE_BIN:
+        case MYSHELL_FSON_TYPE_ARRAY:
+        case MYSHELL_FSON_TYPE_OBJECT:
+        case MYSHELL_FSON_TYPE_ENUM:
+        case MYSHELL_FSON_TYPE_DATETIME:
+        case MYSHELL_FSON_TYPE_DURATION:
+            out->as.cstr = strdup(value);
+            break;
+
+        default:
+            return false;
+    }
+    return true;
+}
+
+// ===========================================================
 // CRUD Operations
 // ===========================================================
 
@@ -243,6 +425,126 @@ fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_delete_record(const char
     fclose(temp);
 
     if (deleted) {
+        remove(file_name);
+        rename("temp.myshell", file_name);
+        return FOSSIL_MYSHELL_ERROR_SUCCESS;
+    }
+
+    remove("temp.myshell");
+    return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
+}
+
+// ===========================================================
+// CRUD Operations (FSON-aware)
+// ===========================================================
+
+fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_create_record_fson(const char *file_name,
+                                           const char *key,
+                                           const fossil_bluecrab_myshell_fson_value_t *value)
+{
+    if (!fossil_bluecrab_myshell_validate_extension(file_name))
+        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+
+    FILE *file = fopen(file_name, "a");
+    if (!file) return FOSSIL_MYSHELL_ERROR_IO;
+
+    char encoded[512];
+    myshell_fson_value_to_string(value, encoded, sizeof(encoded));
+
+    char record[600];
+    snprintf(record, sizeof(record), "%s=%s", key, encoded);
+    unsigned long hash = fossil_bluecrab_myshell_hash(record);
+
+    fprintf(file, "%s|%lu\n", record, hash);
+    fclose(file);
+
+    return FOSSIL_MYSHELL_ERROR_SUCCESS;
+}
+
+fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_read_record_fson(const char *file_name,
+                                         const char *key,
+                                         fossil_bluecrab_myshell_fson_value_t *out_value)
+{
+    if (!fossil_bluecrab_myshell_validate_extension(file_name))
+        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+
+    FILE *file = fopen(file_name, "r");
+    if (!file) return FOSSIL_MYSHELL_ERROR_IO;
+
+    char line[512];
+    while (fgets(line, sizeof(line), file)) {
+        char *line_key, *line_value;
+        unsigned long stored_hash;
+
+        if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash))
+            continue;
+
+        char temp[512];
+        snprintf(temp, sizeof(temp), "%s=%s", line_key, line_value);
+        unsigned long calc_hash = fossil_bluecrab_myshell_hash(temp);
+
+        if (calc_hash != stored_hash) {
+            fclose(file);
+            return FOSSIL_MYSHELL_ERROR_CORRUPTED;
+        }
+
+        if (strcmp(line_key, key) == 0) {
+            bool ok = myshell_fson_value_from_string(line_value, out_value);
+            fclose(file);
+            return ok ? FOSSIL_MYSHELL_ERROR_SUCCESS : FOSSIL_MYSHELL_ERROR_PARSE;
+        }
+    }
+
+    fclose(file);
+    return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
+}
+
+fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_update_record_fson(const char *file_name,
+                                           const char *key,
+                                           const fossil_bluecrab_myshell_fson_value_t *new_value)
+{
+    if (!fossil_bluecrab_myshell_validate_extension(file_name))
+        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+
+    FILE *file = fopen(file_name, "r");
+    if (!file) return FOSSIL_MYSHELL_ERROR_IO;
+
+    FILE *temp = fopen("temp.myshell", "w");
+    if (!temp) {
+        fclose(file);
+        return FOSSIL_MYSHELL_ERROR_IO;
+    }
+
+    char line[512];
+    bool updated = false;
+
+    while (fgets(line, sizeof(line), file)) {
+        char *line_key, *line_value;
+        unsigned long stored_hash;
+
+        if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
+            fputs(line, temp);
+            continue;
+        }
+
+        if (strcmp(line_key, key) == 0) {
+            char encoded[512];
+            myshell_fson_value_to_string(new_value, encoded, sizeof(encoded));
+
+            char record[600];
+            snprintf(record, sizeof(record), "%s=%s", key, encoded);
+            unsigned long new_hash = fossil_bluecrab_myshell_hash(record);
+            fprintf(temp, "%s|%lu\n", record, new_hash);
+            updated = true;
+        } else {
+            fprintf(temp, "%s=%s|%lu\n", line_key, line_value, stored_hash);
+        }
+    }
+
+    fclose(file);
+    fclose(temp);
+
+    if (updated) {
         remove(file_name);
         rename("temp.myshell", file_name);
         return FOSSIL_MYSHELL_ERROR_SUCCESS;
