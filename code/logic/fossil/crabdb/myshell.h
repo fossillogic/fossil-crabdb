@@ -33,6 +33,7 @@
 #include <sys/stat.h>   // for file size
 #include <errno.h>
 #include <stdio.h>
+#include <ctype.h>
 #include <time.h>
 
 #ifdef __cplusplus
@@ -65,6 +66,86 @@ typedef enum {
     FOSSIL_MYSHELL_ERROR_RESTORE_FAILED,
     FOSSIL_MYSHELL_ERROR_UNKNOWN
 } fossil_bluecrab_myshell_error_t;
+
+// ============================================================================
+// FSON v2 compatible value representation (local to MyShell)
+// ============================================================================
+typedef enum {
+    MYSHELL_FSON_TYPE_NULL = 0,
+    MYSHELL_FSON_TYPE_BOOL,
+
+    // Scalars
+    MYSHELL_FSON_TYPE_I8,
+    MYSHELL_FSON_TYPE_I16,
+    MYSHELL_FSON_TYPE_I32,
+    MYSHELL_FSON_TYPE_I64,
+    MYSHELL_FSON_TYPE_U8,
+    MYSHELL_FSON_TYPE_U16,
+    MYSHELL_FSON_TYPE_U32,
+    MYSHELL_FSON_TYPE_U64,
+    MYSHELL_FSON_TYPE_F32,
+    MYSHELL_FSON_TYPE_F64,
+
+    // Literals
+    MYSHELL_FSON_TYPE_OCT,
+    MYSHELL_FSON_TYPE_HEX,
+    MYSHELL_FSON_TYPE_BIN,
+
+    // Strings
+    MYSHELL_FSON_TYPE_CHAR,
+    MYSHELL_FSON_TYPE_CSTR,
+
+    // Composite
+    MYSHELL_FSON_TYPE_ARRAY,
+    MYSHELL_FSON_TYPE_OBJECT,
+
+    // v2 Additions
+    MYSHELL_FSON_TYPE_ENUM,
+    MYSHELL_FSON_TYPE_DATETIME,
+    MYSHELL_FSON_TYPE_DURATION
+} fossil_bluecrab_myshell_fson_type_t;
+
+typedef struct {
+    fossil_bluecrab_myshell_fson_type_t type;
+    union {
+        // Base
+        bool b;
+
+        // Signed
+        int8_t   i8;
+        int16_t  i16;
+        int32_t  i32;
+        int64_t  i64;
+
+        // Unsigned
+        uint8_t  u8;
+        uint16_t u16;
+        uint32_t u32;
+        uint64_t u64;
+
+        // Floating
+        float    f32;
+        double   f64;
+
+        // Numeric literals (store as string repr)
+        char    *oct;   // "0755"
+        char    *hex;   // "0xFF"
+        char    *bin;   // "0b1010"
+
+        // Strings / chars
+        char     c;
+        char    *cstr;
+
+        // Composite containers (stored as serialized text blobs)
+        char    *array;   // e.g. "[1,2,3]"
+        char    *object;  // e.g. "{key:val}"
+
+        // v2 extras
+        char    *enum_symbol;  // "RED", "GREEN"
+        char    *datetime;     // ISO 8601 "2025-09-30T12:00:00Z"
+        char    *duration;     // "30s", "1h", "5d"
+    } as;
+} fossil_bluecrab_myshell_fson_value_t;
 
 // ===========================================================
 // MyShell Functions
