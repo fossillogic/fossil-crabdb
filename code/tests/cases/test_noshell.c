@@ -49,7 +49,7 @@ FOSSIL_TEARDOWN(c_noshell_fixture) {
 
 // Test case for inserting a new document into the database
 FOSSIL_TEST(c_test_noshell_insert_document) {
-    const char *file_name = "test.crabdb";
+    const char *file_name = "test.noshell";
     fossil_bluecrab_noshell_create_database(file_name);
 
     fossil_bluecrab_noshell_error_t result = fossil_bluecrab_noshell_insert(file_name, "{\"name\":\"Alice\"}");
@@ -60,7 +60,7 @@ FOSSIL_TEST(c_test_noshell_insert_document) {
 
 // Test case for inserting a document and retrieving its ID
 FOSSIL_TEST(c_test_noshell_insert_with_id) {
-    const char *file_name = "test.crabdb";
+    const char *file_name = "test.noshell";
     char id[64] = {0};
     fossil_bluecrab_noshell_create_database(file_name);
 
@@ -73,7 +73,7 @@ FOSSIL_TEST(c_test_noshell_insert_with_id) {
 
 // Test case for finding a document by query
 FOSSIL_TEST(c_test_noshell_find_document) {
-    const char *file_name = "test.crabdb";
+    const char *file_name = "test.noshell";
     fossil_bluecrab_noshell_create_database(file_name);
     fossil_bluecrab_noshell_insert(file_name, "{\"name\":\"Carol\"}");
 
@@ -87,7 +87,7 @@ FOSSIL_TEST(c_test_noshell_find_document) {
 
 // Test case for updating a document by query
 FOSSIL_TEST(c_test_noshell_update_document) {
-    const char *file_name = "test.crabdb";
+    const char *file_name = "test.noshell";
     fossil_bluecrab_noshell_create_database(file_name);
     fossil_bluecrab_noshell_insert(file_name, "{\"name\":\"Dave\"}");
 
@@ -104,7 +104,7 @@ FOSSIL_TEST(c_test_noshell_update_document) {
 
 // Test case for removing a document by query
 FOSSIL_TEST(c_test_noshell_remove_document) {
-    const char *file_name = "test.crabdb";
+    const char *file_name = "test.noshell";
     fossil_bluecrab_noshell_create_database(file_name);
     fossil_bluecrab_noshell_insert(file_name, "{\"name\":\"Eve\"}");
 
@@ -120,7 +120,7 @@ FOSSIL_TEST(c_test_noshell_remove_document) {
 
 // Test case for creating and deleting a database file
 FOSSIL_TEST(c_test_noshell_create_delete_database) {
-    const char *file_name = "test.crabdb";
+    const char *file_name = "test.noshell";
     fossil_bluecrab_noshell_error_t result = fossil_bluecrab_noshell_create_database(file_name);
     ASSUME_ITS_TRUE(result == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
@@ -130,7 +130,7 @@ FOSSIL_TEST(c_test_noshell_create_delete_database) {
 
 // Test case for locking and unlocking a database file
 FOSSIL_TEST(c_test_noshell_lock_unlock_database) {
-    const char *file_name = "test.crabdb";
+    const char *file_name = "test.noshell";
     fossil_bluecrab_noshell_create_database(file_name);
 
     fossil_bluecrab_noshell_error_t result = fossil_bluecrab_noshell_lock_database(file_name);
@@ -146,8 +146,8 @@ FOSSIL_TEST(c_test_noshell_lock_unlock_database) {
 
 // Test case for backing up and restoring a database file
 FOSSIL_TEST(c_test_noshell_backup_restore_database) {
-    const char *file_name = "test.crabdb";
-    const char *backup_file = "backup.crabdb";
+    const char *file_name = "test.noshell";
+    const char *backup_file = "backup.noshell";
     fossil_bluecrab_noshell_create_database(file_name);
     fossil_bluecrab_noshell_insert(file_name, "{\"name\":\"Frank\"}");
 
@@ -168,7 +168,7 @@ FOSSIL_TEST(c_test_noshell_backup_restore_database) {
 
 // Test case for verifying the integrity of the database
 FOSSIL_TEST(c_test_noshell_verify_database) {
-    const char *file_name = "test.crabdb";
+    const char *file_name = "test.noshell";
     fossil_bluecrab_noshell_create_database(file_name);
     fossil_bluecrab_noshell_insert(file_name, "{\"name\":\"Grace\"}");
 
@@ -180,7 +180,7 @@ FOSSIL_TEST(c_test_noshell_verify_database) {
 
 // Test case for iterating over document IDs
 FOSSIL_TEST(c_test_noshell_iterate_documents) {
-    const char *file_name = "test.crabdb";
+    const char *file_name = "test.noshell";
     char id[64] = {0};
     char next_id[64] = {0};
     fossil_bluecrab_noshell_create_database(file_name);
@@ -199,7 +199,7 @@ FOSSIL_TEST(c_test_noshell_iterate_documents) {
 
 // Test case for counting documents in the database
 FOSSIL_TEST(c_test_noshell_count_documents) {
-    const char *file_name = "test.crabdb";
+    const char *file_name = "test.noshell";
     size_t count = 0;
     fossil_bluecrab_noshell_create_database(file_name);
     fossil_bluecrab_noshell_insert(file_name, "{\"name\":\"Judy\"}");
@@ -214,7 +214,7 @@ FOSSIL_TEST(c_test_noshell_count_documents) {
 
 // Test case for getting the file size of the database
 FOSSIL_TEST(c_test_noshell_get_file_size) {
-    const char *file_name = "test.crabdb";
+    const char *file_name = "test.noshell";
     size_t size_bytes = 0;
     fossil_bluecrab_noshell_create_database(file_name);
     fossil_bluecrab_noshell_insert(file_name, "{\"name\":\"Leo\"}");
@@ -228,7 +228,7 @@ FOSSIL_TEST(c_test_noshell_get_file_size) {
 
 // Test case for validating the file extension of a database file
 FOSSIL_TEST(c_test_noshell_validate_extension) {
-    ASSUME_ITS_TRUE(fossil_bluecrab_noshell_validate_extension("test.crabdb"));
+    ASSUME_ITS_TRUE(fossil_bluecrab_noshell_validate_extension("test.noshell"));
     ASSUME_ITS_FALSE(fossil_bluecrab_noshell_validate_extension("test.txt"));
 }
 

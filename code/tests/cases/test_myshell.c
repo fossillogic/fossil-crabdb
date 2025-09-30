@@ -49,7 +49,7 @@ FOSSIL_TEARDOWN(c_myshell_fixture) {
 
 // Test case for creating a new record in the database file
 FOSSIL_TEST(c_test_myshell_create_record) {
-    const char *file_name = "test.crabdb";
+    const char *file_name = "test.myshell";
     fossil_bluecrab_myshell_create_database(file_name);
     fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_create_record(file_name, "key1", "value1");
     ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
@@ -64,7 +64,7 @@ FOSSIL_TEST(c_test_myshell_create_record) {
 
 // Test case for reading a non-existent record from the database file
 FOSSIL_TEST(c_test_myshell_read_nonexistent_record) {
-    const char *file_name = "test.crabdb";
+    const char *file_name = "test.myshell";
     fossil_bluecrab_myshell_create_database(file_name);
 
     char value[256];
@@ -76,7 +76,7 @@ FOSSIL_TEST(c_test_myshell_read_nonexistent_record) {
 
 // Test case for updating a non-existent record in the database file
 FOSSIL_TEST(c_test_myshell_update_nonexistent_record) {
-    const char *file_name = "test.crabdb";
+    const char *file_name = "test.myshell";
     fossil_bluecrab_myshell_create_database(file_name);
 
     fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_update_record(file_name, "nonexistent_key", "new_value");
@@ -87,7 +87,7 @@ FOSSIL_TEST(c_test_myshell_update_nonexistent_record) {
 
 // Test case for deleting a non-existent record from the database file
 FOSSIL_TEST(c_test_myshell_delete_nonexistent_record) {
-    const char *file_name = "test.crabdb";
+    const char *file_name = "test.myshell";
     fossil_bluecrab_myshell_create_database(file_name);
 
     fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_delete_record(file_name, "nonexistent_key");
@@ -98,8 +98,8 @@ FOSSIL_TEST(c_test_myshell_delete_nonexistent_record) {
 
 // Test case for backing up and restoring a database file
 FOSSIL_TEST(c_test_myshell_backup_restore) {
-    const char *file_name = "test.crabdb";
-    const char *backup_file = "backup.crabdb";
+    const char *file_name = "test.myshell";
+    const char *backup_file = "backup.myshell";
     fossil_bluecrab_myshell_create_database(file_name);
     fossil_bluecrab_myshell_create_record(file_name, "key1", "value1");
 
@@ -121,7 +121,7 @@ FOSSIL_TEST(c_test_myshell_backup_restore) {
 
 // Test case for validating the file extension of a database file
 FOSSIL_TEST(c_test_myshell_validate_extension) {
-    ASSUME_ITS_TRUE(fossil_bluecrab_myshell_validate_extension("test.crabdb"));
+    ASSUME_ITS_TRUE(fossil_bluecrab_myshell_validate_extension("test.myshell"));
     ASSUME_ITS_FALSE(fossil_bluecrab_myshell_validate_extension("test.txt"));
 }
 

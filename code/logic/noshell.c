@@ -125,7 +125,7 @@ bool fossil_bluecrab_noshell_is_locked(const char *file_name) {
 // Validation
 // ============================================================================
 bool fossil_bluecrab_noshell_validate_extension(const char *file_name) {
-    return file_name && strstr(file_name, ".crabdb") != NULL;
+    return file_name && strstr(file_name, ".noshell") != NULL;
 }
 
 bool fossil_bluecrab_noshell_validate_document(const char *document) {
@@ -230,7 +230,7 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_find_cb(const char *file
 fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_update(const char *file_name, const char *query, const char *new_document) {
     FILE *fp=fopen(file_name,"r");
     if (!fp) return FOSSIL_NOSHELL_ERROR_FILE_NOT_FOUND;
-    FILE *tmp=fopen("tmp.crabdb","w");
+    FILE *tmp=fopen("tmp.noshell","w");
     if (!tmp) { fclose(fp); return FOSSIL_NOSHELL_ERROR_IO; }
     char line[1024]; bool updated=false;
     while(fgets(line,sizeof(line),fp)) {
@@ -239,14 +239,14 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_update(const char *file_
         else fprintf(tmp,"%s|%s\n",line,pipe?pipe+1:"");
     }
     fclose(fp); fclose(tmp);
-    remove(file_name); rename("tmp.crabdb",file_name);
+    remove(file_name); rename("tmp.noshell",file_name);
     return updated?FOSSIL_NOSHELL_ERROR_SUCCESS:FOSSIL_NOSHELL_ERROR_NOT_FOUND;
 }
 
 fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_remove(const char *file_name, const char *query) {
     FILE *fp=fopen(file_name,"r");
     if (!fp) return FOSSIL_NOSHELL_ERROR_FILE_NOT_FOUND;
-    FILE *tmp=fopen("tmp.crabdb","w");
+    FILE *tmp=fopen("tmp.noshell","w");
     if (!tmp) { fclose(fp); return FOSSIL_NOSHELL_ERROR_IO; }
     char line[1024]; bool removed=false;
     while(fgets(line,sizeof(line),fp)) {
@@ -255,7 +255,7 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_remove(const char *file_
         fprintf(tmp,"%s|%s\n",line,pipe?pipe+1:"");
     }
     fclose(fp); fclose(tmp);
-    remove(file_name); rename("tmp.crabdb",file_name);
+    remove(file_name); rename("tmp.noshell",file_name);
     return removed?FOSSIL_NOSHELL_ERROR_SUCCESS:FOSSIL_NOSHELL_ERROR_NOT_FOUND;
 }
 
