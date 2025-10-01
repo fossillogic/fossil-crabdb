@@ -25,6 +25,7 @@
 #ifndef FOSSIL_CRABDB_MYSHELL_H
 #define FOSSIL_CRABDB_MYSHELL_H
 
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -63,6 +64,7 @@ typedef enum {
     FOSSIL_MYSHELL_ERROR_TIMEOUT,
     FOSSIL_MYSHELL_ERROR_ALREADY_EXISTS,
     FOSSIL_MYSHELL_ERROR_BACKUP_FAILED,
+    FOSSIL_MYSHELL_ERROR_PARSE_FAILED,
     FOSSIL_MYSHELL_ERROR_RESTORE_FAILED,
     FOSSIL_MYSHELL_ERROR_UNKNOWN
 } fossil_bluecrab_myshell_error_t;

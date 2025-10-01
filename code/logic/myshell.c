@@ -97,6 +97,16 @@ static bool fossil_bluecrab_myshell_split_record(char *line, char **key, char **
     return true;
 }
 
+static char *fossil_myshell_bluecrab_strdup(const char *s) {
+    if (!s) return NULL;
+    size_t len = strlen(s);
+    char *dup = (char*)malloc(len + 1);
+    if (dup) {
+        memcpy(dup, s, len + 1);
+    }
+    return dup;
+}
+
 // ===========================================================
 // FSON v2 support 
 // ===========================================================
@@ -223,10 +233,7 @@ static void myshell_fson_value_to_string(
 }
 
 // parse "type:value" into union
-static bool myshell_fson_value_from_string(
-    const char *encoded,
-    fossil_bluecrab_myshell_fson_value_t *out)
-{
+static bool myshell_fson_value_from_string(const char *encoded, fossil_bluecrab_myshell_fson_value_t *out) {
     if (!encoded || !out) return false;
 
     const char *colon = strchr(encoded, ':');
@@ -270,7 +277,7 @@ static bool myshell_fson_value_from_string(
         case MYSHELL_FSON_TYPE_ENUM:
         case MYSHELL_FSON_TYPE_DATETIME:
         case MYSHELL_FSON_TYPE_DURATION:
-            out->as.cstr = strdup(value);
+            out->as.cstr = fossil_myshell_bluecrab_strdup(value);
             break;
 
         default:
@@ -287,15 +294,51 @@ fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_create_record(const char
     if (!fossil_bluecrab_myshell_validate_extension(file_name))
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
 
-    FILE *file = fopen(file_name, "a");
-    if (!file) return FOSSIL_MYSHELL_ERROR_IO;
+    // Use FSON encoding for value
+    fossil_bluecrab_myshell_fson_value_t fson_val;
+    if (!myshell_fson_value_from_string(value, &fson_val))
+        return FOSSIL_MYSHELL_ERROR_PARSE_FAILED;
 
-    char record[512];
-    snprintf(record, sizeof(record), "%s=%s", key, value);
+    char encoded[512];
+    myshell_fson_value_to_string(&fson_val, encoded, sizeof(encoded));
+
+    // Check for duplicate key
+    FILE *file = fopen(file_name, "r");
+    if (file) {
+        char line[512];
+        while (fgets(line, sizeof(line), file)) {
+            char *line_key, *line_value;
+            unsigned long stored_hash;
+            if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash))
+                continue;
+            if (myshell_stricmp(line_key, key) == 0) {
+                fclose(file);
+                if (fson_val.type >= MYSHELL_FSON_TYPE_CSTR && fson_val.type <= MYSHELL_FSON_TYPE_DURATION && fson_val.as.cstr)
+                    free(fson_val.as.cstr);
+                return FOSSIL_MYSHELL_ERROR_ALREADY_EXISTS;
+            }
+        }
+        fclose(file);
+    }
+
+    // Append new record
+    file = fopen(file_name, "a");
+    if (!file) {
+        if (fson_val.type >= MYSHELL_FSON_TYPE_CSTR && fson_val.type <= MYSHELL_FSON_TYPE_DURATION && fson_val.as.cstr)
+            free(fson_val.as.cstr);
+        return FOSSIL_MYSHELL_ERROR_IO;
+    }
+
+    char record[600];
+    snprintf(record, sizeof(record), "%s=%s", key, encoded);
     unsigned long hash = fossil_bluecrab_myshell_hash(record);
 
     fprintf(file, "%s|%lu\n", record, hash);
     fclose(file);
+
+    // Free heap if needed
+    if (fson_val.type >= MYSHELL_FSON_TYPE_CSTR && fson_val.type <= MYSHELL_FSON_TYPE_DURATION && fson_val.as.cstr)
+        free(fson_val.as.cstr);
 
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
@@ -315,16 +358,30 @@ fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_read_record(const char *
         if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash))
             continue;
 
-        char temp[512];
-        SAFE_SNPRINTF_KV(temp, sizeof(temp), line_key, line_value);
+        char temp[600];
+        snprintf(temp, sizeof(temp), "%s=%s", line_key, line_value);
         unsigned long calc_hash = fossil_bluecrab_myshell_hash(temp);
 
-        if (calc_hash != stored_hash)
+        if (calc_hash != stored_hash) {
+            fclose(file);
             return FOSSIL_MYSHELL_ERROR_CORRUPTED;
+        }
 
-        if (strcmp(line_key, key) == 0) {
-            strncpy(value, line_value, buffer_size);
+        if (myshell_stricmp(line_key, key) == 0) {
+            // Decode FSON value to string
+            fossil_bluecrab_myshell_fson_value_t fson_val;
+            if (!myshell_fson_value_from_string(line_value, &fson_val)) {
+                fclose(file);
+                return FOSSIL_MYSHELL_ERROR_PARSE_FAILED;
+            }
+            char out[512];
+            myshell_fson_value_to_string(&fson_val, out, sizeof(out));
+            strncpy(value, out, buffer_size);
             value[buffer_size - 1] = '\0';
+
+            if (fson_val.type >= MYSHELL_FSON_TYPE_CSTR && fson_val.type <= MYSHELL_FSON_TYPE_DURATION && fson_val.as.cstr)
+                free(fson_val.as.cstr);
+
             fclose(file);
             return FOSSIL_MYSHELL_ERROR_SUCCESS;
         }
@@ -338,12 +395,22 @@ fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_update_record(const char
     if (!fossil_bluecrab_myshell_validate_extension(file_name))
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
 
+    // Use FSON encoding for new_value
+    fossil_bluecrab_myshell_fson_value_t fson_val;
+    if (!myshell_fson_value_from_string(new_value, &fson_val))
+        return FOSSIL_MYSHELL_ERROR_PARSE_FAILED;
+
+    char encoded[512];
+    myshell_fson_value_to_string(&fson_val, encoded, sizeof(encoded));
+
     FILE *file = fopen(file_name, "r");
     if (!file) return FOSSIL_MYSHELL_ERROR_IO;
 
     FILE *temp = fopen("temp.myshell", "w");
     if (!temp) {
         fclose(file);
+        if (fson_val.type >= MYSHELL_FSON_TYPE_CSTR && fson_val.type <= MYSHELL_FSON_TYPE_DURATION && fson_val.as.cstr)
+            free(fson_val.as.cstr);
         return FOSSIL_MYSHELL_ERROR_IO;
     }
 
@@ -355,26 +422,26 @@ fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_update_record(const char
         unsigned long stored_hash;
 
         if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
-            fputs(line, temp); // preserve invalid line
+            fputs(line, temp);
             continue;
         }
 
-        if (strcmp(line_key, key) == 0) {
-            char record[512];
-            snprintf(record, sizeof(record), "%s=%s", key, new_value);
+        if (myshell_stricmp(line_key, key) == 0) {
+            char record[600];
+            snprintf(record, sizeof(record), "%s=%s", key, encoded);
             unsigned long new_hash = fossil_bluecrab_myshell_hash(record);
             fprintf(temp, "%s|%lu\n", record, new_hash);
             updated = true;
         } else {
-            // preserve existing
-            char record[512];
-            SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
-            fprintf(temp, "%s|%lu\n", record, stored_hash);
+            fprintf(temp, "%s=%s|%lu\n", line_key, line_value, stored_hash);
         }
     }
 
     fclose(file);
     fclose(temp);
+
+    if (fson_val.type >= MYSHELL_FSON_TYPE_CSTR && fson_val.type <= MYSHELL_FSON_TYPE_DURATION && fson_val.as.cstr)
+        free(fson_val.as.cstr);
 
     if (updated) {
         remove(file_name);
@@ -411,140 +478,18 @@ fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_delete_record(const char
             continue;
         }
 
-        if (strcmp(line_key, key) == 0) {
+        if (myshell_stricmp(line_key, key) == 0) {
             deleted = true;
-            continue; // skip writing
+            continue;
         }
 
-        char record[512];
-        SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
-        fprintf(temp, "%s|%lu\n", record, stored_hash);
+        fprintf(temp, "%s=%s|%lu\n", line_key, line_value, stored_hash);
     }
 
     fclose(file);
     fclose(temp);
 
     if (deleted) {
-        remove(file_name);
-        rename("temp.myshell", file_name);
-        return FOSSIL_MYSHELL_ERROR_SUCCESS;
-    }
-
-    remove("temp.myshell");
-    return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
-}
-
-// ===========================================================
-// CRUD Operations (FSON-aware)
-// ===========================================================
-
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_create_record_fson(const char *file_name,
-                                           const char *key,
-                                           const fossil_bluecrab_myshell_fson_value_t *value)
-{
-    if (!fossil_bluecrab_myshell_validate_extension(file_name))
-        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
-
-    FILE *file = fopen(file_name, "a");
-    if (!file) return FOSSIL_MYSHELL_ERROR_IO;
-
-    char encoded[512];
-    myshell_fson_value_to_string(value, encoded, sizeof(encoded));
-
-    char record[600];
-    snprintf(record, sizeof(record), "%s=%s", key, encoded);
-    unsigned long hash = fossil_bluecrab_myshell_hash(record);
-
-    fprintf(file, "%s|%lu\n", record, hash);
-    fclose(file);
-
-    return FOSSIL_MYSHELL_ERROR_SUCCESS;
-}
-
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_read_record_fson(const char *file_name,
-                                         const char *key,
-                                         fossil_bluecrab_myshell_fson_value_t *out_value)
-{
-    if (!fossil_bluecrab_myshell_validate_extension(file_name))
-        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
-
-    FILE *file = fopen(file_name, "r");
-    if (!file) return FOSSIL_MYSHELL_ERROR_IO;
-
-    char line[512];
-    while (fgets(line, sizeof(line), file)) {
-        char *line_key, *line_value;
-        unsigned long stored_hash;
-
-        if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash))
-            continue;
-
-        char temp[512];
-        snprintf(temp, sizeof(temp), "%s=%s", line_key, line_value);
-        unsigned long calc_hash = fossil_bluecrab_myshell_hash(temp);
-
-        if (calc_hash != stored_hash) {
-            fclose(file);
-            return FOSSIL_MYSHELL_ERROR_CORRUPTED;
-        }
-
-        if (strcmp(line_key, key) == 0) {
-            bool ok = myshell_fson_value_from_string(line_value, out_value);
-            fclose(file);
-            return ok ? FOSSIL_MYSHELL_ERROR_SUCCESS : FOSSIL_MYSHELL_ERROR_PARSE;
-        }
-    }
-
-    fclose(file);
-    return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
-}
-
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_update_record_fson(const char *file_name,
-                                           const char *key,
-                                           const fossil_bluecrab_myshell_fson_value_t *new_value)
-{
-    if (!fossil_bluecrab_myshell_validate_extension(file_name))
-        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
-
-    FILE *file = fopen(file_name, "r");
-    if (!file) return FOSSIL_MYSHELL_ERROR_IO;
-
-    FILE *temp = fopen("temp.myshell", "w");
-    if (!temp) {
-        fclose(file);
-        return FOSSIL_MYSHELL_ERROR_IO;
-    }
-
-    char line[512];
-    bool updated = false;
-
-    while (fgets(line, sizeof(line), file)) {
-        char *line_key, *line_value;
-        unsigned long stored_hash;
-
-        if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
-            fputs(line, temp);
-            continue;
-        }
-
-        if (strcmp(line_key, key) == 0) {
-            char encoded[512];
-            myshell_fson_value_to_string(new_value, encoded, sizeof(encoded));
-
-            char record[600];
-            snprintf(record, sizeof(record), "%s=%s", key, encoded);
-            unsigned long new_hash = fossil_bluecrab_myshell_hash(record);
-            fprintf(temp, "%s|%lu\n", record, new_hash);
-            updated = true;
-        } else {
-            fprintf(temp, "%s=%s|%lu\n", line_key, line_value, stored_hash);
-        }
-    }
-
-    fclose(file);
-    fclose(temp);
-
-    if (updated) {
         remove(file_name);
         rename("temp.myshell", file_name);
         return FOSSIL_MYSHELL_ERROR_SUCCESS;
@@ -573,18 +518,35 @@ fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_open_database(const char
     if (!fossil_bluecrab_myshell_validate_extension(file_name))
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
 
+    // Check if already open
+    for (int i = 0; i < MAX_OPEN_DBS; i++) {
+        if (open_dbs[i] && strcmp(open_dbs[i], file_name) == 0) {
+            return FOSSIL_MYSHELL_ERROR_ALREADY_EXISTS;
+        }
+    }
+
     FILE *file = fopen(file_name, "r");
     if (!file) return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
-
     fclose(file);
-    return FOSSIL_MYSHELL_ERROR_SUCCESS;
+
+    // Track as open
+    for (int i = 0; i < MAX_OPEN_DBS; i++) {
+        if (!open_dbs[i]) {
+            open_dbs[i] = fossil_myshell_bluecrab_strdup(file_name);
+            return FOSSIL_MYSHELL_ERROR_SUCCESS;
+        }
+    }
+    return FOSSIL_MYSHELL_ERROR_CONCURRENCY;
 }
 
 fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_delete_database(const char *file_name) {
+    if (!fossil_bluecrab_myshell_validate_extension(file_name))
+        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+
     if (remove(file_name) == 0) {
+        mark_db_closed(file_name);
         return FOSSIL_MYSHELL_ERROR_SUCCESS;
     }
-
     return FOSSIL_MYSHELL_ERROR_IO;
 }
 
