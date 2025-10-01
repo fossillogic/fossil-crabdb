@@ -27,9 +27,10 @@
 
 #include <inttypes.h>
 #include <stdbool.h>
+#include <strings.h>
+#include <string.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
 #include <stdint.h>
 #include <sys/stat.h>   // for file size
 #include <errno.h>
