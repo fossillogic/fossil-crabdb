@@ -708,6 +708,9 @@ bool fossil_bluecrab_myshell_validate_data(const char *data) {
 // ============================================================================
 // Iteration Helpers
 // ============================================================================
+// These helpers must skip blank lines and lines that do not contain '='.
+// They must also skip lines that fail hash validation.
+
 fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_first_key(const char *file_name, char *key_buffer, size_t buffer_size) {
     if (!fossil_bluecrab_myshell_validate_extension(file_name))
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
@@ -716,25 +719,32 @@ fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_first_key(const char *fi
     if (!fp) return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
 
     char line[512];
-    if (!fgets(line, sizeof(line), fp)) {
-        fclose(fp);
-        return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
+    fossil_bluecrab_myshell_error_t result = FOSSIL_MYSHELL_ERROR_NOT_FOUND;
+    while (fgets(line, sizeof(line), fp)) {
+        // Skip blank lines
+        if (line[0] == '\n' || line[0] == '\r' || line[0] == '\0')
+            continue;
+        // Skip lines without '='
+        if (!strchr(line, '='))
+            continue;
+
+        char *line_key, *line_value;
+        unsigned long stored_hash;
+        if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash))
+            continue;
+
+        char record[512];
+        SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
+        if (fossil_bluecrab_myshell_hash(record) != stored_hash)
+            continue;
+
+        strncpy(key_buffer, line_key, buffer_size);
+        key_buffer[buffer_size - 1] = '\0';
+        result = FOSSIL_MYSHELL_ERROR_SUCCESS;
+        break;
     }
     fclose(fp);
-
-    char *line_key, *line_value;
-    unsigned long stored_hash;
-    if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash))
-        return FOSSIL_MYSHELL_ERROR_CORRUPTED;
-
-    char record[512];
-    SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
-    if (fossil_bluecrab_myshell_hash(record) != stored_hash)
-        return FOSSIL_MYSHELL_ERROR_CORRUPTED;
-
-    strncpy(key_buffer, line_key, buffer_size);
-    key_buffer[buffer_size - 1] = '\0';
-    return FOSSIL_MYSHELL_ERROR_SUCCESS;
+    return result;
 }
 
 fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_next_key(const char *file_name, const char *prev_key, char *key_buffer, size_t buffer_size) {
@@ -746,8 +756,16 @@ fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_next_key(const char *fil
 
     char line[512];
     bool found = false;
+    fossil_bluecrab_myshell_error_t result = FOSSIL_MYSHELL_ERROR_NOT_FOUND;
 
     while (fgets(line, sizeof(line), fp)) {
+        // Skip blank lines
+        if (line[0] == '\n' || line[0] == '\r' || line[0] == '\0')
+            continue;
+        // Skip lines without '='
+        if (!strchr(line, '='))
+            continue;
+
         char *line_key, *line_value;
         unsigned long stored_hash;
 
@@ -756,16 +774,14 @@ fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_next_key(const char *fil
 
         char record[512];
         SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
-        if (fossil_bluecrab_myshell_hash(record) != stored_hash) {
-            fclose(fp);
-            return FOSSIL_MYSHELL_ERROR_CORRUPTED;
-        }
+        if (fossil_bluecrab_myshell_hash(record) != stored_hash)
+            continue;
 
         if (found) {
             strncpy(key_buffer, line_key, buffer_size);
             key_buffer[buffer_size - 1] = '\0';
-            fclose(fp);
-            return FOSSIL_MYSHELL_ERROR_SUCCESS;
+            result = FOSSIL_MYSHELL_ERROR_SUCCESS;
+            break;
         }
 
         if (strcmp(line_key, prev_key) == 0)
@@ -773,7 +789,7 @@ fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_next_key(const char *fil
     }
 
     fclose(fp);
-    return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
+    return result;
 }
 
 // ============================================================================

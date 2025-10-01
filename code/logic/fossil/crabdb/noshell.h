@@ -25,6 +25,7 @@
 #ifndef FOSSIL_CRABDB_NOSHELL_H
 #define FOSSIL_CRABDB_NOSHELL_H
 
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -33,6 +34,8 @@
 #include <sys/stat.h>   // for file size
 #include <errno.h>
 #include <stdio.h>
+#include <strings.h>
+#include <ctype.h>
 #include <time.h>
 
 #ifdef __cplusplus
@@ -54,11 +57,98 @@ typedef enum {
     FOSSIL_NOSHELL_ERROR_INVALID_QUERY,
     FOSSIL_NOSHELL_ERROR_CONCURRENCY,
     FOSSIL_NOSHELL_ERROR_NOT_FOUND,
+    FOSSIL_NOSHELL_ERROR_PERMISSION_DENIED,
+    FOSSIL_NOSHELL_ERROR_CORRUPTED,
+    FOSSIL_NOSHELL_ERROR_OUT_OF_MEMORY,
+    FOSSIL_NOSHELL_ERROR_UNSUPPORTED,
+    FOSSIL_NOSHELL_ERROR_LOCKED,
+    FOSSIL_NOSHELL_ERROR_TIMEOUT,
     FOSSIL_NOSHELL_ERROR_ALREADY_EXISTS,
     FOSSIL_NOSHELL_ERROR_BACKUP_FAILED,
+    FOSSIL_NOSHELL_ERROR_PARSE_FAILED,
     FOSSIL_NOSHELL_ERROR_RESTORE_FAILED,
     FOSSIL_NOSHELL_ERROR_UNKNOWN
 } fossil_bluecrab_noshell_error_t;
+
+// ============================================================================
+// FSON v2 compatible value representation (local to NoShell)
+// ============================================================================
+typedef enum {
+    NOSHELL_FSON_TYPE_NULL = 0,
+    NOSHELL_FSON_TYPE_BOOL,
+
+    // Scalars
+    NOSHELL_FSON_TYPE_I8,
+    NOSHELL_FSON_TYPE_I16,
+    NOSHELL_FSON_TYPE_I32,
+    NOSHELL_FSON_TYPE_I64,
+    NOSHELL_FSON_TYPE_U8,
+    NOSHELL_FSON_TYPE_U16,
+    NOSHELL_FSON_TYPE_U32,
+    NOSHELL_FSON_TYPE_U64,
+    NOSHELL_FSON_TYPE_F32,
+    NOSHELL_FSON_TYPE_F64,
+
+    // Literals
+    NOSHELL_FSON_TYPE_OCT,
+    NOSHELL_FSON_TYPE_HEX,
+    NOSHELL_FSON_TYPE_BIN,
+
+    // Strings
+    NOSHELL_FSON_TYPE_CHAR,
+    NOSHELL_FSON_TYPE_CSTR,
+
+    // Composite
+    NOSHELL_FSON_TYPE_ARRAY,
+    NOSHELL_FSON_TYPE_OBJECT,
+
+    // v2 Additions
+    NOSHELL_FSON_TYPE_ENUM,
+    NOSHELL_FSON_TYPE_DATETIME,
+    NOSHELL_FSON_TYPE_DURATION
+} fossil_bluecrab_noshell_fson_type_t;
+
+typedef struct {
+    fossil_bluecrab_noshell_fson_type_t type;
+    union {
+        // Base
+        bool b;
+
+        // Signed
+        int8_t   i8;
+        int16_t  i16;
+        int32_t  i32;
+        int64_t  i64;
+
+        // Unsigned
+        uint8_t  u8;
+        uint16_t u16;
+        uint32_t u32;
+        uint64_t u64;
+
+        // Floating
+        float    f32;
+        double   f64;
+
+        // Numeric literals (store as string repr)
+        char    *oct;   // "0755"
+        char    *hex;   // "0xFF"
+        char    *bin;   // "0b1010"
+
+        // Strings / chars
+        char     c;
+        char    *cstr;
+
+        // Composite containers (stored as serialized text blobs)
+        char    *array;   // e.g. "[1,2,3]"
+        char    *object;  // e.g. "{key:val}"
+
+        // v2 extras
+        char    *enum_symbol;  // "RED", "GREEN"
+        char    *datetime;     // ISO 8601 "2025-09-30T12:00:00Z"
+        char    *duration;     // "30s", "1h", "5d"
+    } as;
+} fossil_bluecrab_noshell_fson_value_t;
 
 // ===========================================================
 // Document CRUD Operations
