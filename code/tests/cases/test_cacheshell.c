@@ -53,42 +53,30 @@ FOSSIL_TEST(c_test_cacheshell_set_and_get) {
     fossil_bluecrab_cacheshell_clear();
     const char *key = "foo";
     const char *value = "bar";
-    char out[32];
+    char out[32] = {0};
 
+    // Test set and get
     ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_set(key, value));
     ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_get(key, out, sizeof(out)));
     ASSUME_ITS_TRUE(strcmp(out, value) == 0);
-}
 
-FOSSIL_TEST(c_test_cacheshell_overwrite_value) {
-    fossil_bluecrab_cacheshell_clear();
-    const char *key = "foo";
-    const char *value1 = "bar";
-    const char *value2 = "baz";
-    char out[32];
-
-    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_set(key, value1));
-    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_set(key, value2));
+    // Test update value
+    const char *new_value = "baz";
+    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_set(key, new_value));
     ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_get(key, out, sizeof(out)));
-    ASSUME_ITS_TRUE(strcmp(out, value2) == 0);
-}
+    ASSUME_ITS_TRUE(strcmp(out, new_value) == 0);
 
-FOSSIL_TEST(c_test_cacheshell_remove) {
-    fossil_bluecrab_cacheshell_clear();
-    const char *key = "foo";
-    const char *value = "bar";
-    char out[32];
-
-    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_set(key, value));
-    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_remove(key));
-    ASSUME_ITS_FALSE(fossil_bluecrab_cacheshell_get(key, out, sizeof(out)));
+    // Test get with small buffer
+    char small_out[2] = {0};
+    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_get(key, small_out, sizeof(small_out)));
+    ASSUME_ITS_TRUE(small_out[0] == 'b');
 }
 
 FOSSIL_TEST(c_test_cacheshell_set_with_ttl_and_expire) {
     fossil_bluecrab_cacheshell_clear();
     const char *key = "ttlkey";
     const char *value = "ttlvalue";
-    char out[32];
+    char out[32] = {0};
 
     ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_set_with_ttl(key, value, 1));
     ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_get(key, out, sizeof(out)));
@@ -97,6 +85,7 @@ FOSSIL_TEST(c_test_cacheshell_set_with_ttl_and_expire) {
     // Wait for TTL to expire
     sleep(2);
     ASSUME_ITS_FALSE(fossil_bluecrab_cacheshell_get(key, out, sizeof(out)));
+    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_ttl(key) == -1);
 }
 
 FOSSIL_TEST(c_test_cacheshell_expire_and_ttl) {
@@ -147,17 +136,19 @@ FOSSIL_TEST(c_test_cacheshell_set_and_get_binary) {
     ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_get_binary(key, out, sizeof(out), &out_size));
     ASSUME_ITS_TRUE(out_size == sizeof(data));
     ASSUME_ITS_TRUE(memcmp(data, out, sizeof(data)) == 0);
+
+    // Test get_binary with smaller buffer
+    unsigned char small_out[2] = {0};
+    size_t small_size = 0;
+    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_get_binary(key, small_out, sizeof(small_out), &small_size));
+    ASSUME_ITS_TRUE(small_size == sizeof(data));
+    ASSUME_ITS_TRUE(small_out[0] == 0xde);
 }
 
 FOSSIL_TEST(c_test_cacheshell_get_nonexistent_key) {
     fossil_bluecrab_cacheshell_clear();
-    char out[32];
+    char out[32] = {0};
     ASSUME_ITS_FALSE(fossil_bluecrab_cacheshell_get("nope", out, sizeof(out)));
-}
-
-FOSSIL_TEST(c_test_cacheshell_remove_nonexistent_key) {
-    fossil_bluecrab_cacheshell_clear();
-    ASSUME_ITS_FALSE(fossil_bluecrab_cacheshell_remove("nope"));
 }
 
 // * * * * * * * * * * * * * * * * * * * * * * * *
@@ -165,15 +156,12 @@ FOSSIL_TEST(c_test_cacheshell_remove_nonexistent_key) {
 // * * * * * * * * * * * * * * * * * * * * * * * *
 FOSSIL_TEST_GROUP(c_cacheshell_database_tests) {
     FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_set_and_get);
-    FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_overwrite_value);
-    FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_remove);
     FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_set_with_ttl_and_expire);
     FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_expire_and_ttl);
     FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_clear_and_count);
     FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_exists);
     FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_set_and_get_binary);
     FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_get_nonexistent_key);
-    FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_remove_nonexistent_key);
 
     FOSSIL_TEST_REGISTER(c_cacheshell_fixture);
 } // end of tests

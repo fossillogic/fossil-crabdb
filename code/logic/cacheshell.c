@@ -123,19 +123,35 @@ bool fossil_bluecrab_cacheshell_set(const char *key, const char *value) {
 
 bool fossil_bluecrab_cacheshell_get(const char *key, char *out_value, size_t buffer_size) {
     cache_entry_t *e = find_entry(key);
-    if (!e) return false;
-    if (e->value_size > buffer_size) return false;
-    memcpy(out_value, e->value, e->value_size);
+    if (!e || !e->in_use) return false;
+    if (buffer_size == 0) return false;
+    // Always copy at most buffer_size-1 bytes, and null-terminate
+    size_t copy_len = e->value_size;
+    if (copy_len > buffer_size - 1) copy_len = buffer_size - 1;
+    memcpy(out_value, e->value, copy_len);
+    out_value[copy_len] = '\0';
     return true;
 }
 
 bool fossil_bluecrab_cacheshell_remove(const char *key) {
-    cache_entry_t *e = find_entry(key);
-    if (!e) return false;
-    free(e->key);
-    free(e->value);
-    e->in_use = false;
-    return true;
+    unsigned long h = cache_hash(key) % CACHE_TABLE_SIZE;
+    for (size_t i = 0; i < CACHE_TABLE_SIZE; i++) {
+        size_t idx = (h + i) % CACHE_TABLE_SIZE;
+        if (!cache_table[idx].in_use) {
+            return false;
+        }
+        if (strcmp(cache_table[idx].key, key) == 0) {
+            free(cache_table[idx].key);
+            free(cache_table[idx].value);
+            cache_table[idx].key = NULL;
+            cache_table[idx].value = NULL;
+            cache_table[idx].value_size = 0;
+            cache_table[idx].expire_at = 0;
+            cache_table[idx].in_use = false;
+            return true;
+        }
+    }
+    return false;
 }
 
 bool fossil_bluecrab_cacheshell_set_with_ttl(const char *key, const char *value, unsigned int ttl_sec) {
@@ -163,6 +179,10 @@ void fossil_bluecrab_cacheshell_clear(void) {
         if (cache_table[i].in_use) {
             free(cache_table[i].key);
             free(cache_table[i].value);
+            cache_table[i].key = NULL;
+            cache_table[i].value = NULL;
+            cache_table[i].value_size = 0;
+            cache_table[i].expire_at = 0;
             cache_table[i].in_use = false;
         }
     }
@@ -183,7 +203,8 @@ size_t fossil_bluecrab_cacheshell_count(void) {
 }
 
 bool fossil_bluecrab_cacheshell_exists(const char *key) {
-    return find_entry(key) != NULL;
+    cache_entry_t *e = find_entry(key);
+    return (e != NULL && e->in_use);
 }
 
 bool fossil_bluecrab_cacheshell_set_binary(const char *key, const void *data, size_t size) {
@@ -191,7 +212,7 @@ bool fossil_bluecrab_cacheshell_set_binary(const char *key, const void *data, si
     if (!e) e = alloc_entry(key);
     if (!e) return false;
 
-    free(e->value);
+    if (e->value) free(e->value);
     e->value = malloc(size);
     if (!e->value) return false;
     memcpy(e->value, data, size);
@@ -202,9 +223,11 @@ bool fossil_bluecrab_cacheshell_set_binary(const char *key, const void *data, si
 
 bool fossil_bluecrab_cacheshell_get_binary(const char *key, void *out_buf, size_t buf_size, size_t *out_size) {
     cache_entry_t *e = find_entry(key);
-    if (!e) return false;
-    if (e->value_size > buf_size) return false;
-    memcpy(out_buf, e->value, e->value_size);
+    if (!e || !e->in_use) return false;
     if (out_size) *out_size = e->value_size;
+    if (buf_size == 0) return false;
+    size_t copy_len = e->value_size;
+    if (copy_len > buf_size) copy_len = buf_size;
+    memcpy(out_buf, e->value, copy_len);
     return true;
 }

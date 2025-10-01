@@ -111,11 +111,8 @@ FOSSIL_TEST(c_test_fileshell_list) {
 
     ASSUME_ITS_TRUE(count > 0);
     for (int i = 0; i < count; ++i) {
-        // Optionally check for a specific file, but do not use 'found'
-        // if (strcmp(files[i], "test_fileshell_list") == 0) { /* found */ }
         free(files[i]);
     }
-    // Not all systems will have the test file, so just check count > 0
     ASSUME_ITS_TRUE(count > 0);
 }
 

@@ -49,6 +49,7 @@ char* fossil_fileshell_strdup(const char *src) {
 
     return dup;
 }
+
 // ===========================================================
 // Basic File Operations
 // ===========================================================
