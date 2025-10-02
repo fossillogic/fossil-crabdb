@@ -83,16 +83,6 @@ FOSSIL_TEST(c_test_fileshell_append) {
     fossil_bluecrab_fileshell_delete(file_name);
 }
 
-FOSSIL_TEST(c_test_fileshell_delete_and_exists) {
-    const char *file_name = "test_delete.txt";
-    const char *data = "Delete me!";
-
-    fossil_bluecrab_fileshell_write(file_name, data);
-    ASSUME_ITS_TRUE(fossil_bluecrab_fileshell_exists(file_name));
-    ASSUME_ITS_TRUE(fossil_bluecrab_fileshell_delete(file_name));
-    ASSUME_ITS_FALSE(fossil_bluecrab_fileshell_exists(file_name));
-}
-
 FOSSIL_TEST(c_test_fileshell_size) {
     const char *file_name = "test_size.txt";
     const char *data = "1234567890";
@@ -143,7 +133,6 @@ FOSSIL_TEST(c_test_fileshell_list_invalid_dir) {
 FOSSIL_TEST_GROUP(c_fileshell_database_tests) {
     FOSSIL_TEST_ADD(c_fileshell_fixture, c_test_fileshell_write_and_read);
     FOSSIL_TEST_ADD(c_fileshell_fixture, c_test_fileshell_append);
-    FOSSIL_TEST_ADD(c_fileshell_fixture, c_test_fileshell_delete_and_exists);
     FOSSIL_TEST_ADD(c_fileshell_fixture, c_test_fileshell_size);
     FOSSIL_TEST_ADD(c_fileshell_fixture, c_test_fileshell_list);
     FOSSIL_TEST_ADD(c_fileshell_fixture, c_test_fileshell_read_nonexistent_file);

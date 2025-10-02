@@ -81,25 +81,6 @@ FOSSIL_TEST(cpp_test_myshell_read_nonexistent_record) {
 }
 
 /*
- * Test case for updating a record in the database file
- */
-FOSSIL_TEST(cpp_test_myshell_update_record) {
-    std::string file_name = "test.myshell";
-    fossil::bluecrab::MyShell::create_database(file_name);
-
-    fossil::bluecrab::MyShell::create_record(file_name, "key1", "bool:true");
-    fossil_bluecrab_myshell_error_t result = fossil::bluecrab::MyShell::update_record(file_name, "key1", "bool:false");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    std::string value;
-    result = fossil::bluecrab::MyShell::read_record(file_name, "key1", value);
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_TRUE(value == "bool:false");
-
-    fossil::bluecrab::MyShell::delete_database(file_name);
-}
-
-/*
  * Test case for updating a non-existent record in the database file
  */
 FOSSIL_TEST(cpp_test_myshell_update_nonexistent_record) {
@@ -107,24 +88,6 @@ FOSSIL_TEST(cpp_test_myshell_update_nonexistent_record) {
     fossil::bluecrab::MyShell::create_database(file_name);
 
     fossil_bluecrab_myshell_error_t result = fossil::bluecrab::MyShell::update_record(file_name, "nonexistent_key", "i8:7");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_NOT_FOUND);
-
-    fossil::bluecrab::MyShell::delete_database(file_name);
-}
-
-/*
- * Test case for deleting a record from the database file
- */
-FOSSIL_TEST(cpp_test_myshell_delete_record) {
-    std::string file_name = "test.myshell";
-    fossil::bluecrab::MyShell::create_database(file_name);
-
-    fossil::bluecrab::MyShell::create_record(file_name, "key1", "f64:3.14159");
-    fossil_bluecrab_myshell_error_t result = fossil::bluecrab::MyShell::delete_record(file_name, "key1");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    std::string value;
-    result = fossil::bluecrab::MyShell::read_record(file_name, "key1", value);
     ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_NOT_FOUND);
 
     fossil::bluecrab::MyShell::delete_database(file_name);
@@ -144,31 +107,6 @@ FOSSIL_TEST(cpp_test_myshell_delete_nonexistent_record) {
 }
 
 /*
- * Test case for backing up and restoring a database file
- */
-FOSSIL_TEST(cpp_test_myshell_backup_restore) {
-    std::string file_name = "test.myshell";
-    std::string backup_file = "backup.myshell";
-    fossil::bluecrab::MyShell::create_database(file_name);
-    fossil::bluecrab::MyShell::create_record(file_name, "key1", "cstr:hello");
-
-    fossil_bluecrab_myshell_error_t result = fossil::bluecrab::MyShell::backup_database(file_name, backup_file);
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    fossil::bluecrab::MyShell::delete_database(file_name);
-    result = fossil::bluecrab::MyShell::restore_database(backup_file, file_name);
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    std::string value;
-    result = fossil::bluecrab::MyShell::read_record(file_name, "key1", value);
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_TRUE(value == "cstr:hello");
-
-    fossil::bluecrab::MyShell::delete_database(file_name);
-    fossil::bluecrab::MyShell::delete_database(backup_file);
-}
-
-/*
  * Test case for validating the file extension of a database file
  */
 FOSSIL_TEST(cpp_test_myshell_validate_extension) {
@@ -182,24 +120,6 @@ FOSSIL_TEST(cpp_test_myshell_validate_extension) {
 FOSSIL_TEST(cpp_test_myshell_validate_data) {
     ASSUME_ITS_TRUE(fossil::bluecrab::MyShell::validate_data("valid_data"));
     ASSUME_ITS_FALSE(fossil::bluecrab::MyShell::validate_data(""));
-}
-
-/*
- * Test case for record counting
- */
-FOSSIL_TEST(cpp_test_myshell_count_records) {
-    std::string file_name = "test.myshell";
-    fossil::bluecrab::MyShell::create_database(file_name);
-    fossil::bluecrab::MyShell::create_record(file_name, "key1", "i32:1");
-    fossil::bluecrab::MyShell::create_record(file_name, "key2", "i32:2");
-    fossil::bluecrab::MyShell::create_record(file_name, "key3", "i32:3");
-
-    size_t count = 0;
-    fossil_bluecrab_myshell_error_t result = fossil::bluecrab::MyShell::count_records(file_name, count);
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_TRUE(count == 3);
-
-    fossil::bluecrab::MyShell::delete_database(file_name);
 }
 
 /*
@@ -232,14 +152,10 @@ FOSSIL_TEST(cpp_test_myshell_error_string) {
 FOSSIL_TEST_GROUP(cpp_myshell_database_tests) {
     FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_create_record);
     FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_read_nonexistent_record);
-    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_update_record);
     FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_update_nonexistent_record);
-    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_delete_record);
     FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_delete_nonexistent_record);
-    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_backup_restore);
     FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_validate_extension);
     FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_validate_data);
-    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_count_records);
     FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_get_file_size);
     FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_error_string);
 

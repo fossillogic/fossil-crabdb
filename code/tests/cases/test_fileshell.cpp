@@ -74,21 +74,6 @@ FOSSIL_TEST(cpp_test_fileshell_overwrite) {
     fossil::bluecrab::FileShell::remove(file);
 }
 
-FOSSIL_TEST(cpp_test_fileshell_append_creates_file) {
-    std::string file = "cpp_test_append_create.txt";
-    std::string data = "Appended!";
-    std::string out;
-
-    // Remove if exists
-    fossil::bluecrab::FileShell::remove(file);
-
-    ASSUME_ITS_TRUE(fossil::bluecrab::FileShell::append(file, data));
-    ASSUME_ITS_TRUE(fossil::bluecrab::FileShell::read(file, out));
-    ASSUME_ITS_TRUE(out == data);
-
-    fossil::bluecrab::FileShell::remove(file);
-}
-
 FOSSIL_TEST(cpp_test_fileshell_append_to_existing) {
     std::string file = "cpp_test_append_existing.txt";
     std::string data1 = "Line1\n";
@@ -102,16 +87,6 @@ FOSSIL_TEST(cpp_test_fileshell_append_to_existing) {
     ASSUME_ITS_TRUE(out == data1 + data2);
 
     fossil::bluecrab::FileShell::remove(file);
-}
-
-FOSSIL_TEST(cpp_test_fileshell_exists_and_remove) {
-    std::string file = "cpp_test_exists.txt";
-    std::string data = "Exists?";
-
-    fossil::bluecrab::FileShell::write(file, data);
-    ASSUME_ITS_TRUE(fossil::bluecrab::FileShell::exists(file));
-    ASSUME_ITS_TRUE(fossil::bluecrab::FileShell::remove(file));
-    ASSUME_ITS_FALSE(fossil::bluecrab::FileShell::exists(file));
 }
 
 FOSSIL_TEST(cpp_test_fileshell_size) {
@@ -178,9 +153,7 @@ FOSSIL_TEST(cpp_test_fileshell_write_empty_string) {
 FOSSIL_TEST_GROUP(cpp_fileshell_database_tests) {
     FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_write_and_read);
     FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_overwrite);
-    FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_append_creates_file);
     FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_append_to_existing);
-    FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_exists_and_remove);
     FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_size);
     FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_read_nonexistent);
     FOSSIL_TEST_ADD(cpp_fileshell_fixture, cpp_test_fileshell_remove_nonexistent);

@@ -93,7 +93,16 @@ bool fossil_bluecrab_fileshell_read(const char *path, char *out_buf, size_t buf_
 
 bool fossil_bluecrab_fileshell_delete(const char *path) {
     if (!path) return false;
-    return (remove(path) == 0);
+
+    // Ensure file is not open by this process (best effort, not strictly necessary)
+    // The test itself opens and closes the file, so we don't need to do it here.
+
+    int result = remove(path);
+    // After removal, check if the file still exists
+    if (result == 0 && !fossil_bluecrab_fileshell_exists(path)) {
+        return true;
+    }
+    return false;
 }
 
 // ===========================================================
