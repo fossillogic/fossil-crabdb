@@ -506,7 +506,6 @@ int64_t
 fossil_bluecrab_myshell_parse_duration_seconds(const char *duration_str,
                                                fossil_bluecrab_myshell_error_t *out_err);
 
-
 // -------------------------------
 // Bootstrapping utilities (schema / builtins)
 // -------------------------------
@@ -519,6 +518,112 @@ fossil_bluecrab_myshell_load_datafile(fossil_bluecrab_myshell_t *db,
                                       const char *datafile_path,
                                       fossil_bluecrab_myshell_error_t *out_err);
 
+// -------------------------------
+// Commit history iteration
+// -------------------------------
+
+/** Iterate commits in a branch (newest → oldest). */
+typedef bool (*fossil_bluecrab_myshell_commit_iter_cb)(
+    const fossil_bluecrab_myshell_commit_t *commit, void *user);
+
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_iter_commits(fossil_bluecrab_myshell_t *db,
+                                     const char *branch_name,
+                                     fossil_bluecrab_myshell_commit_iter_cb cb,
+                                     void *user);
+
+// -------------------------------
+// Replication / sync
+// -------------------------------
+
+/** Push local commits to a remote (URL or path). */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_sync_push(fossil_bluecrab_myshell_t *db,
+                                  const char *remote_url);
+
+/** Pull commits from a remote into local. */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_sync_pull(fossil_bluecrab_myshell_t *db,
+                                  const char *remote_url);
+
+// -------------------------------
+// Schema inspection
+// -------------------------------
+
+/** List table names. Caller frees array. */
+char **
+fossil_bluecrab_myshell_list_tables(fossil_bluecrab_myshell_t *db,
+                                    size_t *out_count);
+
+/** List index names. Caller frees array. */
+char **
+fossil_bluecrab_myshell_list_indexes(fossil_bluecrab_myshell_t *db,
+                                     size_t *out_count);
+
+
+// -------------------------------
+// Streaming API for large data
+// -------------------------------
+
+/** Streaming handle (opaque). */
+typedef struct fossil_bluecrab_myshell_stream_t fossil_bluecrab_myshell_stream_t;
+
+/** Open a stream for a large blob or FSON field. Mode = "r" or "w". */
+fossil_bluecrab_myshell_stream_t *
+fossil_bluecrab_myshell_stream_open(fossil_bluecrab_myshell_t *db,
+                                    const char *key,
+                                    const char *mode,
+                                    fossil_bluecrab_myshell_error_t *out_err);
+
+/** Read from stream. */
+size_t
+fossil_bluecrab_myshell_stream_read(fossil_bluecrab_myshell_stream_t *s,
+                                    void *buf,
+                                    size_t n,
+                                    fossil_bluecrab_myshell_error_t *out_err);
+
+/** Write to stream. */
+size_t
+fossil_bluecrab_myshell_stream_write(fossil_bluecrab_myshell_stream_t *s,
+                                     const void *buf,
+                                     size_t n,
+                                     fossil_bluecrab_myshell_error_t *out_err);
+
+/** Close and free stream. */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_stream_close(fossil_bluecrab_myshell_stream_t *s);
+
+
+// -------------------------------
+// Savepoints / checkpoints
+// -------------------------------
+
+/** Lightweight savepoints (nested transactions). */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_savepoint(fossil_bluecrab_myshell_txn_t *txn,
+                                  const char *name);
+
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_release_savepoint(fossil_bluecrab_myshell_txn_t *txn,
+                                          const char *name);
+
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_rollback_to_savepoint(fossil_bluecrab_myshell_txn_t *txn,
+                                              const char *name);
+
+
+// -------------------------------
+// Event hooks / callbacks
+// -------------------------------
+
+/** Event callback signature (event string, e.g. "commit", "merge", "record.put"). */
+typedef void (*fossil_bluecrab_myshell_event_cb)(const char *event, void *user);
+
+/** Install an event callback. */
+void
+fossil_bluecrab_myshell_set_event_callback(fossil_bluecrab_myshell_t *db,
+                                           fossil_bluecrab_myshell_event_cb cb,
+                                           void *user);
 
 // -------------------------------
 // Debug / introspection
