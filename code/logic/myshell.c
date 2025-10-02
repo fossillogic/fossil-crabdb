@@ -24,1042 +24,716 @@
  */
 #include "fossil/crabdb/myshell.h"
 
-// Helper macro for safe snprintf of key=value pairs
-#define SAFE_SNPRINTF_KV(buf, bufsize, key, value) \
-    snprintf((buf), (bufsize), "%.*s=%.*s", \
-             (int)((bufsize)/2 - 1), (key), \
-             (int)((bufsize)/2 - 1), (value))
+// ===========================================================
+// Internal Structures (implementation details)
+// ===========================================================
 
-#define MAX_OPEN_DBS 32
+struct fossil_bluecrab_myshell_t {
+    char *path;                                  // Path to DB file/directory
+    fossil_bluecrab_myshell_open_options_t opts; // Open options
+    bool opened;                                 // Open state
 
-static const char* open_dbs[MAX_OPEN_DBS] = {0};
+    // Core storage
+    FILE *file;                                  // Primary DB file handle
+    size_t file_size;                            // Current file size
+    uint64_t last_commit_hash;                   // Head commit hash
+    char *current_branch;                        // Checked out branch name
+
+    // In-memory tables/indexes
+    void *record_index;                          // Key -> record mapping (hash table or trie)
+    void *commit_index;                          // Commit hash -> commit metadata
+    void *branch_index;                          // Branch name -> head hash
+
+    // Locks / concurrency
+    bool write_locked;
+    void *lock_table;                            // Named advisory locks
+    int active_connections;                      // Open connection handles
+
+    // Runtime state
+    time_t opened_at;
+    uint64_t txn_counter;
+    uint64_t op_counter;
+};
 
 
-// ============================================================================
-// Internal: Track open databases
-// ============================================================================
+struct fossil_bluecrab_myshell_stmt_t {
+    char *sql;                                   // Original SQL/FSON query
+    int step_count;                              // Number of rows iterated
+    bool prepared;                               // Prepared flag
 
-// Helper: mark database as closed
-static bool mark_db_closed(const char *file_name) {
-    for (int i = 0; i < MAX_OPEN_DBS; i++) {
-        if (open_dbs[i] && strcmp(open_dbs[i], file_name) == 0) {
-            free((void*)open_dbs[i]);
-            open_dbs[i] = NULL;
-            return true;
-        }
+    // Parsed representation
+    char *table_name;
+    char **columns;
+    int column_count;
+
+    // Execution state
+    void *cursor;                                // Iterator over matching records
+    void *last_row;                              // Pointer to last returned row
+};
+
+
+struct fossil_bluecrab_myshell_txn_t {
+    fossil_bluecrab_myshell_t *db;
+    bool active;
+
+    // Staged changes (before commit)
+    void *staged_records;                        // Map: key -> record (insert/update)
+    void *deleted_keys;                          // Set of keys marked for deletion
+    char *txn_message;                           // Commit message buffer
+    time_t started_at;                           // When txn began
+
+    uint64_t parent_commit;                      // Base commit hash
+    uint64_t working_hash;                       // Hash of working tree snapshot
+};
+
+
+struct fossil_bluecrab_myshell_record_t {
+    fossil_bluecrab_myshell_hash64_t hash;       // Stable 64-bit ID
+    char *key;                                   // Primary key
+    char *fson_text;                             // Serialized FSON payload
+    time_t created_at;
+    time_t modified_at;
+    char *owner;
+
+    // Derived metadata
+    size_t fson_size;                            // Cached serialized size
+    uint64_t version;                            // Monotonic record version
+    bool tombstone;                              // Deleted marker
+};
+
+
+struct fossil_bluecrab_myshell_commit_t {
+    fossil_bluecrab_myshell_hash64_t  hash;      // Commit hash
+    fossil_bluecrab_myshell_hash64_t  parent_hash;
+    char *author;
+    char *message;
+    char *timestamp_iso;
+
+    // Change set metadata
+    size_t record_count;                         // # of records changed
+    fossil_bluecrab_myshell_record_t **records;  // Array of record pointers
+    char **deleted_keys;                         // Keys marked as deleted
+    size_t deleted_count;
+
+    // Branch association
+    char *branch;                                // Branch commit belongs to
+
+    // Linking
+    fossil_bluecrab_myshell_commit_t *parent;    // Pointer to parent commit (in-memory cache)
+};
+
+/* -------------------------------------------------------------------------
+ * Error string mapping
+ * ------------------------------------------------------------------------- */
+const char *
+fossil_bluecrab_myshell_errstr(fossil_bluecrab_myshell_error_t err) {
+    switch (err) {
+    case FOSSIL_MYSHELL_ERROR_SUCCESS: return "Success";
+    case FOSSIL_MYSHELL_ERROR_INVALID_FILE: return "Invalid file";
+    case FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND: return "File not found";
+    case FOSSIL_MYSHELL_ERROR_IO: return "I/O error";
+    case FOSSIL_MYSHELL_ERROR_INVALID_QUERY: return "Invalid query";
+    case FOSSIL_MYSHELL_ERROR_CONCURRENCY: return "Concurrency error";
+    case FOSSIL_MYSHELL_ERROR_NOT_FOUND: return "Not found";
+    case FOSSIL_MYSHELL_ERROR_PERMISSION_DENIED: return "Permission denied";
+    case FOSSIL_MYSHELL_ERROR_CORRUPTED: return "Data corrupted";
+    case FOSSIL_MYSHELL_ERROR_OUT_OF_MEMORY: return "Out of memory";
+    case FOSSIL_MYSHELL_ERROR_UNSUPPORTED: return "Unsupported operation";
+    case FOSSIL_MYSHELL_ERROR_LOCKED: return "Resource locked";
+    case FOSSIL_MYSHELL_ERROR_TIMEOUT: return "Operation timed out";
+    case FOSSIL_MYSHELL_ERROR_ALREADY_EXISTS: return "Already exists";
+    case FOSSIL_MYSHELL_ERROR_BACKUP_FAILED: return "Backup failed";
+    case FOSSIL_MYSHELL_ERROR_PARSE_FAILED: return "Parse failed";
+    case FOSSIL_MYSHELL_ERROR_RESTORE_FAILED: return "Restore failed";
+    case FOSSIL_MYSHELL_ERROR_LOCK_FAILED: return "Lock failed";
+    case FOSSIL_MYSHELL_ERROR_UNKNOWN:
+    default: return "Unknown error";
     }
-    return false;
 }
 
-// ============================================================================
-// Hash algorithm
-// ============================================================================
-
-/**
- * @brief Enhanced 64-bit hash for MyShell records.
- * 
- * Combines FNV-1a with bit mixing for better avalanche properties.
- */
-static uint64_t fossil_bluecrab_myshell_hash(const char *str) {
-    uint64_t hash = 14695981039346656037ULL; // FNV-1a 64-bit offset basis
-    unsigned char c;
-
-    // FNV-1a accumulation
-    while ((c = (unsigned char)*str++)) {
-        hash ^= c;
-        hash *= 1099511628211ULL; // FNV-1a 64-bit prime
-    }
-
-    // Final mixing step (64-bit mix inspired by MurmurHash3 finalizer)
-    hash ^= hash >> 33;
-    hash *= 0xff51afd7ed558ccdULL;
-    hash ^= hash >> 33;
-    hash *= 0xc4ceb9fe1a85ec53ULL;
-    hash ^= hash >> 33;
-
-    return hash;
-}
-
-static bool fossil_bluecrab_myshell_split_record(char *line, char **key, char **value, unsigned long *stored_hash) {
-    // Format: key=value|hash
-    char *hash_sep = strrchr(line, '|');
-    if (!hash_sep) return false;
-    *hash_sep = '\0';
-    *stored_hash = strtoul(hash_sep + 1, NULL, 10);
-
-    char *eq = strchr(line, '=');
-    if (!eq) return false;
-
-    *eq = '\0';
-    *key = line;
-    *value = eq + 1;
-
-    return true;
-}
-
-static char *fossil_myshell_bluecrab_strdup(const char *s) {
+/* -------------------------------------------------------------------------
+ * Utility: safe strdup (C11 portable)
+ * ------------------------------------------------------------------------- */
+static char *myshell_strdup(const char *s) {
     if (!s) return NULL;
-    size_t len = strlen(s);
-    char *dup = (char*)malloc(len + 1);
-    if (dup) {
-        memcpy(dup, s, len + 1);
+    size_t n = strlen(s) + 1;
+    char *r = (char *)malloc(n);
+    if (r) memcpy(r, s, n);
+    return r;
+}
+
+/* -------------------------------------------------------------------------
+ * Open/create/close
+ * ------------------------------------------------------------------------- */
+fossil_bluecrab_myshell_t *
+fossil_bluecrab_myshell_open(const char *path,
+                             const fossil_bluecrab_myshell_open_options_t *opts,
+                             fossil_bluecrab_myshell_error_t *out_err) {
+    if (!path) {
+        if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+        return NULL;
     }
-    return dup;
-}
 
-// ===========================================================
-// FSON v2 support 
-// ===========================================================
-
-// portable case-insensitive compare
-static int myshell_stricmp(const char *a, const char *b) {
-    if (!a || !b) return (a == b) ? 0 : (a ? 1 : -1);
-
-    while (*a && *b) {
-        unsigned char ca = (unsigned char)tolower((unsigned char)*a);
-        unsigned char cb = (unsigned char)tolower((unsigned char)*b);
-        if (ca != cb) return (int)ca - (int)cb;
-        ++a;
-        ++b;
+    fossil_bluecrab_myshell_t *db = calloc(1, sizeof(*db));
+    if (!db) {
+        if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_OUT_OF_MEMORY;
+        return NULL;
     }
-    return (int)(unsigned char)*a - (int)(unsigned char)*b;
-}
 
-static const char* myshell_fson_type_to_string(fossil_bluecrab_myshell_fson_type_t type) {
-    switch (type) {
-        case MYSHELL_FSON_TYPE_NULL:     return "null";
-        case MYSHELL_FSON_TYPE_BOOL:     return "bool";
-        case MYSHELL_FSON_TYPE_I8:       return "i8";
-        case MYSHELL_FSON_TYPE_I16:      return "i16";
-        case MYSHELL_FSON_TYPE_I32:      return "i32";
-        case MYSHELL_FSON_TYPE_I64:      return "i64";
-        case MYSHELL_FSON_TYPE_U8:       return "u8";
-        case MYSHELL_FSON_TYPE_U16:      return "u16";
-        case MYSHELL_FSON_TYPE_U32:      return "u32";
-        case MYSHELL_FSON_TYPE_U64:      return "u64";
-        case MYSHELL_FSON_TYPE_F32:      return "f32";
-        case MYSHELL_FSON_TYPE_F64:      return "f64";
-        case MYSHELL_FSON_TYPE_OCT:      return "oct";
-        case MYSHELL_FSON_TYPE_HEX:      return "hex";
-        case MYSHELL_FSON_TYPE_BIN:      return "bin";
-        case MYSHELL_FSON_TYPE_CHAR:     return "char";
-        case MYSHELL_FSON_TYPE_CSTR:     return "cstr";
-        case MYSHELL_FSON_TYPE_ARRAY:    return "array";
-        case MYSHELL_FSON_TYPE_OBJECT:   return "object";
-        case MYSHELL_FSON_TYPE_ENUM:     return "enum";
-        case MYSHELL_FSON_TYPE_DATETIME: return "datetime";
-        case MYSHELL_FSON_TYPE_DURATION: return "duration";
-        default: return "unknown";
+    db->path = myshell_strdup(path);
+    if (opts) db->opts = *opts;
+    else {
+        memset(&db->opts, 0, sizeof(db->opts));
+        db->opts.page_size = 4096;
+        db->opts.max_connections = 4;
     }
+    db->opened = true;
+
+    if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_SUCCESS;
+    return db;
 }
 
-static fossil_bluecrab_myshell_fson_type_t myshell_fson_type_from_string(const char *s) {
-    if (!s) return MYSHELL_FSON_TYPE_NULL;
+fossil_bluecrab_myshell_t *
+fossil_bluecrab_myshell_create(const char *path,
+                               const fossil_bluecrab_myshell_open_options_t *opts,
+                               fossil_bluecrab_myshell_error_t *out_err) {
+    if (!path) {
+        if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+        return NULL;
+    }
 
-    if (myshell_stricmp(s, "null")     == 0) return MYSHELL_FSON_TYPE_NULL;
-    if (myshell_stricmp(s, "bool")     == 0) return MYSHELL_FSON_TYPE_BOOL;
-    if (myshell_stricmp(s, "i8")       == 0) return MYSHELL_FSON_TYPE_I8;
-    if (myshell_stricmp(s, "i16")      == 0) return MYSHELL_FSON_TYPE_I16;
-    if (myshell_stricmp(s, "i32")      == 0) return MYSHELL_FSON_TYPE_I32;
-    if (myshell_stricmp(s, "i64")      == 0) return MYSHELL_FSON_TYPE_I64;
-    if (myshell_stricmp(s, "u8")       == 0) return MYSHELL_FSON_TYPE_U8;
-    if (myshell_stricmp(s, "u16")      == 0) return MYSHELL_FSON_TYPE_U16;
-    if (myshell_stricmp(s, "u32")      == 0) return MYSHELL_FSON_TYPE_U32;
-    if (myshell_stricmp(s, "u64")      == 0) return MYSHELL_FSON_TYPE_U64;
-    if (myshell_stricmp(s, "f32")      == 0) return MYSHELL_FSON_TYPE_F32;
-    if (myshell_stricmp(s, "f64")      == 0) return MYSHELL_FSON_TYPE_F64;
-    if (myshell_stricmp(s, "oct")      == 0) return MYSHELL_FSON_TYPE_OCT;
-    if (myshell_stricmp(s, "hex")      == 0) return MYSHELL_FSON_TYPE_HEX;
-    if (myshell_stricmp(s, "bin")      == 0) return MYSHELL_FSON_TYPE_BIN;
-    if (myshell_stricmp(s, "char")     == 0) return MYSHELL_FSON_TYPE_CHAR;
-    if (myshell_stricmp(s, "cstr")     == 0) return MYSHELL_FSON_TYPE_CSTR;
-    if (myshell_stricmp(s, "array")    == 0) return MYSHELL_FSON_TYPE_ARRAY;
-    if (myshell_stricmp(s, "object")   == 0) return MYSHELL_FSON_TYPE_OBJECT;
-    if (myshell_stricmp(s, "enum")     == 0) return MYSHELL_FSON_TYPE_ENUM;
-    if (myshell_stricmp(s, "datetime") == 0) return MYSHELL_FSON_TYPE_DATETIME;
-    if (myshell_stricmp(s, "duration") == 0) return MYSHELL_FSON_TYPE_DURATION;
-
-    return MYSHELL_FSON_TYPE_NULL; // fallback
+    // For the stub we behave same as open (no on-disk initialization).
+    fossil_bluecrab_myshell_t *db = fossil_bluecrab_myshell_open(path, opts, out_err);
+    if (!db) {
+        return NULL;
+    }
+    // Real impl: create directory/files, initialize chain root, write metadata.
+    if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_SUCCESS;
+    return db;
 }
 
-static void myshell_fson_value_to_string(
-    const fossil_bluecrab_myshell_fson_value_t *val,
-    char *out, size_t out_size)
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_close(fossil_bluecrab_myshell_t *db) {
+    if (!db) return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+
+    free(db->path);
+    // Free other internals if present
+    free(db);
+    return FOSSIL_MYSHELL_ERROR_SUCCESS;
+}
+
+/* -------------------------------------------------------------------------
+ * Basic SQL-like API (stubs)
+ * ------------------------------------------------------------------------- */
+
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_exec_sql(fossil_bluecrab_myshell_t *db,
+                                 const char *sql,
+                                 fossil_bluecrab_myshell_error_t *out_err) {
+    (void)db;
+    (void)sql;
+    if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+    return FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+}
+
+fossil_bluecrab_myshell_stmt_t *
+fossil_bluecrab_myshell_prepare(fossil_bluecrab_myshell_t *db,
+                                const char *sql,
+                                fossil_bluecrab_myshell_error_t *out_err) {
+    if (!db || !sql) {
+        if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
+        return NULL;
+    }
+    fossil_bluecrab_myshell_stmt_t *stmt = calloc(1, sizeof(*stmt));
+    if (!stmt) {
+        if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_OUT_OF_MEMORY;
+        return NULL;
+    }
+    stmt->sql = myshell_strdup(sql);
+    stmt->step_count = 0;
+    if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_SUCCESS;
+    return stmt;
+}
+
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_stmt_bind_null(fossil_bluecrab_myshell_stmt_t *stmt, int idx) {
+    (void)stmt; (void)idx;
+    return FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+}
+
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_stmt_bind_i64(fossil_bluecrab_myshell_stmt_t *stmt, int idx, int64_t v) {
+    (void)stmt; (void)idx; (void)v;
+    return FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+}
+
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_stmt_bind_u64(fossil_bluecrab_myshell_stmt_t *stmt, int idx, uint64_t v)
 {
-    const char *tname = myshell_fson_type_to_string(val->type);
+    (void)stmt; (void)idx; (void)v;
+    return FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+}
 
-    switch (val->type) {
-        case MYSHELL_FSON_TYPE_NULL:
-            snprintf(out, out_size, "%s:null", tname);
-            break;
-        case MYSHELL_FSON_TYPE_BOOL:
-            snprintf(out, out_size, "%s:%s", tname, val->as.b ? "true" : "false");
-            break;
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_stmt_bind_double(fossil_bluecrab_myshell_stmt_t *stmt, int idx, double v) {
+    (void)stmt; (void)idx; (void)v;
+    return FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+}
 
-        case MYSHELL_FSON_TYPE_I8:  snprintf(out, out_size, "%s:%" PRId8,  tname, val->as.i8); break;
-        case MYSHELL_FSON_TYPE_I16: snprintf(out, out_size, "%s:%" PRId16, tname, val->as.i16); break;
-        case MYSHELL_FSON_TYPE_I32: snprintf(out, out_size, "%s:%" PRId32, tname, val->as.i32); break;
-        case MYSHELL_FSON_TYPE_I64: snprintf(out, out_size, "%s:%" PRId64, tname, val->as.i64); break;
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_stmt_bind_text(fossil_bluecrab_myshell_stmt_t *stmt, int idx, const char *text) {
+    (void)stmt; (void)idx; (void)text;
+    return FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+}
 
-        case MYSHELL_FSON_TYPE_U8:  snprintf(out, out_size, "%s:%" PRIu8,  tname, val->as.u8); break;
-        case MYSHELL_FSON_TYPE_U16: snprintf(out, out_size, "%s:%" PRIu16, tname, val->as.u16); break;
-        case MYSHELL_FSON_TYPE_U32: snprintf(out, out_size, "%s:%" PRIu32, tname, val->as.u32); break;
-        case MYSHELL_FSON_TYPE_U64: snprintf(out, out_size, "%s:%" PRIu64, tname, val->as.u64); break;
-
-        case MYSHELL_FSON_TYPE_F32: snprintf(out, out_size, "%s:%g",   tname, val->as.f32); break;
-        case MYSHELL_FSON_TYPE_F64: snprintf(out, out_size, "%s:%lf",  tname, val->as.f64); break;
-
-        case MYSHELL_FSON_TYPE_CHAR:
-            snprintf(out, out_size, "%s:%c", tname, val->as.c);
-            break;
-
-        // heap-allocated/string-likes
-        case MYSHELL_FSON_TYPE_CSTR:
-        case MYSHELL_FSON_TYPE_OCT:
-        case MYSHELL_FSON_TYPE_HEX:
-        case MYSHELL_FSON_TYPE_BIN:
-        case MYSHELL_FSON_TYPE_ARRAY:
-        case MYSHELL_FSON_TYPE_OBJECT:
-        case MYSHELL_FSON_TYPE_ENUM:
-        case MYSHELL_FSON_TYPE_DATETIME:
-        case MYSHELL_FSON_TYPE_DURATION:
-            snprintf(out, out_size, "%s:%s", tname, val->as.cstr ? val->as.cstr : "");
-            break;
-
-        default:
-            snprintf(out, out_size, "unknown:null");
-            break;
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_stmt_step(fossil_bluecrab_myshell_stmt_t *stmt) {
+    if (!stmt) return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
+    // Minimal behavior: return EOF (NOT_FOUND) after one step in stub.
+    if (stmt->step_count == 0) {
+        stmt->step_count++;
+        return FOSSIL_MYSHELL_ERROR_SUCCESS; // pretend a row exists once
+    } else {
+        return FOSSIL_MYSHELL_ERROR_NOT_FOUND; // EOF-like
     }
 }
 
-// parse "type:value" into union
-static bool myshell_fson_value_from_string(const char *encoded, fossil_bluecrab_myshell_fson_value_t *out) {
-    if (!encoded || !out) return false;
-
-    const char *colon = strchr(encoded, ':');
-    if (!colon) return false;
-
-    size_t type_len = (size_t)(colon - encoded);
-    char type_buf[32];
-    if (type_len >= sizeof(type_buf)) return false;
-
-    memcpy(type_buf, encoded, type_len);
-    type_buf[type_len] = '\0';
-
-    const char *value = colon + 1;
-    fossil_bluecrab_myshell_fson_type_t t = myshell_fson_type_from_string(type_buf);
-    out->type = t;
-
-    switch (t) {
-        case MYSHELL_FSON_TYPE_NULL:
-            break;
-        case MYSHELL_FSON_TYPE_BOOL:
-            out->as.b = (strcasecmp(value, "true") == 0);
-            break;
-        case MYSHELL_FSON_TYPE_I8:  out->as.i8  = (int8_t) strtol(value, NULL, 10); break;
-        case MYSHELL_FSON_TYPE_I16: out->as.i16 = (int16_t)strtol(value, NULL, 10); break;
-        case MYSHELL_FSON_TYPE_I32: out->as.i32 = (int32_t)strtol(value, NULL, 10); break;
-        case MYSHELL_FSON_TYPE_I64: out->as.i64 = (int64_t)strtoll(value, NULL, 10); break;
-        case MYSHELL_FSON_TYPE_U8:  out->as.u8  = (uint8_t) strtoul(value, NULL, 10); break;
-        case MYSHELL_FSON_TYPE_U16: out->as.u16 = (uint16_t)strtoul(value, NULL, 10); break;
-        case MYSHELL_FSON_TYPE_U32: out->as.u32 = (uint32_t)strtoul(value, NULL, 10); break;
-        case MYSHELL_FSON_TYPE_U64: out->as.u64 = (uint64_t)strtoull(value, NULL, 10); break;
-        case MYSHELL_FSON_TYPE_F32: out->as.f32 = strtof(value, NULL); break;
-        case MYSHELL_FSON_TYPE_F64: out->as.f64 = strtod(value, NULL); break;
-        case MYSHELL_FSON_TYPE_CHAR: out->as.c  = value[0]; break;
-
-        case MYSHELL_FSON_TYPE_CSTR:
-        case MYSHELL_FSON_TYPE_OCT:
-        case MYSHELL_FSON_TYPE_HEX:
-        case MYSHELL_FSON_TYPE_BIN:
-        case MYSHELL_FSON_TYPE_ARRAY:
-        case MYSHELL_FSON_TYPE_OBJECT:
-        case MYSHELL_FSON_TYPE_ENUM:
-        case MYSHELL_FSON_TYPE_DATETIME:
-        case MYSHELL_FSON_TYPE_DURATION:
-            out->as.cstr = fossil_myshell_bluecrab_strdup(value);
-            break;
-
-        default:
-            return false;
-    }
-    return true;
+const char *
+fossil_bluecrab_myshell_stmt_column_text(fossil_bluecrab_myshell_stmt_t *stmt, int col) {
+    (void)stmt; (void)col;
+    return NULL;
 }
 
-// ===========================================================
-// CRUD Operations
-// ===========================================================
+int64_t
+fossil_bluecrab_myshell_stmt_column_i64(fossil_bluecrab_myshell_stmt_t *stmt, int col) {
+    (void)stmt; (void)col;
+    return 0;
+}
 
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_create_record(const char *file_name, const char *key, const char *value) {
-    if (!fossil_bluecrab_myshell_validate_extension(file_name))
-        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+double
+fossil_bluecrab_myshell_stmt_column_double(fossil_bluecrab_myshell_stmt_t *stmt, int col) {
+    (void)stmt; (void)col;
+    return 0.0;
+}
 
-    // Reject empty key or value
-    if (!key || strlen(key) == 0 || !value || strlen(value) == 0)
-        return FOSSIL_MYSHELL_ERROR_PARSE_FAILED;
-
-    // Use FSON encoding for value
-    fossil_bluecrab_myshell_fson_value_t fson_val;
-    if (!myshell_fson_value_from_string(value, &fson_val)) {
-        // If value is not FSON, treat as plain string
-        fson_val.type = MYSHELL_FSON_TYPE_CSTR;
-        fson_val.as.cstr = fossil_myshell_bluecrab_strdup(value);
-    }
-
-    // Encode value to string
-    char *encoded = NULL;
-    size_t encoded_size = strlen(value) + 64;
-    encoded = (char*)malloc(encoded_size);
-    if (!encoded) {
-        if (fson_val.type >= MYSHELL_FSON_TYPE_CSTR && fson_val.type <= MYSHELL_FSON_TYPE_DURATION && fson_val.as.cstr)
-            free(fson_val.as.cstr);
-        return FOSSIL_MYSHELL_ERROR_OUT_OF_MEMORY;
-    }
-    myshell_fson_value_to_string(&fson_val, encoded, encoded_size);
-
-    // Check for duplicate key
-    FILE *file = fopen(file_name, "r");
-    if (file) {
-        char line[2048];
-        while (fgets(line, sizeof(line), file)) {
-            // Skip blank lines and lines without '='
-            if (line[0] == '\n' || line[0] == '\r' || line[0] == '\0')
-                continue;
-            if (!strchr(line, '='))
-                continue;
-
-            char *line_key, *line_value;
-            unsigned long stored_hash;
-            if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash))
-                continue;
-            // Fail on empty key or value
-            if (!line_key || strlen(line_key) == 0 || !line_value || strlen(line_value) == 0)
-                continue;
-
-            char record[512];
-            SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
-            unsigned long calc_hash = fossil_bluecrab_myshell_hash(record);
-            if (calc_hash != stored_hash)
-                continue;
-
-            if (myshell_stricmp(line_key, key) == 0) {
-                fclose(file);
-                if (fson_val.type >= MYSHELL_FSON_TYPE_CSTR && fson_val.type <= MYSHELL_FSON_TYPE_DURATION && fson_val.as.cstr)
-                    free(fson_val.as.cstr);
-                free(encoded);
-                return FOSSIL_MYSHELL_ERROR_ALREADY_EXISTS;
-            }
-        }
-        fclose(file);
-    }
-
-    // Append new record
-    file = fopen(file_name, "a");
-    if (!file) {
-        if (fson_val.type >= MYSHELL_FSON_TYPE_CSTR && fson_val.type <= MYSHELL_FSON_TYPE_DURATION && fson_val.as.cstr)
-            free(fson_val.as.cstr);
-        free(encoded);
-        return FOSSIL_MYSHELL_ERROR_IO;
-    }
-
-    size_t record_len = strlen(key) + strlen(encoded) + 32;
-    char *record = (char*)malloc(record_len);
-    if (!record) {
-        fclose(file);
-        if (fson_val.type >= MYSHELL_FSON_TYPE_CSTR && fson_val.type <= MYSHELL_FSON_TYPE_DURATION && fson_val.as.cstr)
-            free(fson_val.as.cstr);
-        free(encoded);
-        return FOSSIL_MYSHELL_ERROR_OUT_OF_MEMORY;
-    }
-    snprintf(record, record_len, "%s=%s", key, encoded);
-    unsigned long hash = fossil_bluecrab_myshell_hash(record);
-
-    fprintf(file, "%s|%lu\n", record, hash);
-    fclose(file);
-
-    // Free heap if needed
-    if (fson_val.type >= MYSHELL_FSON_TYPE_CSTR && fson_val.type <= MYSHELL_FSON_TYPE_DURATION && fson_val.as.cstr)
-        free(fson_val.as.cstr);
-    free(encoded);
-    free(record);
-
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_stmt_reset(fossil_bluecrab_myshell_stmt_t *stmt) {
+    if (!stmt) return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
+    stmt->step_count = 0;
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_read_record(const char *file_name, const char *key, char *value, size_t buffer_size) {
-    if (!fossil_bluecrab_myshell_validate_extension(file_name))
-        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
-
-    // Reject empty key
-    if (!key || strlen(key) == 0)
-        return FOSSIL_MYSHELL_ERROR_PARSE_FAILED;
-
-    FILE *file = fopen(file_name, "r");
-    if (!file) {
-        // If file open fails due to lock, return lock failed error
-        if (errno == EACCES || errno == EAGAIN)
-            return FOSSIL_MYSHELL_ERROR_LOCK_FAILED;
-        if (errno == EPERM)
-            return FOSSIL_MYSHELL_ERROR_PERMISSION_DENIED;
-        return FOSSIL_MYSHELL_ERROR_IO;
-    }
-
-    char line[2048];
-    while (fgets(line, sizeof(line), file)) {
-        // Skip blank lines
-        if (line[0] == '\n' || line[0] == '\r' || line[0] == '\0')
-            continue;
-        // Skip lines without '='
-        if (!strchr(line, '='))
-            continue;
-
-        char *line_key, *line_value;
-        unsigned long stored_hash;
-
-        if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash))
-            continue;
-
-        // Fail on empty key or value
-        if (!line_key || strlen(line_key) == 0 || !line_value || strlen(line_value) == 0) {
-            fclose(file);
-            return FOSSIL_MYSHELL_ERROR_PARSE_FAILED;
-        }
-
-        char record[512];
-        SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
-        unsigned long calc_hash = fossil_bluecrab_myshell_hash(record);
-
-        if (calc_hash != stored_hash)
-            continue;
-
-        if (myshell_stricmp(line_key, key) == 0) {
-            // Decode FSON value to string
-            fossil_bluecrab_myshell_fson_value_t fson_val;
-            if (!myshell_fson_value_from_string(line_value, &fson_val)) {
-                // If not FSON, treat as plain string
-                strncpy(value, line_value, buffer_size);
-                value[buffer_size - 1] = '\0';
-                fclose(file);
-                return FOSSIL_MYSHELL_ERROR_SUCCESS;
-            }
-            // If FSON, decode to original value if possible
-            if (fson_val.type == MYSHELL_FSON_TYPE_CSTR && fson_val.as.cstr) {
-                strncpy(value, fson_val.as.cstr, buffer_size);
-                value[buffer_size - 1] = '\0';
-            } else {
-                char out[2048];
-                myshell_fson_value_to_string(&fson_val, out, sizeof(out));
-                strncpy(value, out, buffer_size);
-                value[buffer_size - 1] = '\0';
-            }
-            if (fson_val.type >= MYSHELL_FSON_TYPE_CSTR && fson_val.type <= MYSHELL_FSON_TYPE_DURATION && fson_val.as.cstr)
-                free(fson_val.as.cstr);
-
-            fclose(file);
-            return FOSSIL_MYSHELL_ERROR_SUCCESS;
-        }
-    }
-
-    fclose(file);
-    return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
-}
-
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_update_record(const char *file_name, const char *key, const char *new_value) {
-    if (!fossil_bluecrab_myshell_validate_extension(file_name))
-        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
-
-    // Reject empty key or value
-    if (!key || strlen(key) == 0 || !new_value || strlen(new_value) == 0)
-        return FOSSIL_MYSHELL_ERROR_PARSE_FAILED;
-
-    // Use FSON encoding for new_value
-    fossil_bluecrab_myshell_fson_value_t fson_val;
-    if (!myshell_fson_value_from_string(new_value, &fson_val)) {
-        fson_val.type = MYSHELL_FSON_TYPE_CSTR;
-        fson_val.as.cstr = fossil_myshell_bluecrab_strdup(new_value);
-    }
-
-    size_t encoded_size = strlen(new_value) + 64;
-    char *encoded = (char*)malloc(encoded_size);
-    if (!encoded) {
-        if (fson_val.type >= MYSHELL_FSON_TYPE_CSTR && fson_val.type <= MYSHELL_FSON_TYPE_DURATION && fson_val.as.cstr)
-            free(fson_val.as.cstr);
-        return FOSSIL_MYSHELL_ERROR_OUT_OF_MEMORY;
-    }
-    myshell_fson_value_to_string(&fson_val, encoded, encoded_size);
-
-    FILE *file = fopen(file_name, "r");
-    if (!file) {
-        free(encoded);
-        if (fson_val.type >= MYSHELL_FSON_TYPE_CSTR && fson_val.type <= MYSHELL_FSON_TYPE_DURATION && fson_val.as.cstr)
-            free(fson_val.as.cstr);
-        return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
-    }
-
-    FILE *temp = fopen("temp.myshell", "w");
-    if (!temp) {
-        fclose(file);
-        free(encoded);
-        if (fson_val.type >= MYSHELL_FSON_TYPE_CSTR && fson_val.type <= MYSHELL_FSON_TYPE_DURATION && fson_val.as.cstr)
-            free(fson_val.as.cstr);
-        return FOSSIL_MYSHELL_ERROR_IO;
-    }
-
-    char line[2048];
-    bool updated = false;
-
-    while (fgets(line, sizeof(line), file)) {
-        // Skip blank lines
-        if (line[0] == '\n' || line[0] == '\r' || line[0] == '\0')
-            continue;
-        // Skip lines without '='
-        if (!strchr(line, '='))
-            continue;
-
-        char *line_key, *line_value;
-        unsigned long stored_hash;
-
-        if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
-            fputs(line, temp);
-            continue;
-        }
-
-        // Fail on empty key or value
-        if (!line_key || strlen(line_key) == 0 || !line_value || strlen(line_value) == 0) {
-            fclose(file);
-            fclose(temp);
-            remove("temp.myshell");
-            free(encoded);
-            if (fson_val.type >= MYSHELL_FSON_TYPE_CSTR && fson_val.type <= MYSHELL_FSON_TYPE_DURATION && fson_val.as.cstr)
-                free(fson_val.as.cstr);
-            return FOSSIL_MYSHELL_ERROR_PARSE_FAILED;
-        }
-
-        char record[512];
-        SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
-        if (fossil_bluecrab_myshell_hash(record) != stored_hash) {
-            fprintf(temp, "%s=%s|%lu\n", line_key, line_value, stored_hash);
-            continue;
-        }
-
-        if (myshell_stricmp(line_key, key) == 0) {
-            size_t new_record_len = strlen(key) + strlen(encoded) + 32;
-            char *new_record = (char*)malloc(new_record_len);
-            if (!new_record) {
-                fclose(file);
-                fclose(temp);
-                remove("temp.myshell");
-                free(encoded);
-                if (fson_val.type >= MYSHELL_FSON_TYPE_CSTR && fson_val.type <= MYSHELL_FSON_TYPE_DURATION && fson_val.as.cstr)
-                    free(fson_val.as.cstr);
-                return FOSSIL_MYSHELL_ERROR_OUT_OF_MEMORY;
-            }
-            snprintf(new_record, new_record_len, "%s=%s", key, encoded);
-            unsigned long new_hash = fossil_bluecrab_myshell_hash(new_record);
-            fprintf(temp, "%s|%lu\n", new_record, new_hash);
-            updated = true;
-            free(new_record);
-        } else {
-            fprintf(temp, "%s=%s|%lu\n", line_key, line_value, stored_hash);
-        }
-    }
-
-    fclose(file);
-    fclose(temp);
-
-    if (fson_val.type >= MYSHELL_FSON_TYPE_CSTR && fson_val.type <= MYSHELL_FSON_TYPE_DURATION && fson_val.as.cstr)
-        free(fson_val.as.cstr);
-    free(encoded);
-
-    if (updated) {
-        remove(file_name);
-        rename("temp.myshell", file_name);
-        return FOSSIL_MYSHELL_ERROR_SUCCESS;
-    }
-
-    remove("temp.myshell");
-    return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
-}
-
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_delete_record(const char *file_name, const char *key) {
-    if (!fossil_bluecrab_myshell_validate_extension(file_name))
-        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
-
-    // Reject empty key
-    if (!key || strlen(key) == 0)
-        return FOSSIL_MYSHELL_ERROR_PARSE_FAILED;
-
-    FILE *file = fopen(file_name, "r");
-    if (!file) return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
-
-    FILE *temp = fopen("temp.myshell", "w");
-    if (!temp) {
-        fclose(file);
-        return FOSSIL_MYSHELL_ERROR_IO;
-    }
-
-    char line[2048];
-    bool deleted = false;
-
-    while (fgets(line, sizeof(line), file)) {
-        // Skip blank lines
-        if (line[0] == '\n' || line[0] == '\r' || line[0] == '\0')
-            continue;
-        // Skip lines without '='
-        if (!strchr(line, '='))
-            continue;
-
-        char *line_key, *line_value;
-        unsigned long stored_hash;
-
-        if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
-            fputs(line, temp);
-            continue;
-        }
-
-        // Fail on empty key or value
-        if (!line_key || strlen(line_key) == 0 || !line_value || strlen(line_value) == 0) {
-            fclose(file);
-            fclose(temp);
-            remove("temp.myshell");
-            return FOSSIL_MYSHELL_ERROR_PARSE_FAILED;
-        }
-
-        char record[512];
-        SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
-        if (fossil_bluecrab_myshell_hash(record) != stored_hash)
-            continue;
-
-        if (!deleted && myshell_stricmp(line_key, key) == 0) {
-            deleted = true;
-            continue;
-        }
-
-        fprintf(temp, "%s=%s|%lu\n", line_key, line_value, stored_hash);
-    }
-
-    fclose(file);
-    fclose(temp);
-
-    if (deleted) {
-        if (remove(file_name) != 0) {
-            remove("temp.myshell");
-            return FOSSIL_MYSHELL_ERROR_IO;
-        }
-        if (rename("temp.myshell", file_name) != 0)
-            return FOSSIL_MYSHELL_ERROR_IO;
-        return FOSSIL_MYSHELL_ERROR_SUCCESS;
-    }
-
-    remove("temp.myshell");
-    return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
-}
-
-// ===========================================================
-// Database Management
-// ===========================================================
-
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_create_database(const char *file_name) {
-    if (!fossil_bluecrab_myshell_validate_extension(file_name))
-        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
-
-    FILE *file = fopen(file_name, "w");
-    if (!file) return FOSSIL_MYSHELL_ERROR_IO;
-
-    fclose(file);
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_stmt_finalize(fossil_bluecrab_myshell_stmt_t *stmt) {
+    if (!stmt) return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
+    free(stmt->sql);
+    free(stmt);
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_open_database(const char *file_name) {
-    if (!fossil_bluecrab_myshell_validate_extension(file_name))
-        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
-
-    // Check if already open
-    for (int i = 0; i < MAX_OPEN_DBS; i++) {
-        if (open_dbs[i] && strcmp(open_dbs[i], file_name) == 0) {
-            return FOSSIL_MYSHELL_ERROR_ALREADY_EXISTS;
-        }
+/* -------------------------------------------------------------------------
+ * Transactions (stubs)
+ * ------------------------------------------------------------------------- */
+fossil_bluecrab_myshell_txn_t *
+fossil_bluecrab_myshell_txn_begin(fossil_bluecrab_myshell_t *db,
+                                  fossil_bluecrab_myshell_error_t *out_err) {
+    if (!db) {
+        if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+        return NULL;
     }
-
-    FILE *file = fopen(file_name, "r");
-    if (!file) {
-        if (errno == EACCES || errno == EAGAIN)
-            return FOSSIL_MYSHELL_ERROR_LOCK_FAILED;
-        if (errno == EPERM)
-            return FOSSIL_MYSHELL_ERROR_PERMISSION_DENIED;
-        return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
+    fossil_bluecrab_myshell_txn_t *txn = calloc(1, sizeof(*txn));
+    if (!txn) {
+        if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_OUT_OF_MEMORY;
+        return NULL;
     }
-    fclose(file);
-
-    // Track as open
-    for (int i = 0; i < MAX_OPEN_DBS; i++) {
-        if (!open_dbs[i]) {
-            open_dbs[i] = fossil_myshell_bluecrab_strdup(file_name);
-            return FOSSIL_MYSHELL_ERROR_SUCCESS;
-        }
-    }
-    return FOSSIL_MYSHELL_ERROR_CONCURRENCY;
+    txn->db = db;
+    txn->active = true;
+    if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_SUCCESS;
+    return txn;
 }
 
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_delete_database(const char *file_name) {
-    if (!fossil_bluecrab_myshell_validate_extension(file_name))
-        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_txn_commit(fossil_bluecrab_myshell_txn_t *txn,
+                                   const char *message,
+                                   fossil_bluecrab_myshell_hash64_t *out_commit_hash) {
+    if (!txn) return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
+    if (!txn->active) return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
 
-    // Remove file, but also handle very long file names gracefully
-    int remove_result = remove(file_name);
-    if (remove_result == 0) {
-        mark_db_closed(file_name);
-        return FOSSIL_MYSHELL_ERROR_SUCCESS;
-    }
-    if (errno == EACCES || errno == EAGAIN)
-        return FOSSIL_MYSHELL_ERROR_LOCK_FAILED;
-    if (errno == EPERM)
-        return FOSSIL_MYSHELL_ERROR_PERMISSION_DENIED;
-    return FOSSIL_MYSHELL_ERROR_IO;
-}
-
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_close_database(const char *file_name) {
-    if (!file_name) return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
-
-    if (!mark_db_closed(file_name)) {
-        return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
-    }
+    // Real impl: write commit object into chain, compute hash.
+    txn->active = false;
+    if (out_commit_hash) *out_commit_hash = 0xDEADBEEFu; // placeholder
+    (void)message;
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
-// ===========================================================
-// Backup and Restore
-// ===========================================================
-
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_backup_database(const char *src_file, const char *dst_file) {
-    if (!fossil_bluecrab_myshell_validate_extension(src_file) || !fossil_bluecrab_myshell_validate_extension(dst_file))
-        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
-
-    FILE *in = fopen(src_file, "r");
-    if (!in) return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
-
-    FILE *out = fopen(dst_file, "w");
-    if (!out) {
-        fclose(in);
-        return FOSSIL_MYSHELL_ERROR_IO;
-    }
-
-    char line[512];
-    while (fgets(line, sizeof(line), in)) {
-        char *line_key, *line_value;
-        unsigned long stored_hash;
-
-        if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
-            fclose(in);
-            fclose(out);
-            remove(dst_file);
-            return FOSSIL_MYSHELL_ERROR_BACKUP_FAILED;
-        }
-
-        char record[512];
-        SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
-        unsigned long calc_hash = fossil_bluecrab_myshell_hash(record);
-
-        if (calc_hash != stored_hash) {
-            fclose(in);
-            fclose(out);
-            remove(dst_file);
-            return FOSSIL_MYSHELL_ERROR_BACKUP_FAILED;
-        }
-
-        fprintf(out, "%s|%lu\n", record, stored_hash);
-    }
-
-    fclose(in);
-    fclose(out);
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_txn_rollback(fossil_bluecrab_myshell_txn_t *txn) {
+    if (!txn) return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
+    txn->active = false;
+    free(txn);
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_restore_database(const char *backup_file, const char *dst_file) {
-    if (!fossil_bluecrab_myshell_validate_extension(backup_file) || !fossil_bluecrab_myshell_validate_extension(dst_file))
-        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+/* -------------------------------------------------------------------------
+ * Branch / commit shim functions (stubs)
+ * ------------------------------------------------------------------------- */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_branch_create(fossil_bluecrab_myshell_t *db,
+                                      const char *branch_name,
+                                      const fossil_bluecrab_myshell_hash64_t *base_commit,
+                                      fossil_bluecrab_myshell_error_t *out_err) {
+    (void)db; (void)branch_name; (void)base_commit;
+    if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+    return FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+}
 
-    FILE *in = fopen(backup_file, "r");
-    if (!in) return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
+char **
+fossil_bluecrab_myshell_branch_list(fossil_bluecrab_myshell_t *db, size_t *out_count) {
+    (void)db;
+    if (out_count) *out_count = 0;
+    return NULL;
+}
 
-    FILE *out = fopen(dst_file, "w");
-    if (!out) {
-        fclose(in);
-        return FOSSIL_MYSHELL_ERROR_IO;
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_checkout(fossil_bluecrab_myshell_t *db,
+                                 const char *branch_or_hash,
+                                 fossil_bluecrab_myshell_error_t *out_err) {
+    (void)db; (void)branch_or_hash;
+    if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+    return FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+}
+
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_merge(fossil_bluecrab_myshell_t *db,
+                              const char *source_branch_or_hash,
+                              const char *target_branch_or_hash,
+                              fossil_bluecrab_myshell_merge_result_t *out_result) {
+    (void)db; (void)source_branch_or_hash; (void)target_branch_or_hash;
+    if (out_result) {
+        out_result->conflicts = false;
+        out_result->conflict_report = NULL;
     }
+    return FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+}
 
-    char line[512];
-    while (fgets(line, sizeof(line), in)) {
-        char *line_key, *line_value;
-        unsigned long stored_hash;
+/* -------------------------------------------------------------------------
+ * Record-level / FSON helpers (stubs)
+ * ------------------------------------------------------------------------- */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_put_record(fossil_bluecrab_myshell_t *db,
+                                   const fossil_bluecrab_myshell_record_t *rec,
+                                   fossil_bluecrab_myshell_hash64_t *out_hash) {
+    (void)db; (void)rec;
+    if (out_hash) *out_hash = 0;
+    return FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+}
 
-        if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
-            fclose(in);
-            fclose(out);
-            remove(dst_file);
-            return FOSSIL_MYSHELL_ERROR_RESTORE_FAILED;
+fossil_bluecrab_myshell_record_t *
+fossil_bluecrab_myshell_get_record(fossil_bluecrab_myshell_t *db,
+                                   const char *key,
+                                   fossil_bluecrab_myshell_error_t *out_err) {
+    (void)db; (void)key;
+    if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_NOT_FOUND;
+    return NULL;
+}
+
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_delete_record(fossil_bluecrab_myshell_t *db,
+                                      const char *key,
+                                      fossil_bluecrab_myshell_error_t *out_err) {
+    (void)db; (void)key;
+    if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+    return FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+}
+
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_iter_records(fossil_bluecrab_myshell_t *db,
+                                     const char *prefix_filter,
+                                     fossil_bluecrab_myshell_record_iter_cb cb,
+                                     void *user) {
+    (void)db; (void)prefix_filter; (void)cb; (void)user;
+    return FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+}
+
+/* Parse/serialize/free FSON values (stubs) */
+fossil_bluecrab_myshell_fson_value_t *
+fossil_bluecrab_myshell_fson_parse_value(const char *text,
+                                         fossil_bluecrab_myshell_error_t *out_err) {
+    (void)text;
+    if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+    return NULL;
+}
+
+char *
+fossil_bluecrab_myshell_fson_serialize_value(const fossil_bluecrab_myshell_fson_value_t *val,
+                                             fossil_bluecrab_myshell_error_t *out_err) {
+    (void)val;
+    if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+    return NULL;
+}
+
+void
+fossil_bluecrab_myshell_fson_free_value(fossil_bluecrab_myshell_fson_value_t *val) {
+    if (!val) return;
+    // Free inner allocations depending on type — stub does nothing.
+    free(val);
+}
+
+char *
+fossil_bluecrab_myshell_fson_to_sql_insert(const char *table_name,
+                                           const char *fson_object_text,
+                                           fossil_bluecrab_myshell_error_t *out_err) {
+    (void)table_name; (void)fson_object_text;
+    if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+    return NULL;
+}
+
+/* -------------------------------------------------------------------------
+ * Hash utilities
+ * ------------------------------------------------------------------------- */
+
+/* Reuse the mix64 algorithm from your header as a local function here */
+static inline uint64_t local_mix64(uint64_t x) {
+    x ^= x >> 30;
+    x *= 0xbf58476d1ce4e5b9ULL;
+    x ^= x >> 27;
+    x *= 0x94d049bb133111ebULL;
+    x ^= x >> 31;
+    return x;
+}
+
+fossil_bluecrab_myshell_hash64_t
+fossil_bluecrab_myshell_compute_record_hash(const char *key,
+                                            const char *fson_text,
+                                            const char *timestamp_iso,
+                                            uint64_t seed) {
+    uint64_t h = seed ? seed : 0x9e3779b97f4a7c15ULL;
+    if (key) {
+        for (const unsigned char *p = (const unsigned char *)key; *p; ++p) {
+            h = local_mix64(h ^ (uint64_t)(*p));
         }
-
-        char record[512];
-        SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
-        unsigned long calc_hash = fossil_bluecrab_myshell_hash(record);
-
-        if (calc_hash != stored_hash) {
-            fclose(in);
-            fclose(out);
-            remove(dst_file);
-            return FOSSIL_MYSHELL_ERROR_RESTORE_FAILED;
-        }
-
-        fprintf(out, "%s|%lu\n", record, stored_hash);
     }
-
-    fclose(in);
-    fclose(out);
-    return FOSSIL_MYSHELL_ERROR_SUCCESS;
-}
-
-// ===========================================================
-// Query and Data Validation
-// ===========================================================
-
-bool fossil_bluecrab_myshell_is_open(const char *file_name) {
-    if (!file_name) return false;
-    for (int i = 0; i < MAX_OPEN_DBS; i++) {
-        if (open_dbs[i] && strcmp(open_dbs[i], file_name) == 0) {
-            return true;
+    if (fson_text) {
+        for (const unsigned char *p = (const unsigned char *)fson_text; *p; ++p) {
+            h = local_mix64(h ^ (uint64_t)(*p));
         }
     }
-    return false;
-}
-
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_verify_database(const char *file_name) {
-    if (!fossil_bluecrab_myshell_validate_extension(file_name))
-        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
-
-    FILE *file = fopen(file_name, "r");
-    if (!file) return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
-
-    char line[512];
-    while (fgets(line, sizeof(line), file)) {
-        char *line_key, *line_value;
-        unsigned long stored_hash;
-
-        if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash)) {
-            fclose(file);
-            return FOSSIL_MYSHELL_ERROR_CORRUPTED;
-        }
-
-        char record[512];
-        SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
-        unsigned long calc_hash = fossil_bluecrab_myshell_hash(record);
-
-        if (calc_hash != stored_hash) {
-            fclose(file);
-            return FOSSIL_MYSHELL_ERROR_CORRUPTED;
+    if (timestamp_iso) {
+        for (const unsigned char *p = (const unsigned char *)timestamp_iso; *p; ++p) {
+            h = local_mix64(h ^ (uint64_t)(*p));
         }
     }
-
-    fclose(file);
-    return FOSSIL_MYSHELL_ERROR_SUCCESS;
+    return (fossil_bluecrab_myshell_hash64_t)h;
 }
 
-bool fossil_bluecrab_myshell_validate_extension(const char *file_name) {
-    const char *ext = strrchr(file_name, '.');
-    return ext && strcmp(ext, ".myshell") == 0;
+/* -------------------------------------------------------------------------
+ * Indexing / search (stubs)
+ * ------------------------------------------------------------------------- */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_index_create(fossil_bluecrab_myshell_t *db,
+                                     const char *index_name,
+                                     const char *fson_path) {
+    (void)db; (void)index_name; (void)fson_path;
+    return FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
 }
 
-bool fossil_bluecrab_myshell_validate_data(const char *data) {
-    return data != NULL && strlen(data) > 0;
+char **
+fossil_bluecrab_myshell_index_query(fossil_bluecrab_myshell_t *db,
+                                    const char *index_name,
+                                    const char *match_value,
+                                    size_t *out_count) {
+    (void)db; (void)index_name; (void)match_value;
+    if (out_count) *out_count = 0;
+    return NULL;
 }
 
-// ============================================================================
-// Iteration Helpers
-// ============================================================================
-// These helpers must skip blank lines and lines that do not contain '='.
-// They must also skip lines that fail hash validation.
+/* -------------------------------------------------------------------------
+ * Backups / restore / import / export (stubs)
+ * ------------------------------------------------------------------------- */
 
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_first_key(const char *file_name, char *key_buffer, size_t buffer_size) {
-    if (!fossil_bluecrab_myshell_validate_extension(file_name))
-        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_backup(fossil_bluecrab_myshell_t *db,
+                               const char *backup_path) {
+    (void)db; (void)backup_path;
+    return FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+}
 
-    if (!key_buffer || buffer_size == 0)
-        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_restore(const char *backup_path,
+                                const char *target_path) {
+    (void)backup_path; (void)target_path;
+    return FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+}
 
-    FILE *fp = fopen(file_name, "r");
-    if (!fp) return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_import_presidents_csv(fossil_bluecrab_myshell_t *db,
+                                              const char *csv_path,
+                                              const char *table_name,
+                                              size_t *out_rows_imported) {
+    (void)db; (void)csv_path; (void)table_name;
+    if (out_rows_imported) *out_rows_imported = 0;
+    return FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+}
 
-    char line[512];
-    fossil_bluecrab_myshell_error_t result = FOSSIL_MYSHELL_ERROR_NOT_FOUND;
-    while (fgets(line, sizeof(line), fp)) {
-        // Skip blank lines
-        if (line[0] == '\n' || line[0] == '\r' || line[0] == '\0')
-            continue;
-        // Skip lines without '='
-        if (!strchr(line, '='))
-            continue;
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_export_presidents_csv(fossil_bluecrab_myshell_t *db,
+                                              const char *table_name,
+                                              const char *csv_path) {
+    (void)db; (void)table_name; (void)csv_path;
+    return FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+}
 
-        char *line_key, *line_value;
-        unsigned long stored_hash;
-        if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash))
-            continue;
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_create_president_schema(fossil_bluecrab_myshell_t *db,
+                                                const char *table_name) {
+    (void)db; (void)table_name;
+    return FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+}
 
-        // Fail on empty key or value
-        if (!line_key || strlen(line_key) == 0 || !line_value || strlen(line_value) == 0) {
-            fclose(fp);
-            return FOSSIL_MYSHELL_ERROR_PARSE_FAILED;
-        }
-
-        char record[512];
-        SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
-        if (fossil_bluecrab_myshell_hash(record) != stored_hash)
-            continue;
-
-        strncpy(key_buffer, line_key, buffer_size);
-        key_buffer[buffer_size - 1] = '\0';
-        result = FOSSIL_MYSHELL_ERROR_SUCCESS;
-        break;
+/* -------------------------------------------------------------------------
+ * Diagnostics / compact (stubs)
+ * ------------------------------------------------------------------------- */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_integrity_check(fossil_bluecrab_myshell_t *db,
+                                        char **out_report) {
+    (void)db;
+    if (out_report) {
+        *out_report = myshell_strdup("Integrity check not implemented in stub.");
     }
-    fclose(fp);
-    return result;
+    return FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
 }
 
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_next_key(const char *file_name, const char *prev_key, char *key_buffer, size_t buffer_size) {
-    if (!fossil_bluecrab_myshell_validate_extension(file_name))
-        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
-
-    if (!prev_key || !key_buffer || buffer_size == 0)
-        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
-
-    FILE *fp = fopen(file_name, "r");
-    if (!fp) return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
-
-    char line[512];
-    bool found = false;
-    fossil_bluecrab_myshell_error_t result = FOSSIL_MYSHELL_ERROR_NOT_FOUND;
-
-    while (fgets(line, sizeof(line), fp)) {
-        // Skip blank lines
-        if (line[0] == '\n' || line[0] == '\r' || line[0] == '\0')
-            continue;
-        // Skip lines without '='
-        if (!strchr(line, '='))
-            continue;
-
-        char *line_key, *line_value;
-        unsigned long stored_hash;
-
-        if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash))
-            continue;
-
-        // Fail on empty key or value
-        if (!line_key || strlen(line_key) == 0 || !line_value || strlen(line_value) == 0) {
-            fclose(fp);
-            return FOSSIL_MYSHELL_ERROR_PARSE_FAILED;
-        }
-
-        char record[512];
-        SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
-        if (fossil_bluecrab_myshell_hash(record) != stored_hash)
-            continue;
-
-        if (found) {
-            strncpy(key_buffer, line_key, buffer_size);
-            key_buffer[buffer_size - 1] = '\0';
-            result = FOSSIL_MYSHELL_ERROR_SUCCESS;
-            break;
-        }
-
-        if (strcmp(line_key, prev_key) == 0)
-            found = true;
-    }
-
-    fclose(fp);
-    return result;
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_compact(fossil_bluecrab_myshell_t *db,
+                                fossil_bluecrab_myshell_error_t *out_err) {
+    (void)db;
+    if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+    return FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
 }
 
-// ============================================================================
-// Metadata Helpers
-// ============================================================================
-
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_count_records(const char *file_name, size_t *count) {
-    if (!file_name || !count) return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
-
-    FILE *fp = fopen(file_name, "r");
-    if (!fp) return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
-
-    size_t counter = 0;
-    char line[1024];
-    while (fgets(line, sizeof(line), fp)) {
-        // Skip blank lines and lines without '='
-        if (line[0] == '\n' || line[0] == '\r' || line[0] == '\0')
-            continue;
-        if (!strchr(line, '='))
-            continue;
-
-        char *line_key, *line_value;
-        unsigned long stored_hash;
-        if (!fossil_bluecrab_myshell_split_record(line, &line_key, &line_value, &stored_hash))
-            continue;
-
-        // Fail on empty key or value
-        if (!line_key || strlen(line_key) == 0 || !line_value || strlen(line_value) == 0)
-            continue;
-
-        char record[512];
-        SAFE_SNPRINTF_KV(record, sizeof(record), line_key, line_value);
-        if (fossil_bluecrab_myshell_hash(record) != stored_hash)
-            continue;
-
-        counter++;
-    }
-    fclose(fp);
-
-    *count = counter;
-    return FOSSIL_MYSHELL_ERROR_SUCCESS;
+/* -------------------------------------------------------------------------
+ * Blob store / load / free
+ * ------------------------------------------------------------------------- */
+fossil_bluecrab_myshell_hash64_t
+fossil_bluecrab_myshell_store_blob(fossil_bluecrab_myshell_t *db,
+                                   const void *data, size_t n,
+                                   fossil_bluecrab_myshell_error_t *out_err) {
+    (void)db; (void)data; (void)n;
+    if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+    return 0;
 }
 
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_get_file_size(const char *file_name, size_t *size_bytes) {
-    if (!file_name || !size_bytes) return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
-
-    struct stat st;
-    if (stat(file_name, &st) != 0) {
-        if (errno == EACCES || errno == EAGAIN)
-            return FOSSIL_MYSHELL_ERROR_LOCK_FAILED;
-        if (errno == EPERM)
-            return FOSSIL_MYSHELL_ERROR_PERMISSION_DENIED;
-        return FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND;
-    }
-
-    *size_bytes = (size_t)st.st_size;
-    return FOSSIL_MYSHELL_ERROR_SUCCESS;
+void *
+fossil_bluecrab_myshell_load_blob(fossil_bluecrab_myshell_t *db,
+                                  fossil_bluecrab_myshell_hash64_t blob_hash,
+                                  size_t *out_size,
+                                  fossil_bluecrab_myshell_error_t *out_err) {
+    (void)db; (void)blob_hash;
+    if (out_size) *out_size = 0;
+    if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+    return NULL;
 }
 
-// ============================================================================
-// Error to String
-// ============================================================================
+void
+fossil_bluecrab_myshell_record_free(fossil_bluecrab_myshell_record_t *rec) {
+    if (!rec) return;
+    free(rec->key);
+    free(rec->fson_text);
+    free(rec->owner);
+    free(rec);
+}
 
-const char* fossil_bluecrab_myshell_error_string(fossil_bluecrab_myshell_error_t error_code) {
-    switch (error_code) {
-        case FOSSIL_MYSHELL_ERROR_SUCCESS:        return "Success";
-        case FOSSIL_MYSHELL_ERROR_INVALID_FILE:   return "Invalid file";
-        case FOSSIL_MYSHELL_ERROR_FILE_NOT_FOUND: return "File not found";
-        case FOSSIL_MYSHELL_ERROR_IO:             return "I/O error";
-        case FOSSIL_MYSHELL_ERROR_INVALID_QUERY:  return "Invalid query";
-        case FOSSIL_MYSHELL_ERROR_CONCURRENCY:    return "Concurrency error";
-        case FOSSIL_MYSHELL_ERROR_NOT_FOUND:      return "Record not found";
-        case FOSSIL_MYSHELL_ERROR_PERMISSION_DENIED: return "Permission denied";
-        case FOSSIL_MYSHELL_ERROR_CORRUPTED:      return "Corrupted database";
-        case FOSSIL_MYSHELL_ERROR_OUT_OF_MEMORY:  return "Out of memory";
-        case FOSSIL_MYSHELL_ERROR_UNSUPPORTED:    return "Unsupported operation";
-        case FOSSIL_MYSHELL_ERROR_LOCKED:         return "Database locked";
-        case FOSSIL_MYSHELL_ERROR_TIMEOUT:        return "Timeout";
-        case FOSSIL_MYSHELL_ERROR_ALREADY_EXISTS: return "Already exists";
-        case FOSSIL_MYSHELL_ERROR_BACKUP_FAILED:  return "Backup failed";
-        case FOSSIL_MYSHELL_ERROR_PARSE_FAILED:   return "Parse failed";
-        case FOSSIL_MYSHELL_ERROR_RESTORE_FAILED: return "Restore failed";
-        case FOSSIL_MYSHELL_ERROR_LOCK_FAILED:    return "Lock failed";
-        case FOSSIL_MYSHELL_ERROR_UNKNOWN:        return "Unknown error";
-        default:                                  return "Unrecognized error code";
+/* -------------------------------------------------------------------------
+ * Time / duration helpers (simple stub implementations)
+ * ------------------------------------------------------------------------- */
+time_t
+fossil_bluecrab_myshell_parse_iso8601(const char *iso, fossil_bluecrab_myshell_error_t *out_err) {
+    if (!iso) {
+        if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
+        return (time_t)-1;
     }
+    // Very simple fallback: try parse as seconds since epoch string
+    char *endptr = NULL;
+    long long seconds = strtoll(iso, &endptr, 10);
+    if (endptr && *endptr == '\0') {
+        if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_SUCCESS;
+        return (time_t)seconds;
+    }
+    if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+    return (time_t)-1;
+}
+
+char *
+fossil_bluecrab_myshell_format_iso8601(time_t t) {
+    struct tm tm;
+    if (gmtime_r(&t, &tm) == NULL) return NULL;
+    char buf[64];
+    if (strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", &tm) == 0) return NULL;
+    return myshell_strdup(buf);
+}
+
+int64_t
+fossil_bluecrab_myshell_parse_duration_seconds(const char *duration_str,
+                                               fossil_bluecrab_myshell_error_t *out_err) {
+    if (!duration_str) {
+        if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
+        return -1;
+    }
+    // Very simple parser: supports suffixes s, m, h, d
+    char *endptr = NULL;
+    long long val = strtoll(duration_str, &endptr, 10);
+    if (!endptr) {
+        if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+        return -1;
+    }
+    int64_t mult = 1;
+    if (*endptr == 's' || *endptr == '\0') mult = 1;
+    else if (*endptr == 'm') mult = 60;
+    else if (*endptr == 'h') mult = 3600;
+    else if (*endptr == 'd') mult = 3600 * 24;
+    else {
+        if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+        return -1;
+    }
+    if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_SUCCESS;
+    return val * mult;
+}
+
+/* -------------------------------------------------------------------------
+ * Bootstrapping / schema / builtin functions (stubs)
+ * ------------------------------------------------------------------------- */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_init_builtin_functions(fossil_bluecrab_myshell_t *db) {
+    (void)db;
+    return FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+}
+
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_load_datafile(fossil_bluecrab_myshell_t *db,
+                                      const char *datafile_path,
+                                      fossil_bluecrab_myshell_error_t *out_err) {
+    (void)db; (void)datafile_path;
+    if (out_err) *out_err = FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+    return FOSSIL_MYSHELL_ERROR_UNSUPPORTED;
+}
+
+/* -------------------------------------------------------------------------
+ * Debug / introspection (stubs)
+ * ------------------------------------------------------------------------- */
+char *
+fossil_bluecrab_myshell_dump_head(const fossil_bluecrab_myshell_t *db) {
+    if (!db) return NULL;
+    // Return a small JSON-ish description — caller frees
+    const char *tmpl = "{ \"path\": \"%s\", \"opened\": %d }";
+    size_t need = snprintf(NULL, 0, tmpl, db->path ? db->path : "(null)", db->opened) + 1;
+    char *s = malloc(need);
+    if (!s) return NULL;
+    snprintf(s, need, tmpl, db->path ? db->path : "(null)", db->opened);
+    return s;
+}
+
+char *
+fossil_bluecrab_myshell_stats(const fossil_bluecrab_myshell_t *db) {
+    if (!db) return NULL;
+    return myshell_strdup("Stats not implemented in stub.");
 }
