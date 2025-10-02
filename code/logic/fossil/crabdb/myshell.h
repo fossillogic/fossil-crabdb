@@ -151,188 +151,440 @@ typedef struct {
     } as;
 } fossil_bluecrab_myshell_fson_value_t;
 
-// ===========================================================
-// MyShell Functions
-// ===========================================================
+// -------------------------------
+// Forward declarations / common
+// -------------------------------
+typedef struct fossil_bluecrab_myshell_t fossil_bluecrab_myshell_t;
+typedef struct fossil_bluecrab_myshell_txn_t fossil_bluecrab_myshell_txn_t;
+typedef struct fossil_bluecrab_myshell_stmt_t fossil_bluecrab_myshell_stmt_t;
+typedef struct fossil_bluecrab_myshell_commit_t fossil_bluecrab_myshell_commit_t;
+typedef struct fossil_bluecrab_myshell_record_t fossil_bluecrab_myshell_record_t;
+typedef uint64_t fossil_bluecrab_myshell_hash64_t;
 
-// CRUD operations
+// Reuse your enums:
+typedef enum {
+    FOSSIL_MYSHELL_ERROR_SUCCESS = 0,
+    /* ... existing error codes ... */
+    FOSSIL_MYSHELL_ERROR_UNKNOWN
+} fossil_bluecrab_myshell_error_t;
 
-/**
- * @brief Creates a new record in the database.
- * 
- * @param file_name     The name of the database file.
- * @param key           The key of the record.
- * @param value         The value of the record.
- * @return              0 on success, non-zero on error.
- */
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_create_record(const char *file_name, const char *key, const char *value);
+typedef enum {
+    MYSHELL_FSON_TYPE_NULL = 0,
+    /* ... existing fson types ... */
+    MYSHELL_FSON_TYPE_DURATION
+} fossil_bluecrab_myshell_fson_type_t;
 
-/**
- * @brief Reads a record from the database.
- * 
- * @param file_name     The name of the database file.
- * @param key           The key of the record to read.
- * @param value         The buffer to store the value of the record.
- * @param buffer_size   The size of the buffer.
- * @return              0 on success, non-zero on error.
- */
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_read_record(const char *file_name, const char *key, char *value, size_t buffer_size);
+typedef struct {
+    fossil_bluecrab_myshell_fson_type_t type;
+    union {
+        bool b;
+        int8_t   i8;
+        int16_t  i16;
+        int32_t  i32;
+        int64_t  i64;
+        uint8_t  u8;
+        uint16_t u16;
+        uint32_t u32;
+        uint64_t u64;
+        float    f32;
+        double   f64;
+        char    *oct;
+        char    *hex;
+        char    *bin;
+        char     c;
+        char    *cstr;
+        char    *array;
+        char    *object;
+        char    *enum_symbol;
+        char    *datetime;
+        char    *duration;
+    } as;
+} fossil_bluecrab_myshell_fson_value_t;
 
-/**
- * @brief Updates the value of a record in the database.
- * 
- * @param file_name     The name of the database file.
- * @param key           The key of the record to update.
- * @param new_value     The new value to set.
- * @return              0 on success, non-zero on error.
- */
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_update_record(const char *file_name, const char *key, const char *new_value);
 
-/**
- * @brief Deletes a record from the database.
- * 
- * @param file_name     The name of the database file.
- * @param key           The key of the record to delete.
- * @return              0 on success, non-zero on error.
- */
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_delete_record(const char *file_name, const char *key);
+// -------------------------------
+// Core database handle + options
+// -------------------------------
+typedef struct {
+    const char *path;           // path to DB file / directory
+    uint64_t    flags;          // open flags (bitmask, e.g. readonly, create)
+    uint64_t    hash_seed;      // seed for hashing
+    size_t      page_size;      // for internal storage tuning
+    int         max_connections;
+} fossil_bluecrab_myshell_open_options_t;
 
-// Database management
+/** Open an existing DB. */
+fossil_bluecrab_myshell_t *
+fossil_bluecrab_myshell_open(const char *path,
+                             const fossil_bluecrab_myshell_open_options_t *opts,
+                             fossil_bluecrab_myshell_error_t *out_err);
 
-/**
- * @brief Creates a new database file.
- * 
- * @param file_name     The name of the database file.
- * @return              0 on success, non-zero on error.
- */
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_create_database(const char *file_name);
+/** Create a new DB (initializes git-like chain root, indexes, schema). */
+fossil_bluecrab_myshell_t *
+fossil_bluecrab_myshell_create(const char *path,
+                               const fossil_bluecrab_myshell_open_options_t *opts,
+                               fossil_bluecrab_myshell_error_t *out_err);
 
-/**
- * @brief Opens an existing database file.
- * 
- * @param file_name     The name of the database file.
- * @return              0 on success, non-zero on error.
- */
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_open_database(const char *file_name);
+/** Close/free handle (flush + close files). */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_close(fossil_bluecrab_myshell_t *db);
 
-/**
- * @brief Deletes a database file.
- * 
- * @param file_name     The name of the database file.
- * @return              0 on success, non-zero on error.
- */
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_delete_database(const char *file_name);
+/** Map error code to human readable string (thread-safe static buffer not guaranteed). */
+const char *
+fossil_bluecrab_myshell_errstr(fossil_bluecrab_myshell_error_t err);
 
-// Backup and Restore
 
-/**
- * @brief Backs up a database file.
- * 
- * @param source_file   The name of the source database file.
- * @param backup_file   The name of the backup file.
- * @return              0 on success, non-zero on error.
- */
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_backup_database(const char *source_file, const char *backup_file);
+// -------------------------------
+// Basic SQL-like API
+// -------------------------------
 
-/**
- * @brief Restores a database file from a backup.
- * 
- * @param backup_file       The name of the backup file.
- * @param destination_file  The name of the destination database file.
- * @return                  0 on success, non-zero on error.
- */
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_restore_database(const char *backup_file, const char *destination_file);
+/** Execute a SQL string directly. (SQL is a subset / dialect mapped to FSON-backed tables.) */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_exec_sql(fossil_bluecrab_myshell_t *db,
+                                 const char *sql,
+                                 fossil_bluecrab_myshell_error_t *out_err);
 
-// Query and data validation
+/** Prepare/compile a statement. */
+fossil_bluecrab_myshell_stmt_t *
+fossil_bluecrab_myshell_prepare(fossil_bluecrab_myshell_t *db,
+                                const char *sql,
+                                fossil_bluecrab_myshell_error_t *out_err);
 
-/**
- * @brief Verifies the integrity of a .crabdb database file by checking all record hashes.
- * 
- * @param file_name     The name of the database file.
- * @return              FOSSIL_MYSHELL_ERROR_SUCCESS if all records pass,
- *                      FOSSIL_MYSHELL_ERROR_CORRUPTED if any record fails,
- *                      other error codes on I/O or invalid file.
- */
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_verify_database(const char *file_name);
+/** Bind helpers (index 1..N) */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_stmt_bind_null(fossil_bluecrab_myshell_stmt_t *stmt, int idx);
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_stmt_bind_i64(fossil_bluecrab_myshell_stmt_t *stmt, int idx, int64_t v);
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_stmt_bind_u64(fossil_bluecrab_myshell_stmt_t *stmt, int idx, uint64_t v);
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_stmt_bind_double(fossil_bluecrab_myshell_stmt_t *stmt, int idx, double v);
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_stmt_bind_text(fossil_bluecrab_myshell_stmt_t *stmt, int idx, const char *text);
 
-/**
- * @brief Validates the file extension of a database file.
- * 
- * @param file_name     The name of the database file.
- * @return              True if the file extension is valid, false otherwise.
- */
-bool fossil_bluecrab_myshell_validate_extension(const char *file_name);
+/** Step/iterate a statement; returns FOSSIL_MYSHELL_ERROR_SUCCESS on success, or error/EOF. */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_stmt_step(fossil_bluecrab_myshell_stmt_t *stmt);
 
-/**
- * @brief Validates a data string.
- * 
- * @param data          The data string to validate.
- * @return              True if the data is valid, false otherwise.
- */
-bool fossil_bluecrab_myshell_validate_data(const char *data);
+/** Retrieve column as text / i64 / double */
+const char *
+fossil_bluecrab_myshell_stmt_column_text(fossil_bluecrab_myshell_stmt_t *stmt, int col);
+int64_t
+fossil_bluecrab_myshell_stmt_column_i64(fossil_bluecrab_myshell_stmt_t *stmt, int col);
+double
+fossil_bluecrab_myshell_stmt_column_double(fossil_bluecrab_myshell_stmt_t *stmt, int col);
 
-/**
- * @brief Closes an opened database file.
- * 
- * @param file_name     The name of the database file.
- * @return              0 on success, non-zero on error.
- */
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_close_database(const char *file_name);
+/** Reset & finalize statement. */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_stmt_reset(fossil_bluecrab_myshell_stmt_t *stmt);
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_stmt_finalize(fossil_bluecrab_myshell_stmt_t *stmt);
 
-/**
- * @brief Checks if a database file is currently open.
- * 
- * @param file_name     The name of the database file.
- * @return              True if open, false otherwise.
- */
-bool fossil_bluecrab_myshell_is_open(const char *file_name);
 
-/**
- * @brief Gets the first key in the database.
- * 
- * @param file_name     The name of the database file.
- * @param key_buffer    Buffer to store the key.
- * @param buffer_size   Size of the buffer.
- * @return              0 on success, non-zero on error.
- */
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_first_key(const char *file_name, char *key_buffer, size_t buffer_size);
+// -------------------------------
+// Transactions
+// -------------------------------
 
-/**
- * @brief Gets the next key in the database (iteration).
- * 
- * @param file_name     The name of the database file.
- * @param prev_key      The previous key from iteration.
- * @param key_buffer    Buffer to store the next key.
- * @param buffer_size   Size of the buffer.
- * @return              0 on success, non-zero on error, or EOF if no more keys.
- */
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_next_key(const char *file_name, const char *prev_key, char *key_buffer, size_t buffer_size);
+/** Begin/commit/rollback. Transactions map to git-like working tree changes until commit. */
+fossil_bluecrab_myshell_txn_t *
+fossil_bluecrab_myshell_txn_begin(fossil_bluecrab_myshell_t *db,
+                                  fossil_bluecrab_myshell_error_t *out_err);
 
-/**
- * @brief Gets the total number of records in the database.
- * 
- * @param file_name     The name of the database file.
- * @param count         Pointer to store the record count.
- * @return              0 on success, non-zero on error.
- */
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_count_records(const char *file_name, size_t *count);
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_txn_commit(fossil_bluecrab_myshell_txn_t *txn,
+                                   const char *message,           // commit message
+                                   fossil_bluecrab_myshell_hash64_t *out_commit_hash);
 
-/**
- * @brief Gets the size of the database file in bytes.
- * 
- * @param file_name     The name of the database file.
- * @param size_bytes    Pointer to store the file size.
- * @return              0 on success, non-zero on error.
- */
-fossil_bluecrab_myshell_error_t fossil_bluecrab_myshell_get_file_size(const char *file_name, size_t *size_bytes);
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_txn_rollback(fossil_bluecrab_myshell_txn_t *txn);
 
-/**
- * @brief Converts an error code to a human-readable string.
- * 
- * @param error_code    The error code.
- * @return              A string describing the error.
- */
-const char* fossil_bluecrab_myshell_error_string(fossil_bluecrab_myshell_error_t error_code);
+// -------------------------------
+// Git-like chain & commits
+// -------------------------------
+
+/** Commit metadata structure. */
+struct fossil_bluecrab_myshell_commit_t {
+    fossil_bluecrab_myshell_hash64_t  hash;
+    fossil_bluecrab_myshell_hash64_t  parent_hash;
+    char                            *author;
+    char                            *message;
+    char                            *timestamp_iso; /* e.g. "2025-09-30T12:00:00Z" */
+    // reserved: pointers to serialized change-set, indexes etc
+};
+
+/** Create a branch reference. */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_branch_create(fossil_bluecrab_myshell_t *db,
+                                      const char *branch_name,
+                                      const fossil_bluecrab_myshell_hash64_t *base_commit,
+                                      fossil_bluecrab_myshell_error_t *out_err);
+
+/** List branches (caller frees array). */
+char **
+fossil_bluecrab_myshell_branch_list(fossil_bluecrab_myshell_t *db, size_t *out_count);
+
+/** Checkout branch / commit (detached allowed). */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_checkout(fossil_bluecrab_myshell_t *db,
+                                 const char *branch_or_hash,
+                                 fossil_bluecrab_myshell_error_t *out_err);
+
+/** Merge two commits (fast-forward or three-way). Returns conflict detail if any. */
+typedef struct {
+    bool        conflicts;
+    char       *conflict_report; // textual report; must be freed by caller
+} fossil_bluecrab_myshell_merge_result_t;
+
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_merge(fossil_bluecrab_myshell_t *db,
+                              const char *source_branch_or_hash,
+                              const char *target_branch_or_hash,
+                              fossil_bluecrab_myshell_merge_result_t *out_result);
+
+
+// -------------------------------
+// Record-level / FSON helpers
+// -------------------------------
+
+/** Record structure (opaque pointer returned to caller). */
+struct fossil_bluecrab_myshell_record_t {
+    fossil_bluecrab_myshell_hash64_t hash;    // stable 64-bit identity
+    char   *key;                            // primary key
+    char   *fson_text;                      // serialized FSON (v2) object
+    time_t  created_at;
+    time_t  modified_at;
+    char   *owner;                          // owner principal
+};
+
+/** Create or update a record in the current branch / working tree. */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_put_record(fossil_bluecrab_myshell_t *db,
+                                   const fossil_bluecrab_myshell_record_t *rec,
+                                   fossil_bluecrab_myshell_hash64_t *out_hash);
+
+/** Read a record by key (returns malloc'd record; caller frees). */
+fossil_bluecrab_myshell_record_t *
+fossil_bluecrab_myshell_get_record(fossil_bluecrab_myshell_t *db,
+                                   const char *key,
+                                   fossil_bluecrab_myshell_error_t *out_err);
+
+/** Delete a record by key (marks tombstone in chain). */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_delete_record(fossil_bluecrab_myshell_t *db,
+                                      const char *key,
+                                      fossil_bluecrab_myshell_error_t *out_err);
+
+/** Iterate records with callback; return false from callback to abort early. */
+typedef bool (*fossil_bluecrab_myshell_record_iter_cb)(
+    const fossil_bluecrab_myshell_record_t *rec, void *user);
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_iter_records(fossil_bluecrab_myshell_t *db,
+                                     const char *prefix_filter,   // optional null
+                                     fossil_bluecrab_myshell_record_iter_cb cb,
+                                     void *user);
+
+
+// -------------------------------
+// FSON helpers (parse/serialize/convert)
+// -------------------------------
+
+/** Parse a FSON text fragment into a runtime value. Returns malloc'd value. */
+fossil_bluecrab_myshell_fson_value_t *
+fossil_bluecrab_myshell_fson_parse_value(const char *text,
+                                         fossil_bluecrab_myshell_error_t *out_err);
+
+/** Serialize a FSON value into a heap-allocated string (caller frees). */
+char *
+fossil_bluecrab_myshell_fson_serialize_value(const fossil_bluecrab_myshell_fson_value_t *val,
+                                             fossil_bluecrab_myshell_error_t *out_err);
+
+/** Deep-free a parsed FSON value. */
+void
+fossil_bluecrab_myshell_fson_free_value(fossil_bluecrab_myshell_fson_value_t *val);
+
+/** Convert FSON object to SQL INSERT statement (helper for SQL-backed tables). */
+char *
+fossil_bluecrab_myshell_fson_to_sql_insert(const char *table_name,
+                                           const char *fson_object_text,
+                                           fossil_bluecrab_myshell_error_t *out_err);
+
+
+// -------------------------------
+// Hashing utilities (64-bit)
+// -------------------------------
+
+/** Portable 64-bit mixing/hash function (deterministic). */
+static inline uint64_t fossil_bluecrab_myshell_mix64(uint64_t x) {
+    x ^= x >> 30;
+    x *= 0xbf58476d1ce4e5b9ULL;
+    x ^= x >> 27;
+    x *= 0x94d049bb133111ebULL;
+    x ^= x >> 31;
+    return x;
+}
+
+/** Compute stable 64-bit hash for a record (based on key + fson_text + timestamp). */
+fossil_bluecrab_myshell_hash64_t
+fossil_bluecrab_myshell_compute_record_hash(const char *key,
+                                            const char *fson_text,
+                                            const char *timestamp_iso,
+                                            uint64_t seed);
+
+
+// -------------------------------
+// Indexing / search
+// -------------------------------
+
+/** Create a simple index on a top-level FSON field (string/number). */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_index_create(fossil_bluecrab_myshell_t *db,
+                                     const char *index_name,
+                                     const char *fson_path); /* e.g. "name", "address.city" */
+
+/** Query index: returns array of keys (caller frees). */
+char **
+fossil_bluecrab_myshell_index_query(fossil_bluecrab_myshell_t *db,
+                                    const char *index_name,
+                                    const char *match_value,
+                                    size_t *out_count);
+
+// -------------------------------
+// Backups, snapshots, restore
+// -------------------------------
+
+/** Full backup to file. */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_backup(fossil_bluecrab_myshell_t *db,
+                               const char *backup_path);
+
+/** Restore DB from backup; must be closed before restore. */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_restore(const char *backup_path,
+                                const char *target_path);
+
+// -------------------------------
+// Concurrency / locking / permissions
+// -------------------------------
+
+/** Acquire advisory lock for critical operation (blocking or try). */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_lock_acquire(fossil_bluecrab_myshell_t *db,
+                                     const char *lock_name,
+                                     bool blocking);
+
+/** Release advisory lock. */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_lock_release(fossil_bluecrab_myshell_t *db,
+                                     const char *lock_name);
+
+/** Set file/record-level permissions (simple ACL model). */
+typedef enum { ACL_PERM_READ = 1, ACL_PERM_WRITE = 2, ACL_PERM_ADMIN = 4 } fossil_bluecrab_myshell_acl_perm_t;
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_acl_set(fossil_bluecrab_myshell_t *db,
+                                const char *resource,         // "record:presidents/obama"
+                                const char *principal,        // "user:alice" or "group:admins"
+                                int perms);
+
+
+// -------------------------------
+// Utilities & import/export (example: president data file)
+// -------------------------------
+
+/** Import a CSV of presidents (returns # rows imported). Caller can supply mapping or use default). */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_import_presidents_csv(fossil_bluecrab_myshell_t *db,
+                                              const char *csv_path,
+                                              const char *table_name,
+                                              size_t *out_rows_imported);
+
+/** Export a presidents table to CSV. */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_export_presidents_csv(fossil_bluecrab_myshell_t *db,
+                                              const char *table_name,
+                                              const char *csv_path);
+
+/** Convenience: create a schema suitable for storing president records (name, term_start, term_end, party, bio as FSON). */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_create_president_schema(fossil_bluecrab_myshell_t *db,
+                                                const char *table_name);
+
+
+// -------------------------------
+// Diagnostics, compacting, VACUUM
+// -------------------------------
+
+/** Run integrity checks (consistency between chain, storage and indexes). */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_integrity_check(fossil_bluecrab_myshell_t *db,
+                                        char **out_report); /* malloc'd report; caller frees */
+
+/** Compact DB storage (repack, drop tombstones, optimize indexes). */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_compact(fossil_bluecrab_myshell_t *db,
+                                fossil_bluecrab_myshell_error_t *out_err);
+
+
+// -------------------------------
+// Low-level I/O & utilities
+// -------------------------------
+
+/** Write raw blob (used by low-level store internals). Returns a stable blob-hash. */
+fossil_bluecrab_myshell_hash64_t
+fossil_bluecrab_myshell_store_blob(fossil_bluecrab_myshell_t *db,
+                                   const void *data, size_t n,
+                                   fossil_bluecrab_myshell_error_t *out_err);
+
+/** Read raw blob by hash (caller owns buffer). */
+void *
+fossil_bluecrab_myshell_load_blob(fossil_bluecrab_myshell_t *db,
+                                  fossil_bluecrab_myshell_hash64_t blob_hash,
+                                  size_t *out_size,
+                                  fossil_bluecrab_myshell_error_t *out_err);
+
+/** Free memory for record returned by get_record(). */
+void
+fossil_bluecrab_myshell_record_free(fossil_bluecrab_myshell_record_t *rec);
+
+
+// -------------------------------
+// Helpers for timestamp / duration parsing
+// -------------------------------
+time_t
+fossil_bluecrab_myshell_parse_iso8601(const char *iso, fossil_bluecrab_myshell_error_t *out_err);
+
+char *
+fossil_bluecrab_myshell_format_iso8601(time_t t);
+
+
+/** Parse duration strings like "30s", "1h", "5d" -> seconds. */
+int64_t
+fossil_bluecrab_myshell_parse_duration_seconds(const char *duration_str,
+                                               fossil_bluecrab_myshell_error_t *out_err);
+
+
+// -------------------------------
+// Bootstrapping utilities (schema / builtins)
+// -------------------------------
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_init_builtin_functions(fossil_bluecrab_myshell_t *db);
+
+/** Load initial dataset file (example: presidents.fson). Useful during create(). */
+fossil_bluecrab_myshell_error_t
+fossil_bluecrab_myshell_load_datafile(fossil_bluecrab_myshell_t *db,
+                                      const char *datafile_path,
+                                      fossil_bluecrab_myshell_error_t *out_err);
+
+
+// -------------------------------
+// Debug / introspection
+// -------------------------------
+/** Dump small representation of current HEAD commit to caller-owned buffer (string). */
+char *
+fossil_bluecrab_myshell_dump_head(const fossil_bluecrab_myshell_t *db);
+
+/** Print internal stats to text (malloc'd). */
+char *
+fossil_bluecrab_myshell_stats(const fossil_bluecrab_myshell_t *db);
 
 #ifdef __cplusplus
 }
