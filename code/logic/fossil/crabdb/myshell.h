@@ -109,48 +109,6 @@ typedef enum {
     MYSHELL_FSON_TYPE_DURATION
 } fossil_bluecrab_myshell_fson_type_t;
 
-typedef struct {
-    fossil_bluecrab_myshell_fson_type_t type;
-    union {
-        // Base
-        bool b;
-
-        // Signed
-        int8_t   i8;
-        int16_t  i16;
-        int32_t  i32;
-        int64_t  i64;
-
-        // Unsigned
-        uint8_t  u8;
-        uint16_t u16;
-        uint32_t u32;
-        uint64_t u64;
-
-        // Floating
-        float    f32;
-        double   f64;
-
-        // Numeric literals (store as string repr)
-        char    *oct;   // "0755"
-        char    *hex;   // "0xFF"
-        char    *bin;   // "0b1010"
-
-        // Strings / chars
-        char     c;
-        char    *cstr;
-
-        // Composite containers (stored as serialized text blobs)
-        char    *array;   // e.g. "[1,2,3]"
-        char    *object;  // e.g. "{key:val}"
-
-        // v2 extras
-        char    *enum_symbol;  // "RED", "GREEN"
-        char    *datetime;     // ISO 8601 "2025-09-30T12:00:00Z"
-        char    *duration;     // "30s", "1h", "5d"
-    } as;
-} fossil_bluecrab_myshell_fson_value_t;
-
 // -------------------------------
 // Forward declarations / common
 // -------------------------------
@@ -160,19 +118,6 @@ typedef struct fossil_bluecrab_myshell_stmt_t fossil_bluecrab_myshell_stmt_t;
 typedef struct fossil_bluecrab_myshell_commit_t fossil_bluecrab_myshell_commit_t;
 typedef struct fossil_bluecrab_myshell_record_t fossil_bluecrab_myshell_record_t;
 typedef uint64_t fossil_bluecrab_myshell_hash64_t;
-
-// Reuse your enums:
-typedef enum {
-    FOSSIL_MYSHELL_ERROR_SUCCESS = 0,
-    /* ... existing error codes ... */
-    FOSSIL_MYSHELL_ERROR_UNKNOWN
-} fossil_bluecrab_myshell_error_t;
-
-typedef enum {
-    MYSHELL_FSON_TYPE_NULL = 0,
-    /* ... existing fson types ... */
-    MYSHELL_FSON_TYPE_DURATION
-} fossil_bluecrab_myshell_fson_type_t;
 
 typedef struct {
     fossil_bluecrab_myshell_fson_type_t type;
