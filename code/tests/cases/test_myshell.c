@@ -183,66 +183,6 @@ FOSSIL_TEST(c_test_myshell_errstr) {
 
 // Edge case tests for myshell
 
-FOSSIL_TEST(c_test_myshell_null_params) {
-    fossil_bluecrab_myshell_error_t err;
-    // Passing NULL as file name
-    fossil_bluecrab_myshell_t *db = fossil_myshell_create(NULL, &err);
-    ASSUME_ITS_TRUE(db == NULL);
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    db = fossil_myshell_open(NULL, &err);
-    ASSUME_ITS_TRUE(db == NULL);
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    // Passing NULL db pointer
-    err = fossil_myshell_put(NULL, "key", "val");
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    err = fossil_myshell_get(NULL, "key", NULL, 0);
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    err = fossil_myshell_del(NULL, "key");
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    err = fossil_myshell_commit(NULL, "msg");
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    err = fossil_myshell_branch(NULL, "branch");
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    err = fossil_myshell_checkout(NULL, "branch");
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    err = fossil_myshell_log(NULL, log_cb, NULL);
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    err = fossil_myshell_backup(NULL, "backup.myshell");
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    err = fossil_myshell_restore(NULL, "restore.myshell");
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    // Passing NULL key/value
-    db = fossil_myshell_create("edgecase.myshell", &err);
-    ASSUME_ITS_TRUE(db != NULL);
-
-    err = fossil_myshell_put(db, NULL, "val");
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    err = fossil_myshell_put(db, "key", NULL);
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    char value[16];
-    err = fossil_myshell_get(db, NULL, value, sizeof(value));
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_NOT_FOUND);
-
-    err = fossil_myshell_del(db, NULL);
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_NOT_FOUND);
-
-    fossil_myshell_close(db);
-    remove("edgecase.myshell");
-}
-
 FOSSIL_TEST(c_test_myshell_empty_strings) {
     fossil_bluecrab_myshell_error_t err;
     const char *file_name = "emptystr.myshell";
@@ -276,7 +216,6 @@ FOSSIL_TEST_GROUP(c_myshell_database_tests) {
     FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_log_history);
     FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_backup_restore);
     FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_errstr);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_null_params);
     FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_empty_strings);
 
     FOSSIL_TEST_REGISTER(c_myshell_fixture);

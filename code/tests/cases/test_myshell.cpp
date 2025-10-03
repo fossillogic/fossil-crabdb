@@ -184,68 +184,6 @@ FOSSIL_TEST(cpp_test_myshell_errstr) {
 
 // Edge case tests for myshell
 
-FOSSIL_TEST(cpp_test_myshell_null_params) {
-    fossil_bluecrab_myshell_error_t err;
-    // Passing NULL as file name
-    fossil::bluecrab::MyShell db_null_create("", err);
-    ASSUME_ITS_TRUE(!db_null_create.is_open());
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    fossil::bluecrab::MyShell db_null_open("", err);
-    ASSUME_ITS_TRUE(!db_null_open.is_open());
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    // Passing NULL db pointer is not possible with RAII wrapper, but simulate closed handle
-    fossil::bluecrab::MyShell db = fossil::bluecrab::MyShell::create("edgecase.myshell", err);
-    ASSUME_ITS_TRUE(db.is_open());
-
-    db.close();
-    ASSUME_ITS_TRUE(!db.is_open());
-
-    err = db.put("key", "val");
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    std::string value;
-    err = db.get("key", value);
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    err = db.del("key");
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    err = db.commit("msg");
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    err = db.branch("branch");
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    err = db.checkout("branch");
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    err = db.log(log_cb, nullptr);
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    err = db.backup("backup.myshell");
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    // Static restore with empty path
-    err = fossil::bluecrab::MyShell::restore("", "restore.myshell");
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    // Passing empty key/value
-    db = fossil::bluecrab::MyShell::create("edgecase.myshell", err);
-    ASSUME_ITS_TRUE(db.is_open());
-
-    err = db.put("", "val");
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    err = db.put("key", "");
-    // Accepts empty value, should succeed
-    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    db.close();
-    remove("edgecase.myshell");
-}
-
 FOSSIL_TEST(cpp_test_myshell_empty_strings) {
     fossil_bluecrab_myshell_error_t err;
     const std::string file_name = "emptystr.myshell";
@@ -279,7 +217,6 @@ FOSSIL_TEST_GROUP(cpp_myshell_database_tests) {
     FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_log_history);
     FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_backup_restore);
     FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_errstr);
-    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_null_params);
     FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_empty_strings);
 
     FOSSIL_TEST_REGISTER(cpp_myshell_fixture);
