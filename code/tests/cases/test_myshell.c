@@ -115,12 +115,6 @@ FOSSIL_TEST(c_test_myshell_commit_branch_checkout) {
     remove(file_name);
 }
 
-static bool log_cb(const char *commit_hash, const char *message, void *user) {
-    int *count = (int *)user;
-    (*count)++;
-    return true;
-}
-
 FOSSIL_TEST(c_test_myshell_log_history) {
     fossil_bluecrab_myshell_error_t err;
     const char *file_name = "test5.myshell";
