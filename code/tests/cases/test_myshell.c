@@ -206,6 +206,108 @@ FOSSIL_TEST(c_test_myshell_empty_strings) {
     remove(file_name);
 }
 
+FOSSIL_TEST(c_test_myshell_corrupted_key_hash) {
+    fossil_bluecrab_myshell_error_t err;
+    const char *file_name = "corrupt_key.myshell";
+    fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
+    ASSUME_ITS_TRUE(db != NULL);
+
+    fossil_myshell_put(db, "corruptkey", "corruptval");
+    fossil_myshell_commit(db, "commit");
+
+    fossil_myshell_close(db);
+
+    // Corrupt the key hash in the file
+    FILE *file = fopen(file_name, "rb+");
+    ASSUME_ITS_TRUE(file != NULL);
+    char line[1024];
+    long pos = 0;
+    while (fgets(line, sizeof(line), file)) {
+        char *hash_comment = strstr(line, "#hash=");
+        if (hash_comment) {
+            pos = ftell(file) - strlen(line) + (hash_comment - line) + 6;
+            break;
+        }
+    }
+    fseek(file, pos, SEEK_SET);
+    fputs("deadbeefdeadbeef", file); // overwrite hash with invalid value
+    fclose(file);
+
+    db = fossil_myshell_open(file_name, &err);
+    ASSUME_ITS_TRUE(db != NULL);
+
+    err = fossil_myshell_check_integrity(db);
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_INTEGRITY);
+
+    fossil_myshell_close(db);
+    remove(file_name);
+}
+
+FOSSIL_TEST(c_test_myshell_corrupted_file_size) {
+    fossil_bluecrab_myshell_error_t err;
+    const char *file_name = "corrupt_size.myshell";
+    fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
+    ASSUME_ITS_TRUE(db != NULL);
+
+    fossil_myshell_put(db, "sizekey", "sizeval");
+    fossil_myshell_commit(db, "commit");
+
+    // Artificially change db->file_size to simulate corruption
+    db->file_size += 10;
+
+    err = fossil_myshell_check_integrity(db);
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_CORRUPTED);
+
+    fossil_myshell_close(db);
+    remove(file_name);
+}
+
+FOSSIL_TEST(c_test_myshell_parse_failed_commit) {
+    fossil_bluecrab_myshell_error_t err;
+    const char *file_name = "parsefail.myshell";
+    fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
+    ASSUME_ITS_TRUE(db != NULL);
+
+    fossil_myshell_put(db, "parsekey", "parseval");
+    fossil_myshell_commit(db, "parse commit");
+
+    fossil_myshell_close(db);
+
+    // Remove timestamp from commit line to cause parse failure
+    FILE *file = fopen(file_name, "rb+");
+    ASSUME_ITS_TRUE(file != NULL);
+    char lines[10][1024];
+    int count = 0;
+    while (fgets(lines[count], sizeof(lines[count]), file)) {
+        count++;
+    }
+    fclose(file);
+
+    file = fopen(file_name, "wb");
+    ASSUME_ITS_TRUE(file != NULL);
+    for (int i = 0; i < count; ++i) {
+        if (strncmp(lines[i], "#commit ", 8) == 0) {
+            char hash_str[17], msg[512];
+            int n = sscanf(lines[i], "#commit %16s %511[^\n]", hash_str, msg);
+            if (n == 2) {
+                fprintf(file, "#commit %s %s\n", hash_str, msg); // omit timestamp
+            }
+        } else {
+            fputs(lines[i], file);
+        }
+    }
+    fclose(file);
+
+    db = fossil_myshell_open(file_name, &err);
+    ASSUME_ITS_TRUE(db != NULL);
+
+    err = fossil_myshell_check_integrity(db);
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_PARSE_FAILED);
+
+    fossil_myshell_close(db);
+    remove(file_name);
+}
+
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
@@ -217,6 +319,9 @@ FOSSIL_TEST_GROUP(c_myshell_database_tests) {
     FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_backup_restore);
     FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_errstr);
     FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_empty_strings);
+    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_corrupted_key_hash);
+    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_corrupted_file_size);
+    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_parse_failed_commit);
 
     FOSSIL_TEST_REGISTER(c_myshell_fixture);
 } // end of tests
