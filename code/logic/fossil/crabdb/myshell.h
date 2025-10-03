@@ -84,6 +84,71 @@ typedef enum {
     FOSSIL_MYSHELL_ERROR_UNKNOWN               /**< Unknown or unspecified error occurred. */
 } fossil_bluecrab_myshell_error_t;
 
+// ============================================================================
+// FSON v2 compatible value representation (local to MyShell)
+// ============================================================================
+typedef enum {
+    MYSHELL_FSON_TYPE_NULL = 0,
+    MYSHELL_FSON_TYPE_BOOL,
+
+    // Scalars
+    MYSHELL_FSON_TYPE_I8,
+    MYSHELL_FSON_TYPE_I16,
+    MYSHELL_FSON_TYPE_I32,
+    MYSHELL_FSON_TYPE_I64,
+    MYSHELL_FSON_TYPE_U8,
+    MYSHELL_FSON_TYPE_U16,
+    MYSHELL_FSON_TYPE_U32,
+    MYSHELL_FSON_TYPE_U64,
+    MYSHELL_FSON_TYPE_F32,
+    MYSHELL_FSON_TYPE_F64,
+
+    // Literals
+    MYSHELL_FSON_TYPE_OCT,
+    MYSHELL_FSON_TYPE_HEX,
+    MYSHELL_FSON_TYPE_BIN,
+
+    // Strings
+    MYSHELL_FSON_TYPE_CHAR,
+    MYSHELL_FSON_TYPE_CSTR,
+
+    // Composite
+    MYSHELL_FSON_TYPE_ARRAY,
+    MYSHELL_FSON_TYPE_OBJECT,
+
+    // v2 Additions
+    MYSHELL_FSON_TYPE_ENUM,
+    MYSHELL_FSON_TYPE_DATETIME,
+    MYSHELL_FSON_TYPE_DURATION
+} fossil_bluecrab_myshell_fson_type_t;
+
+typedef struct {
+    fossil_bluecrab_myshell_fson_type_t type;
+    union {
+        bool b;
+        int8_t   i8;
+        int16_t  i16;
+        int32_t  i32;
+        int64_t  i64;
+        uint8_t  u8;
+        uint16_t u16;
+        uint32_t u32;
+        uint64_t u64;
+        float    f32;
+        double   f64;
+        char    *oct;
+        char    *hex;
+        char    *bin;
+        char     c;
+        char    *cstr;
+        char    *array;
+        char    *object;
+        char    *enum_symbol;
+        char    *datetime;
+        char    *duration;
+    } as;
+} fossil_bluecrab_myshell_fson_value_t;
+
 /**
  * -------------------------------
  * Simple, Git-like Public API
