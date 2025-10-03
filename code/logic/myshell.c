@@ -40,7 +40,7 @@ struct fossil_bluecrab_myshell_t {
     char *current_branch;                        // Checked out branch name
 
     // In-memory tables/indexes
-    void *record_index;                          // Key -> record mapping (hash table or trie)
+    void *record_index;                          // Key -> record mapping (hash table/trie)
     void *commit_index;                          // Commit hash -> commit metadata
     void *branch_index;                          // Branch name -> head hash
 
@@ -53,6 +53,10 @@ struct fossil_bluecrab_myshell_t {
     time_t opened_at;
     uint64_t txn_counter;
     uint64_t op_counter;
+
+    // Streaming & hooks
+    void *open_streams;                          // Active stream handles
+    void *event_callbacks;                       // List of registered event callbacks
 };
 
 
@@ -69,6 +73,7 @@ struct fossil_bluecrab_myshell_stmt_t {
     // Execution state
     void *cursor;                                // Iterator over matching records
     void *last_row;                              // Pointer to last returned row
+    bool eof;                                    // End-of-results indicator
 };
 
 
@@ -84,6 +89,9 @@ struct fossil_bluecrab_myshell_txn_t {
 
     uint64_t parent_commit;                      // Base commit hash
     uint64_t working_hash;                       // Hash of working tree snapshot
+
+    // Savepoints
+    void *savepoints;                            // Stack of savepoint states
 };
 
 
@@ -99,6 +107,9 @@ struct fossil_bluecrab_myshell_record_t {
     size_t fson_size;                            // Cached serialized size
     uint64_t version;                            // Monotonic record version
     bool tombstone;                              // Deleted marker
+
+    // Indexing hooks
+    void *secondary_indexes;                     // Map of index_name -> value
 };
 
 
@@ -120,6 +131,8 @@ struct fossil_bluecrab_myshell_commit_t {
 
     // Linking
     fossil_bluecrab_myshell_commit_t *parent;    // Pointer to parent commit (in-memory cache)
+    fossil_bluecrab_myshell_commit_t **children; // Children commits (branch tips/merges)
+    size_t child_count;
 };
 
 /* -------------------------------------------------------------------------
