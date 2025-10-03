@@ -49,115 +49,238 @@ FOSSIL_TEARDOWN(cpp_myshell_fixture) {
 
 /*
  * Test case for creating a new record in the database file (FSON encoding)
+ * Now using fossil::bluecrab::MyShell C++ RAII wrapper.
  */
-FOSSIL_TEST(cpp_test_myshell_create_record) {
-    std::string file_name = "test.myshell";
-    fossil::bluecrab::MyShell::create_database(file_name);
+FOSSIL_TEST(cpp_test_myshell_open_create_close) {
+    fossil_bluecrab_myshell_error_t err;
+    const std::string file_name = "test2.myshell";
 
-    // Store a value as FSON type:value
-    fossil_bluecrab_myshell_error_t result = fossil::bluecrab::MyShell::create_record(file_name, "key1", "i32:42");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
+    auto db = fossil::bluecrab::MyShell::create(file_name, err);
+    ASSUME_ITS_TRUE(db.is_open());
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    db.close();
+
+    fossil::bluecrab::MyShell db2(file_name, err);
+    ASSUME_ITS_TRUE(db2.is_open());
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    db2.close();
+
+    remove(file_name.c_str());
+}
+
+FOSSIL_TEST(cpp_test_myshell_put_get_del) {
+    fossil_bluecrab_myshell_error_t err;
+    const std::string file_name = "test3.myshell";
+    auto db = fossil::bluecrab::MyShell::create(file_name, err);
+    ASSUME_ITS_TRUE(db.is_open());
+
+    err = db.put("foo", "bar");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
 
     std::string value;
-    result = fossil::bluecrab::MyShell::read_record(file_name, "key1", value);
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_TRUE(value == "i32:42");
+    err = db.get("foo", value);
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+    ASSUME_ITS_EQUAL_CSTR(value.c_str(), "bar");
 
-    fossil::bluecrab::MyShell::delete_database(file_name);
+    err = db.del("foo");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = db.get("foo", value);
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_NOT_FOUND);
+
+    db.close();
+    remove(file_name.c_str());
 }
 
-/*
- * Test case for reading a non-existent record from the database file
- */
-FOSSIL_TEST(cpp_test_myshell_read_nonexistent_record) {
-    std::string file_name = "test.myshell";
-    fossil::bluecrab::MyShell::create_database(file_name);
+FOSSIL_TEST(cpp_test_myshell_commit_branch_checkout) {
+    fossil_bluecrab_myshell_error_t err;
+    const std::string file_name = "test4.myshell";
+    auto db = fossil::bluecrab::MyShell::create(file_name, err);
+    ASSUME_ITS_TRUE(db.is_open());
+
+    err = db.put("key", "val");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = db.commit("Initial commit");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = db.branch("feature");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = db.checkout("feature");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    db.close();
+    remove(file_name.c_str());
+}
+
+static bool log_cb(const char *commit_hash, const char *message, void *user) {
+    int *count = (int *)user;
+    (*count)++;
+    return true;
+}
+
+FOSSIL_TEST(cpp_test_myshell_log_history) {
+    fossil_bluecrab_myshell_error_t err;
+    const std::string file_name = "test5.myshell";
+    auto db = fossil::bluecrab::MyShell::create(file_name, err);
+    ASSUME_ITS_TRUE(db.is_open());
+
+    db.commit("Commit 1");
+    db.commit("Commit 2");
+    db.commit("Commit 3");
+
+    int count = 0;
+    err = db.log(log_cb, &count);
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+    ASSUME_ITS_TRUE(count == 3);
+
+    db.close();
+    remove(file_name.c_str());
+}
+
+FOSSIL_TEST(cpp_test_myshell_backup_restore) {
+    fossil_bluecrab_myshell_error_t err;
+    const std::string file_name = "test6.myshell";
+    const std::string backup_name = "test6_backup.myshell";
+    const std::string restore_name = "test6_restored.myshell";
+
+    auto db = fossil::bluecrab::MyShell::create(file_name, err);
+    ASSUME_ITS_TRUE(db.is_open());
+
+    db.put("a", "b");
+    db.commit("Backup commit");
+
+    err = db.backup(backup_name);
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    db.close();
+
+    err = fossil::bluecrab::MyShell::restore(backup_name, restore_name);
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    fossil::bluecrab::MyShell db2(restore_name, err);
+    ASSUME_ITS_TRUE(db2.is_open());
 
     std::string value;
-    fossil_bluecrab_myshell_error_t result = fossil::bluecrab::MyShell::read_record(file_name, "nonexistent_key", value);
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_NOT_FOUND);
+    err = db2.get("a", value);
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+    ASSUME_ITS_EQUAL_CSTR(value.c_str(), "b");
 
-    fossil::bluecrab::MyShell::delete_database(file_name);
+    db2.close();
+    remove(file_name.c_str());
+    remove(backup_name.c_str());
+    remove(restore_name.c_str());
 }
 
-/*
- * Test case for updating a non-existent record in the database file
- */
-FOSSIL_TEST(cpp_test_myshell_update_nonexistent_record) {
-    std::string file_name = "test.myshell";
-    fossil::bluecrab::MyShell::create_database(file_name);
-
-    fossil_bluecrab_myshell_error_t result = fossil::bluecrab::MyShell::update_record(file_name, "nonexistent_key", "i8:7");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_NOT_FOUND);
-
-    fossil::bluecrab::MyShell::delete_database(file_name);
+FOSSIL_TEST(cpp_test_myshell_errstr) {
+    ASSUME_ITS_EQUAL_CSTR(fossil::bluecrab::MyShell::errstr(FOSSIL_MYSHELL_ERROR_SUCCESS), "Success");
+    ASSUME_ITS_EQUAL_CSTR(fossil::bluecrab::MyShell::errstr(FOSSIL_MYSHELL_ERROR_NOT_FOUND), "Not found");
+    ASSUME_ITS_EQUAL_CSTR(fossil::bluecrab::MyShell::errstr(FOSSIL_MYSHELL_ERROR_INVALID_FILE), "Invalid file");
+    ASSUME_ITS_EQUAL_CSTR(fossil::bluecrab::MyShell::errstr(static_cast<fossil_bluecrab_myshell_error_t>(9999)), "Unknown error");
 }
 
-/*
- * Test case for deleting a non-existent record from the database file
- */
-FOSSIL_TEST(cpp_test_myshell_delete_nonexistent_record) {
-    std::string file_name = "test.myshell";
-    fossil::bluecrab::MyShell::create_database(file_name);
+// Edge case tests for myshell
 
-    fossil_bluecrab_myshell_error_t result = fossil::bluecrab::MyShell::delete_record(file_name, "nonexistent_key");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_NOT_FOUND);
+FOSSIL_TEST(cpp_test_myshell_null_params) {
+    fossil_bluecrab_myshell_error_t err;
+    // Passing NULL as file name
+    fossil::bluecrab::MyShell db_null_create("", err);
+    ASSUME_ITS_TRUE(!db_null_create.is_open());
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
 
-    fossil::bluecrab::MyShell::delete_database(file_name);
+    fossil::bluecrab::MyShell db_null_open("", err);
+    ASSUME_ITS_TRUE(!db_null_open.is_open());
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    // Passing NULL db pointer is not possible with RAII wrapper, but simulate closed handle
+    fossil::bluecrab::MyShell db = fossil::bluecrab::MyShell::create("edgecase.myshell", err);
+    ASSUME_ITS_TRUE(db.is_open());
+
+    db.close();
+    ASSUME_ITS_TRUE(!db.is_open());
+
+    err = db.put("key", "val");
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    std::string value;
+    err = db.get("key", value);
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = db.del("key");
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = db.commit("msg");
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = db.branch("branch");
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = db.checkout("branch");
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = db.log(log_cb, nullptr);
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = db.backup("backup.myshell");
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    // Static restore with empty path
+    err = fossil::bluecrab::MyShell::restore("", "restore.myshell");
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    // Passing empty key/value
+    db = fossil::bluecrab::MyShell::create("edgecase.myshell", err);
+    ASSUME_ITS_TRUE(db.is_open());
+
+    err = db.put("", "val");
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = db.put("key", "");
+    // Accepts empty value, should succeed
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    db.close();
+    remove("edgecase.myshell");
 }
 
-/*
- * Test case for validating the file extension of a database file
- */
-FOSSIL_TEST(cpp_test_myshell_validate_extension) {
-    ASSUME_ITS_TRUE(fossil::bluecrab::MyShell::validate_extension("test.myshell"));
-    ASSUME_ITS_FALSE(fossil::bluecrab::MyShell::validate_extension("test.txt"));
-}
+FOSSIL_TEST(cpp_test_myshell_empty_strings) {
+    fossil_bluecrab_myshell_error_t err;
+    const std::string file_name = "emptystr.myshell";
+    auto db = fossil::bluecrab::MyShell::create(file_name, err);
+    ASSUME_ITS_TRUE(db.is_open());
 
-/*
- * Test case for validating data
- */
-FOSSIL_TEST(cpp_test_myshell_validate_data) {
-    ASSUME_ITS_TRUE(fossil::bluecrab::MyShell::validate_data("valid_data"));
-    ASSUME_ITS_FALSE(fossil::bluecrab::MyShell::validate_data(""));
-}
+    // Empty key
+    err = db.put("", "value");
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
 
-/*
- * Test case for file size
- */
-FOSSIL_TEST(cpp_test_myshell_get_file_size) {
-    std::string file_name = "test.myshell";
-    fossil::bluecrab::MyShell::create_database(file_name);
-    fossil::bluecrab::MyShell::create_record(file_name, "key1", "i32:1");
+    // Empty value
+    err = db.put("key", "");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
 
-    size_t size_bytes = 0;
-    fossil_bluecrab_myshell_error_t result = fossil::bluecrab::MyShell::get_file_size(file_name, size_bytes);
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_TRUE(size_bytes > 0);
+    std::string value;
+    err = db.get("key", value);
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+    ASSUME_ITS_EQUAL_CSTR(value.c_str(), "");
 
-    fossil::bluecrab::MyShell::delete_database(file_name);
-}
-
-/*
- * Test case for error string conversion
- */
-FOSSIL_TEST(cpp_test_myshell_error_string) {
-    ASSUME_ITS_TRUE(fossil::bluecrab::MyShell::error_string(FOSSIL_MYSHELL_ERROR_SUCCESS) == "Success");
-    ASSUME_ITS_TRUE(fossil::bluecrab::MyShell::error_string(FOSSIL_MYSHELL_ERROR_NOT_FOUND) == "Record not found");
+    db.close();
+    remove(file_name.c_str());
 }
 
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
 FOSSIL_TEST_GROUP(cpp_myshell_database_tests) {
-    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_create_record);
-    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_read_nonexistent_record);
-    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_update_nonexistent_record);
-    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_delete_nonexistent_record);
-    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_validate_extension);
-    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_validate_data);
-    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_get_file_size);
-    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_error_string);
+    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_open_create_close);
+    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_put_get_del);
+    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_commit_branch_checkout);
+    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_log_history);
+    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_backup_restore);
+    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_errstr);
+    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_null_params);
+    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_empty_strings);
 
     FOSSIL_TEST_REGISTER(cpp_myshell_fixture);
 } // end of tests

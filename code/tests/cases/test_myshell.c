@@ -50,374 +50,234 @@ FOSSIL_TEARDOWN(c_myshell_fixture) {
 /*
  * Test case for creating a new record in the database file (FSON encoding)
  */
-FOSSIL_TEST(c_test_myshell_create_record) {
-    const char *file_name = "test.myshell";
-    fossil_bluecrab_myshell_create_database(file_name);
+FOSSIL_TEST(c_test_myshell_open_create_close) {
+    fossil_bluecrab_myshell_error_t err;
+    const char *file_name = "test2.myshell";
 
-    // Store a value as FSON type:value
-    fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_create_record(file_name, "key1", "i32:42");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
+    fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
+    ASSUME_ITS_TRUE(db != NULL);
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
 
-    char value[256];
-    result = fossil_bluecrab_myshell_read_record(file_name, "key1", value, sizeof(value));
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_TRUE(strcmp(value, "i32:42") == 0);
+    fossil_myshell_close(db);
 
-    // Try to create duplicate key
-    result = fossil_bluecrab_myshell_create_record(file_name, "key1", "i32:99");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_ALREADY_EXISTS);
+    db = fossil_myshell_open(file_name, &err);
+    ASSUME_ITS_TRUE(db != NULL);
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
 
-    fossil_bluecrab_myshell_delete_database(file_name);
+    fossil_myshell_close(db);
+
+    remove(file_name);
 }
 
-/*
- * Test case for reading a non-existent record from the database file
- */
-FOSSIL_TEST(c_test_myshell_read_nonexistent_record) {
-    const char *file_name = "test.myshell";
-    fossil_bluecrab_myshell_create_database(file_name);
+FOSSIL_TEST(c_test_myshell_put_get_del) {
+    fossil_bluecrab_myshell_error_t err;
+    const char *file_name = "test3.myshell";
+    fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
+    ASSUME_ITS_TRUE(db != NULL);
 
-    char value[256];
-    fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_read_record(file_name, "nonexistent_key", value, sizeof(value));
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_NOT_FOUND);
-
-    fossil_bluecrab_myshell_delete_database(file_name);
-}
-
-/*
- * Test case for updating a non-existent record in the database file
- */
-FOSSIL_TEST(c_test_myshell_update_nonexistent_record) {
-    const char *file_name = "test.myshell";
-    fossil_bluecrab_myshell_create_database(file_name);
-
-    fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_update_record(file_name, "nonexistent_key", "i8:7");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_NOT_FOUND);
-
-    fossil_bluecrab_myshell_delete_database(file_name);
-}
-
-/*
- * Test case for deleting a non-existent record from the database file
- */
-FOSSIL_TEST(c_test_myshell_delete_nonexistent_record) {
-    const char *file_name = "test.myshell";
-    fossil_bluecrab_myshell_create_database(file_name);
-
-    fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_delete_record(file_name, "nonexistent_key");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_NOT_FOUND);
-
-    fossil_bluecrab_myshell_delete_database(file_name);
-}
-
-/*
- * Test case for validating the file extension of a database file
- */
-FOSSIL_TEST(c_test_myshell_validate_extension) {
-    ASSUME_ITS_TRUE(fossil_bluecrab_myshell_validate_extension("test.myshell"));
-    ASSUME_ITS_FALSE(fossil_bluecrab_myshell_validate_extension("test.txt"));
-}
-
-/*
- * Test case for validating data
- */
-FOSSIL_TEST(c_test_myshell_validate_data) {
-    ASSUME_ITS_TRUE(fossil_bluecrab_myshell_validate_data("valid_data"));
-    ASSUME_ITS_FALSE(fossil_bluecrab_myshell_validate_data(NULL));
-    ASSUME_ITS_FALSE(fossil_bluecrab_myshell_validate_data(""));
-}
-
-/*
- * Test case for file size
- */
-FOSSIL_TEST(c_test_myshell_get_file_size) {
-    const char *file_name = "test.myshell";
-    fossil_bluecrab_myshell_create_database(file_name);
-    fossil_bluecrab_myshell_create_record(file_name, "key1", "i32:1");
-
-    size_t size_bytes = 0;
-    fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_get_file_size(file_name, &size_bytes);
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_TRUE(size_bytes > 0);
-
-    fossil_bluecrab_myshell_delete_database(file_name);
-}
-
-/*
- * Test case for error string conversion
- */
-FOSSIL_TEST(c_test_myshell_error_string) {
-    ASSUME_ITS_TRUE(strcmp(fossil_bluecrab_myshell_error_string(FOSSIL_MYSHELL_ERROR_SUCCESS), "Success") == 0);
-    ASSUME_ITS_TRUE(strcmp(fossil_bluecrab_myshell_error_string(FOSSIL_MYSHELL_ERROR_NOT_FOUND), "Record not found") == 0);
-}
-
-/*
- * Test case for opening and closing a database
- */
-FOSSIL_TEST(c_test_myshell_open_close_database) {
-    const char *file_name = "test.myshell";
-    fossil_bluecrab_myshell_create_database(file_name);
-
-    fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_open_database(file_name);
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_TRUE(fossil_bluecrab_myshell_is_open(file_name));
-
-    // Try to open again (should get ALREADY_EXISTS)
-    result = fossil_bluecrab_myshell_open_database(file_name);
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_ALREADY_EXISTS);
-
-    result = fossil_bluecrab_myshell_close_database(file_name);
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_FALSE(fossil_bluecrab_myshell_is_open(file_name));
-
-    fossil_bluecrab_myshell_delete_database(file_name);
-}
-
-/*
- * Test case for verifying database integrity (hash check)
- */
-FOSSIL_TEST(c_test_myshell_verify_database) {
-    const char *file_name = "test.myshell";
-    fossil_bluecrab_myshell_create_database(file_name);
-    fossil_bluecrab_myshell_create_record(file_name, "key1", "i16:123");
-    fossil_bluecrab_myshell_create_record(file_name, "key2", "u32:456");
-
-    fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_verify_database(file_name);
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    fossil_bluecrab_myshell_delete_database(file_name);
-}
-
-/*
- * Test case for creating a record with empty key or value
- */
-FOSSIL_TEST(c_test_myshell_create_empty_key_value) {
-    const char *file_name = "test.myshell";
-    fossil_bluecrab_myshell_create_database(file_name);
-
-    fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_create_record(file_name, "", "i32:10");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_PARSE_FAILED);
-
-    result = fossil_bluecrab_myshell_create_record(file_name, "key1", "");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_PARSE_FAILED);
-
-    fossil_bluecrab_myshell_delete_database(file_name);
-}
-
-/*
- * Test case for deleting a database file that does not exist
- */
-FOSSIL_TEST(c_test_myshell_delete_nonexistent_database) {
-    const char *file_name = "doesnotexist.myshell";
-    fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_delete_database(file_name);
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_IO);
-}
-
-/*
- * Edge case: Create record with special characters in key and value
- */
-FOSSIL_TEST(c_test_myshell_create_special_chars) {
-    const char *file_name = "test.myshell";
-    fossil_bluecrab_myshell_create_database(file_name);
-
-    const char *special_key = "key!@#$%^&*()_+";
-    const char *special_value = "val~`<>?/|\\{}[]";
-    fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_create_record(file_name, special_key, special_value);
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS || result == FOSSIL_MYSHELL_ERROR_PARSE_FAILED);
-
-    if (result == FOSSIL_MYSHELL_ERROR_SUCCESS) {
-        char value[256];
-        result = fossil_bluecrab_myshell_read_record(file_name, special_key, value, sizeof(value));
-        ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-        ASSUME_ITS_TRUE(strcmp(value, special_value) == 0);
-    }
-
-    fossil_bluecrab_myshell_delete_database(file_name);
-}
-
-/*
- * Test case: Creating a record with duplicate key returns ALREADY_EXISTS
- */
-FOSSIL_TEST(c_test_myshell_create_duplicate_key) {
-    const char *file_name = "test.myshell";
-    fossil_bluecrab_myshell_create_database(file_name);
-
-    fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_create_record(file_name, "dupkey", "i32:1");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    result = fossil_bluecrab_myshell_create_record(file_name, "dupkey", "i32:2");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_ALREADY_EXISTS);
-
-    fossil_bluecrab_myshell_delete_database(file_name);
-}
-
-/*
- * Test case: Creating a record in a file with invalid extension returns INVALID_FILE
- */
-FOSSIL_TEST(c_test_myshell_create_invalid_extension) {
-    fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_create_record("test.txt", "key", "i32:1");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_INVALID_FILE);
-}
-
-/*
- * Test case: Reading a record with invalid extension returns INVALID_FILE
- */
-FOSSIL_TEST(c_test_myshell_read_invalid_extension) {
-    char value[128];
-    fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_read_record("test.txt", "key", value, sizeof(value));
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_INVALID_FILE);
-}
-
-/*
- * Test case: Updating a record with invalid extension returns INVALID_FILE
- */
-FOSSIL_TEST(c_test_myshell_update_invalid_extension) {
-    fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_update_record("test.txt", "key", "i32:2");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_INVALID_FILE);
-}
-
-/*
- * Test case: Deleting a record with invalid extension returns INVALID_FILE
- */
-FOSSIL_TEST(c_test_myshell_delete_invalid_extension) {
-    fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_delete_record("test.txt", "key");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_INVALID_FILE);
-}
-
-/*
- * Test case: Creating a record with a key containing '=' returns PARSE_FAILED
- */
-FOSSIL_TEST(c_test_myshell_create_key_with_equal) {
-    const char *file_name = "test.myshell";
-    fossil_bluecrab_myshell_create_database(file_name);
-
-    fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_create_record(file_name, "bad=key", "i32:1");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_PARSE_FAILED || result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    fossil_bluecrab_myshell_delete_database(file_name);
-}
-
-/*
- * Test case: Reading a record with empty key returns PARSE_FAILED
- */
-FOSSIL_TEST(c_test_myshell_read_empty_key) {
-    const char *file_name = "test.myshell";
-    fossil_bluecrab_myshell_create_database(file_name);
+    err = fossil_myshell_put(db, "foo", "bar");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
 
     char value[128];
-    fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_read_record(file_name, "", value, sizeof(value));
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_PARSE_FAILED);
+    err = fossil_myshell_get(db, "foo", value, sizeof(value));
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+    ASSUME_ITS_EQUAL_CSTR(value, "bar");
 
-    fossil_bluecrab_myshell_delete_database(file_name);
+    err = fossil_myshell_del(db, "foo");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = fossil_myshell_get(db, "foo", value, sizeof(value));
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_NOT_FOUND);
+
+    fossil_myshell_close(db);
+    remove(file_name);
 }
 
-/*
- * Test case: Updating a record with empty value returns PARSE_FAILED
- */
-FOSSIL_TEST(c_test_myshell_update_empty_value) {
-    const char *file_name = "test.myshell";
-    fossil_bluecrab_myshell_create_database(file_name);
+FOSSIL_TEST(c_test_myshell_commit_branch_checkout) {
+    fossil_bluecrab_myshell_error_t err;
+    const char *file_name = "test4.myshell";
+    fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
+    ASSUME_ITS_TRUE(db != NULL);
 
-    fossil_bluecrab_myshell_create_record(file_name, "key", "i32:1");
-    fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_update_record(file_name, "key", "");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_PARSE_FAILED);
+    err = fossil_myshell_put(db, "key", "val");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
 
-    fossil_bluecrab_myshell_delete_database(file_name);
+    err = fossil_myshell_commit(db, "Initial commit");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = fossil_myshell_branch(db, "feature");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = fossil_myshell_checkout(db, "feature");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    fossil_myshell_close(db);
+    remove(file_name);
 }
 
-/*
- * Test case: Deleting a record with empty key returns PARSE_FAILED
- */
-FOSSIL_TEST(c_test_myshell_delete_empty_key) {
-    const char *file_name = "test.myshell";
-    fossil_bluecrab_myshell_create_database(file_name);
-
-    fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_delete_record(file_name, "");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_PARSE_FAILED);
-
-    fossil_bluecrab_myshell_delete_database(file_name);
+static bool log_cb(const char *commit_hash, const char *message, void *user) {
+    int *count = (int *)user;
+    (*count)++;
+    return true;
 }
 
-/*
- * Test case: Creating a record with a value that is not FSON (plain string)
- */
-FOSSIL_TEST(c_test_myshell_create_plain_string_value) {
-    const char *file_name = "test.myshell";
-    fossil_bluecrab_myshell_create_database(file_name);
+FOSSIL_TEST(c_test_myshell_log_history) {
+    fossil_bluecrab_myshell_error_t err;
+    const char *file_name = "test5.myshell";
+    fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
+    ASSUME_ITS_TRUE(db != NULL);
 
-    fossil_bluecrab_myshell_error_t result = fossil_bluecrab_myshell_create_record(file_name, "plain", "hello world");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
+    fossil_myshell_commit(db, "Commit 1");
+    fossil_myshell_commit(db, "Commit 2");
+    fossil_myshell_commit(db, "Commit 3");
 
-    char value[128];
-    result = fossil_bluecrab_myshell_read_record(file_name, "plain", value, sizeof(value));
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_TRUE(strcmp(value, "hello world") == 0);
+    int count = 0;
+    err = fossil_myshell_log(db, log_cb, &count);
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+    ASSUME_ITS_TRUE(count == 3);
 
-    fossil_bluecrab_myshell_delete_database(file_name);
+    fossil_myshell_close(db);
+    remove(file_name);
 }
 
-/*
- * Test case: Creating a record with a value containing special FSON types
- */
-FOSSIL_TEST(c_test_myshell_create_fson_types) {
-    const char *file_name = "test.myshell";
-    fossil_bluecrab_myshell_create_database(file_name);
+FOSSIL_TEST(c_test_myshell_backup_restore) {
+    fossil_bluecrab_myshell_error_t err;
+    const char *file_name = "test6.myshell";
+    const char *backup_name = "test6_backup.myshell";
+    const char *restore_name = "test6_restored.myshell";
 
-    fossil_bluecrab_myshell_create_record(file_name, "int8", "i8:-128");
-    fossil_bluecrab_myshell_create_record(file_name, "uint64", "u64:18446744073709551615");
-    fossil_bluecrab_myshell_create_record(file_name, "float", "f32:3.14");
-    fossil_bluecrab_myshell_create_record(file_name, "char", "char:A");
+    fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
+    ASSUME_ITS_TRUE(db != NULL);
 
-    char value[128];
-    fossil_bluecrab_myshell_error_t result;
+    fossil_myshell_put(db, "a", "b");
+    fossil_myshell_commit(db, "Backup commit");
 
-    result = fossil_bluecrab_myshell_read_record(file_name, "int8", value, sizeof(value));
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_TRUE(strcmp(value, "i8:-128") == 0);
+    err = fossil_myshell_backup(db, backup_name);
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
 
-    result = fossil_bluecrab_myshell_read_record(file_name, "uint64", value, sizeof(value));
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_TRUE(strcmp(value, "u64:18446744073709551615") == 0);
+    fossil_myshell_close(db);
 
-    result = fossil_bluecrab_myshell_read_record(file_name, "float", value, sizeof(value));
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_TRUE(strncmp(value, "f32:3.14", 7) == 0);
+    err = fossil_myshell_restore(backup_name, restore_name);
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
 
-    result = fossil_bluecrab_myshell_read_record(file_name, "char", value, sizeof(value));
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_TRUE(strcmp(value, "char:A") == 0);
+    fossil_bluecrab_myshell_t *db2 = fossil_myshell_open(restore_name, &err);
+    ASSUME_ITS_TRUE(db2 != NULL);
 
-    fossil_bluecrab_myshell_delete_database(file_name);
+    char value[32];
+    err = fossil_myshell_get(db2, "a", value, sizeof(value));
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+    ASSUME_ITS_EQUAL_CSTR(value, "b");
+
+    fossil_myshell_close(db2);
+    remove(file_name);
+    remove(backup_name);
+    remove(restore_name);
+}
+
+FOSSIL_TEST(c_test_myshell_errstr) {
+    ASSUME_ITS_EQUAL_CSTR(fossil_myshell_errstr(FOSSIL_MYSHELL_ERROR_SUCCESS), "Success");
+    ASSUME_ITS_EQUAL_CSTR(fossil_myshell_errstr(FOSSIL_MYSHELL_ERROR_NOT_FOUND), "Not found");
+    ASSUME_ITS_EQUAL_CSTR(fossil_myshell_errstr(FOSSIL_MYSHELL_ERROR_INVALID_FILE), "Invalid file");
+    ASSUME_ITS_EQUAL_CSTR(fossil_myshell_errstr(9999), "Unknown error");
+}
+
+// Edge case tests for myshell
+
+FOSSIL_TEST(c_test_myshell_null_params) {
+    fossil_bluecrab_myshell_error_t err;
+    // Passing NULL as file name
+    fossil_bluecrab_myshell_t *db = fossil_myshell_create(NULL, &err);
+    ASSUME_ITS_TRUE(db == NULL);
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    db = fossil_myshell_open(NULL, &err);
+    ASSUME_ITS_TRUE(db == NULL);
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    // Passing NULL db pointer
+    err = fossil_myshell_put(NULL, "key", "val");
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = fossil_myshell_get(NULL, "key", NULL, 0);
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = fossil_myshell_del(NULL, "key");
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = fossil_myshell_commit(NULL, "msg");
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = fossil_myshell_branch(NULL, "branch");
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = fossil_myshell_checkout(NULL, "branch");
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = fossil_myshell_log(NULL, log_cb, NULL);
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = fossil_myshell_backup(NULL, "backup.myshell");
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = fossil_myshell_restore(NULL, "restore.myshell");
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    // Passing NULL key/value
+    db = fossil_myshell_create("edgecase.myshell", &err);
+    ASSUME_ITS_TRUE(db != NULL);
+
+    err = fossil_myshell_put(db, NULL, "val");
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = fossil_myshell_put(db, "key", NULL);
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    char value[16];
+    err = fossil_myshell_get(db, NULL, value, sizeof(value));
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_NOT_FOUND);
+
+    err = fossil_myshell_del(db, NULL);
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_NOT_FOUND);
+
+    fossil_myshell_close(db);
+    remove("edgecase.myshell");
+}
+
+FOSSIL_TEST(c_test_myshell_empty_strings) {
+    fossil_bluecrab_myshell_error_t err;
+    const char *file_name = "emptystr.myshell";
+    fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
+    ASSUME_ITS_TRUE(db != NULL);
+
+    // Empty key
+    err = fossil_myshell_put(db, "", "value");
+    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    // Empty value
+    err = fossil_myshell_put(db, "key", "");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    char value[16];
+    err = fossil_myshell_get(db, "key", value, sizeof(value));
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+    ASSUME_ITS_EQUAL_CSTR(value, "");
+
+    fossil_myshell_close(db);
+    remove(file_name);
 }
 
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
 FOSSIL_TEST_GROUP(c_myshell_database_tests) {
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_create_record);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_read_nonexistent_record);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_update_nonexistent_record);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_delete_nonexistent_record);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_validate_extension);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_validate_data);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_get_file_size);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_error_string);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_open_close_database);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_verify_database);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_create_empty_key_value);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_delete_nonexistent_database);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_create_special_chars);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_create_duplicate_key);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_create_invalid_extension);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_read_invalid_extension);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_update_invalid_extension);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_delete_invalid_extension);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_create_key_with_equal);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_read_empty_key);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_update_empty_value);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_delete_empty_key);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_create_plain_string_value);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_create_fson_types);
+    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_open_create_close);
+    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_put_get_del);
+    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_commit_branch_checkout);
+    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_log_history);
+    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_backup_restore);
+    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_errstr);
+    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_null_params);
+    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_empty_strings);
 
     FOSSIL_TEST_REGISTER(c_myshell_fixture);
 } // end of tests
