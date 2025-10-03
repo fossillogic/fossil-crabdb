@@ -107,12 +107,31 @@ fossil_bluecrab_myshell_t *fossil_myshell_open(const char *path, fossil_bluecrab
     }
 
     db->path = myshell_strdup(path);
+    if (!db->path) {
+        fclose(file);
+        free(db);
+        if (err) *err = FOSSIL_MYSHELL_ERROR_OUT_OF_MEMORY;
+        return NULL;
+    }
+
     db->file = file;
     db->is_open = true;
 
-    fseek(file, 0, SEEK_END);
+    if (fseek(file, 0, SEEK_END) != 0) {
+        free(db->path);
+        free(db);
+        fclose(file);
+        if (err) *err = FOSSIL_MYSHELL_ERROR_IO;
+        return NULL;
+    }
     db->file_size = (size_t)ftell(file);
-    fseek(file, 0, SEEK_SET);
+    if (fseek(file, 0, SEEK_SET) != 0) {
+        free(db->path);
+        free(db);
+        fclose(file);
+        if (err) *err = FOSSIL_MYSHELL_ERROR_IO;
+        return NULL;
+    }
 
     struct stat st;
     if (stat(path, &st) == 0)
@@ -121,8 +140,8 @@ fossil_bluecrab_myshell_t *fossil_myshell_open(const char *path, fossil_bluecrab
         db->last_modified = 0;
 
     db->commit_head = myshell_hash64(path);
-
     db->error_code = FOSSIL_MYSHELL_ERROR_SUCCESS;
+
     if (err) *err = FOSSIL_MYSHELL_ERROR_SUCCESS;
     return db;
 }
@@ -130,6 +149,21 @@ fossil_bluecrab_myshell_t *fossil_myshell_open(const char *path, fossil_bluecrab
 fossil_bluecrab_myshell_t *fossil_myshell_create(const char *path, fossil_bluecrab_myshell_error_t *err) {
     if (!path) {
         if (err) *err = FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+        return NULL;
+    }
+
+    // Enforce .myshell extension
+    const char *ext = strrchr(path, '.');
+    if (!ext || strcmp(ext, ".myshell") != 0) {
+        if (err) *err = FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+        return NULL;
+    }
+
+    // Check if file already exists
+    FILE *check = fopen(path, "rb");
+    if (check) {
+        fclose(check);
+        if (err) *err = FOSSIL_MYSHELL_ERROR_ALREADY_EXISTS;
         return NULL;
     }
 
@@ -147,6 +181,13 @@ fossil_bluecrab_myshell_t *fossil_myshell_create(const char *path, fossil_bluecr
     }
 
     db->path = myshell_strdup(path);
+    if (!db->path) {
+        fclose(file);
+        free(db);
+        if (err) *err = FOSSIL_MYSHELL_ERROR_OUT_OF_MEMORY;
+        return NULL;
+    }
+
     db->file = file;
     db->is_open = true;
     db->file_size = 0;
@@ -189,18 +230,18 @@ void fossil_myshell_close(fossil_bluecrab_myshell_t *db) {
 }
 
 fossil_bluecrab_myshell_error_t fossil_myshell_put(fossil_bluecrab_myshell_t *db, const char *key, const char *value) {
-    if (!db || !db->is_open || !key || !value) {
+    if (!db || !db->is_open) {
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
     }
-
-    // Disallow empty key
+    if (!key || !value) {
+        return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
+    }
     if (key[0] == '\0') {
-        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+        return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
     }
 
     uint64_t key_hash = myshell_hash64(key);
 
-    // Advanced: Update if key exists, otherwise append
     fseek(db->file, 0, SEEK_SET);
     char temp_path[256];
     snprintf(temp_path, sizeof(temp_path), "%s.tmp", db->path);
@@ -220,7 +261,6 @@ fossil_bluecrab_myshell_error_t fossil_myshell_put(fossil_bluecrab_myshell_t *db
                 uint64_t file_hash = 0;
                 sscanf(hash_comment, "#hash=%llx", &file_hash);
                 if (strcmp(line, key) == 0 && file_hash == key_hash) {
-                    // Replace with new value
                     fprintf(temp_file, "%s=%s #hash=%016llx\n", key, value, key_hash);
                     updated = true;
                     *eq = '='; // Restore
@@ -240,15 +280,19 @@ fossil_bluecrab_myshell_error_t fossil_myshell_put(fossil_bluecrab_myshell_t *db
     }
 
     if (!updated) {
-        // Append new key/value
         fprintf(temp_file, "%s=%s #hash=%016llx\n", key, value, key_hash);
     }
 
     fclose(temp_file);
     fclose(db->file);
 
-    remove(db->path);
-    rename(temp_path, db->path);
+    if (remove(db->path) != 0) {
+        remove(temp_path);
+        return FOSSIL_MYSHELL_ERROR_IO;
+    }
+    if (rename(temp_path, db->path) != 0) {
+        return FOSSIL_MYSHELL_ERROR_IO;
+    }
 
     db->file = fopen(db->path, "rb+");
     if (!db->file) {
@@ -261,8 +305,14 @@ fossil_bluecrab_myshell_error_t fossil_myshell_put(fossil_bluecrab_myshell_t *db
 }
 
 fossil_bluecrab_myshell_error_t fossil_myshell_get(fossil_bluecrab_myshell_t *db, const char *key, char *out_value, size_t out_size) {
-    if (!db || !db->is_open || !key || !out_value || out_size == 0) {
+    if (!db || !db->is_open) {
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+    }
+    if (!key || !out_value || out_size == 0) {
+        return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
+    }
+    if (key[0] == '\0') {
+        return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
     }
 
     uint64_t key_hash = myshell_hash64(key);
@@ -273,7 +323,6 @@ fossil_bluecrab_myshell_error_t fossil_myshell_get(fossil_bluecrab_myshell_t *db
         char *eq = strchr(line, '=');
         if (eq) {
             *eq = '\0';
-            // Find hash in comment if present
             char *hash_comment = strstr(eq + 1, "#hash=");
             if (hash_comment) {
                 uint64_t file_hash = 0;
@@ -283,15 +332,14 @@ fossil_bluecrab_myshell_error_t fossil_myshell_get(fossil_bluecrab_myshell_t *db
                     if (value_len >= out_size) value_len = out_size - 1;
                     strncpy(out_value, eq + 1, value_len);
                     out_value[value_len] = '\0';
-                    // Remove trailing whitespace/newline
                     size_t len = strlen(out_value);
                     while (len > 0 && (out_value[len - 1] == '\n' || out_value[len - 1] == ' ')) {
                         out_value[--len] = '\0';
                     }
+                    *eq = '='; // Restore
                     return FOSSIL_MYSHELL_ERROR_SUCCESS;
                 }
             } else {
-                // Fallback: match key only
                 if (strcmp(line, key) == 0) {
                     strncpy(out_value, eq + 1, out_size - 1);
                     out_value[out_size - 1] = '\0';
@@ -299,9 +347,11 @@ fossil_bluecrab_myshell_error_t fossil_myshell_get(fossil_bluecrab_myshell_t *db
                     if (len > 0 && out_value[len - 1] == '\n') {
                         out_value[len - 1] = '\0';
                     }
+                    *eq = '='; // Restore
                     return FOSSIL_MYSHELL_ERROR_SUCCESS;
                 }
             }
+            *eq = '='; // Restore
         }
     }
 
@@ -309,8 +359,11 @@ fossil_bluecrab_myshell_error_t fossil_myshell_get(fossil_bluecrab_myshell_t *db
 }
 
 fossil_bluecrab_myshell_error_t fossil_myshell_del(fossil_bluecrab_myshell_t *db, const char *key) {
-    if (!db || !db->is_open || !key) {
+    if (!db || !db->is_open) {
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+    }
+    if (!key || key[0] == '\0') {
+        return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
     }
 
     uint64_t key_hash = myshell_hash64(key);
@@ -336,11 +389,13 @@ fossil_bluecrab_myshell_error_t fossil_myshell_del(fossil_bluecrab_myshell_t *db
                 sscanf(hash_comment, "#hash=%llx", &file_hash);
                 if (strcmp(line, key) == 0 && file_hash == key_hash) {
                     found = true; // Skip this line
+                    *eq = '='; // Restore
                     continue;
                 }
             } else {
                 if (strcmp(line, key) == 0) {
                     found = true; // Skip this line
+                    *eq = '='; // Restore
                     continue;
                 }
             }
@@ -353,8 +408,17 @@ fossil_bluecrab_myshell_error_t fossil_myshell_del(fossil_bluecrab_myshell_t *db
     fclose(db->file);
 
     if (found) {
-        remove(db->path);
-        rename(temp_path, db->path);
+        if (remove(db->path) != 0) {
+            remove(temp_path);
+            db->file = fopen(db->path, "rb+");
+            if (!db->file) return FOSSIL_MYSHELL_ERROR_IO;
+            return FOSSIL_MYSHELL_ERROR_IO;
+        }
+        if (rename(temp_path, db->path) != 0) {
+            db->file = fopen(db->path, "rb+");
+            if (!db->file) return FOSSIL_MYSHELL_ERROR_IO;
+            return FOSSIL_MYSHELL_ERROR_IO;
+        }
         db->file = fopen(db->path, "rb+");
         if (!db->file) {
             return FOSSIL_MYSHELL_ERROR_IO;
@@ -372,8 +436,17 @@ fossil_bluecrab_myshell_error_t fossil_myshell_del(fossil_bluecrab_myshell_t *db
 }
 
 fossil_bluecrab_myshell_error_t fossil_myshell_commit(fossil_bluecrab_myshell_t *db, const char *message) {
-    if (!db || !db->is_open || !message) {
+    if (!db) {
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+    }
+    if (!db->is_open) {
+        return FOSSIL_MYSHELL_ERROR_LOCKED;
+    }
+    if (!message) {
+        return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
+    }
+    if (strlen(message) == 0) {
+        return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
     }
 
     // Store the commit message
@@ -381,11 +454,16 @@ fossil_bluecrab_myshell_error_t fossil_myshell_commit(fossil_bluecrab_myshell_t 
         free(db->commit_message);
     }
     db->commit_message = myshell_strdup(message);
+    if (!db->commit_message) {
+        return FOSSIL_MYSHELL_ERROR_OUT_OF_MEMORY;
+    }
     db->commit_timestamp = time(NULL);
 
     // Prepare commit data for hashing
     char commit_data[1024];
-    snprintf(commit_data, sizeof(commit_data), "%s:%lld", message, (long long)db->commit_timestamp);
+    if (snprintf(commit_data, sizeof(commit_data), "%s:%lld", message, (long long)db->commit_timestamp) < 0) {
+        return FOSSIL_MYSHELL_ERROR_IO;
+    }
 
     // Update commit hashes (chain)
     db->prev_commit_hash = db->commit_head;
@@ -395,19 +473,28 @@ fossil_bluecrab_myshell_error_t fossil_myshell_commit(fossil_bluecrab_myshell_t 
     if (db->author) {
         free(db->author);
     }
-    db->author = myshell_strdup("system"); // In real use, set actual author
+    db->author = myshell_strdup("system");
+    if (!db->author) {
+        return FOSSIL_MYSHELL_ERROR_OUT_OF_MEMORY;
+    }
 
     if (db->parent_branch) {
         free(db->parent_branch);
     }
     db->parent_branch = db->branch ? myshell_strdup(db->branch) : NULL;
+    if (db->branch && !db->parent_branch) {
+        return FOSSIL_MYSHELL_ERROR_OUT_OF_MEMORY;
+    }
 
-    // Optionally, update next_commit_hash (simulate as 0 for now)
     db->next_commit_hash = 0;
 
     // Write commit info to the file for history (simple append)
-    fseek(db->file, 0, SEEK_END);
-    fprintf(db->file, "#commit %016llx %s %lld\n", db->commit_head, message, (long long)db->commit_timestamp);
+    if (fseek(db->file, 0, SEEK_END) != 0) {
+        return FOSSIL_MYSHELL_ERROR_IO;
+    }
+    if (fprintf(db->file, "#commit %016llx %s %lld\n", db->commit_head, message, (long long)db->commit_timestamp) < 0) {
+        return FOSSIL_MYSHELL_ERROR_IO;
+    }
     fflush(db->file);
 
     db->last_modified = time(NULL);
@@ -415,17 +502,20 @@ fossil_bluecrab_myshell_error_t fossil_myshell_commit(fossil_bluecrab_myshell_t 
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
-/**
- * o-Commit/branch
- * Creates a new branch in the database.
- * Time Complexity: O(1).
- * @param db Database handle.
- * @param branch_name Name of the new branch.
- * @return Error code.
- */
 fossil_bluecrab_myshell_error_t fossil_myshell_branch(fossil_bluecrab_myshell_t *db, const char *branch_name) {
-    if (!db || !db->is_open || !branch_name) {
+    if (!db) {
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+    }
+    if (!db->is_open) {
+        return FOSSIL_MYSHELL_ERROR_LOCKED;
+    }
+    if (!branch_name || branch_name[0] == '\0') {
+        return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
+    }
+
+    // Check for schema mismatch or unsupported version (simulate)
+    if (db->commit_head == 0) {
+        return FOSSIL_MYSHELL_ERROR_SCHEMA_MISMATCH;
     }
 
     // Update branch pointer
@@ -433,18 +523,28 @@ fossil_bluecrab_myshell_error_t fossil_myshell_branch(fossil_bluecrab_myshell_t 
         free(db->branch);
     }
     db->branch = myshell_strdup(branch_name);
+    if (!db->branch) {
+        return FOSSIL_MYSHELL_ERROR_OUT_OF_MEMORY;
+    }
 
     // Set parent branch if not already set
     if (!db->parent_branch) {
         db->parent_branch = myshell_strdup(db->branch);
+        if (!db->parent_branch) {
+            return FOSSIL_MYSHELL_ERROR_OUT_OF_MEMORY;
+        }
     }
 
     // Update commit_head to branch hash
     db->commit_head = myshell_hash64(branch_name);
 
     // Optionally, write branch info to the file for history (simple append)
-    fseek(db->file, 0, SEEK_END);
-    fprintf(db->file, "#branch %016llx %s\n", db->commit_head, branch_name);
+    if (fseek(db->file, 0, SEEK_END) != 0) {
+        return FOSSIL_MYSHELL_ERROR_IO;
+    }
+    if (fprintf(db->file, "#branch %016llx %s\n", db->commit_head, branch_name) < 0) {
+        return FOSSIL_MYSHELL_ERROR_IO;
+    }
     fflush(db->file);
 
     db->last_modified = time(NULL);
@@ -464,14 +564,18 @@ fossil_bluecrab_myshell_error_t fossil_myshell_branch(fossil_bluecrab_myshell_t 
 }
 
 fossil_bluecrab_myshell_error_t fossil_myshell_checkout(fossil_bluecrab_myshell_t *db, const char *branch_or_commit) {
-    if (!db || !db->is_open || !branch_or_commit) {
+    if (!db) {
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
     }
+    if (!db->is_open) {
+        return FOSSIL_MYSHELL_ERROR_LOCKED;
+    }
+    if (!branch_or_commit || branch_or_commit[0] == '\0') {
+        return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
+    }
 
-    // Use myshell_hash64 to compute hash for branch/commit
     uint64_t hash = myshell_hash64(branch_or_commit);
 
-    // Check if branch exists by scanning for "#branch" lines
     bool branch_found = false;
     bool commit_found = false;
     fseek(db->file, 0, SEEK_SET);
@@ -480,21 +584,25 @@ fossil_bluecrab_myshell_error_t fossil_myshell_checkout(fossil_bluecrab_myshell_
         if (strncmp(line, "#branch ", 8) == 0) {
             char hash_str[17] = {0};
             char name[512] = {0};
-            sscanf(line, "#branch %16s %511[^\n]", hash_str, name);
-            uint64_t parsed_hash = 0;
-            sscanf(hash_str, "%llx", &parsed_hash);
-            if ((strcmp(name, branch_or_commit) == 0) || (parsed_hash == hash)) {
-                branch_found = true;
-                break;
+            int n = sscanf(line, "#branch %16s %511[^\n]", hash_str, name);
+            if (n >= 2) {
+                uint64_t parsed_hash = 0;
+                sscanf(hash_str, "%llx", &parsed_hash);
+                if ((strcmp(name, branch_or_commit) == 0) || (parsed_hash == hash)) {
+                    branch_found = true;
+                    break;
+                }
             }
         } else if (strncmp(line, "#commit ", 8) == 0) {
             char hash_str[17] = {0};
-            sscanf(line, "#commit %16s", hash_str);
-            uint64_t parsed_hash = 0;
-            sscanf(hash_str, "%llx", &parsed_hash);
-            if (parsed_hash == hash) {
-                commit_found = true;
-                break;
+            int n = sscanf(line, "#commit %16s", hash_str);
+            if (n == 1) {
+                uint64_t parsed_hash = 0;
+                sscanf(hash_str, "%llx", &parsed_hash);
+                if (parsed_hash == hash) {
+                    commit_found = true;
+                    break;
+                }
             }
         }
     }
@@ -508,21 +616,31 @@ fossil_bluecrab_myshell_error_t fossil_myshell_checkout(fossil_bluecrab_myshell_
         free(db->branch);
     }
     db->branch = myshell_strdup(branch_or_commit);
+    if (!db->branch) {
+        return FOSSIL_MYSHELL_ERROR_OUT_OF_MEMORY;
+    }
     db->commit_head = hash;
 
-    // Optionally update HEAD, parent_branch, etc.
     db->last_modified = time(NULL);
 
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
 fossil_bluecrab_myshell_error_t fossil_myshell_log(fossil_bluecrab_myshell_t *db, fossil_myshell_commit_cb cb, void *user) {
-    if (!db || !db->is_open || !cb) {
+    if (!db) {
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+    }
+    if (!db->is_open) {
+        return FOSSIL_MYSHELL_ERROR_LOCKED;
+    }
+    if (!cb) {
+        return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
     }
 
     // Iterate over file and invoke callback for each commit line
-    fseek(db->file, 0, SEEK_SET);
+    if (fseek(db->file, 0, SEEK_SET) != 0) {
+        return FOSSIL_MYSHELL_ERROR_IO;
+    }
     char line[1024];
     while (fgets(line, sizeof(line), db->file)) {
         if (strncmp(line, "#commit ", 8) == 0) {
@@ -533,27 +651,29 @@ fossil_bluecrab_myshell_error_t fossil_myshell_log(fossil_bluecrab_myshell_t *db
             // Parse: "#commit %016llx %s %lld\n"
             int n = sscanf(line, "#commit %16s %511[^\n] %lld", hash_str, message, &timestamp);
             if (n >= 2) {
-                // Optionally verify hash using myshell_hash64
                 uint64_t parsed_hash = 0;
                 sscanf(hash_str, "%llx", &parsed_hash);
 
-                // If message and timestamp are present, recompute hash for validation
                 if (n == 3) {
                     char commit_data[1024];
                     snprintf(commit_data, sizeof(commit_data), "%s:%lld", message, timestamp);
                     uint64_t computed_hash = myshell_hash64(commit_data);
-                    // Only call callback if hash matches
                     if (parsed_hash == computed_hash) {
                         if (!cb(hash_str, message, user)) {
-                            break;
+                            return FOSSIL_MYSHELL_ERROR_SUCCESS;
                         }
+                    } else {
+                        // Hash mismatch, integrity error
+                        return FOSSIL_MYSHELL_ERROR_INTEGRITY;
                     }
                 } else {
-                    // If timestamp not present, just call callback
                     if (!cb(hash_str, message, user)) {
-                        break;
+                        return FOSSIL_MYSHELL_ERROR_SUCCESS;
                     }
                 }
+            } else {
+                // Parse failed
+                return FOSSIL_MYSHELL_ERROR_PARSE_FAILED;
             }
         }
     }
@@ -562,24 +682,38 @@ fossil_bluecrab_myshell_error_t fossil_myshell_log(fossil_bluecrab_myshell_t *db
 }
 
 fossil_bluecrab_myshell_error_t fossil_myshell_backup(fossil_bluecrab_myshell_t *db, const char *backup_path) {
-    if (!db || !db->is_open || !backup_path) {
+    if (!db || !db->is_open) {
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+    }
+    if (!backup_path || backup_path[0] == '\0') {
+        return FOSSIL_MYSHELL_ERROR_CONFIG_INVALID;
     }
 
     FILE *backup_file = fopen(backup_path, "wb");
     if (!backup_file) {
-        return FOSSIL_MYSHELL_ERROR_IO;
+        return FOSSIL_MYSHELL_ERROR_BACKUP_FAILED;
     }
 
-    // Optionally, write a hash of the backup path as a comment for integrity
+    // Write a hash of the backup path as a comment for integrity
     uint64_t backup_hash = myshell_hash64(backup_path);
-    fprintf(backup_file, "#backup_hash=%016llx\n", backup_hash);
+    if (fprintf(backup_file, "#backup_hash=%016llx\n", backup_hash) < 0) {
+        fclose(backup_file);
+        return FOSSIL_MYSHELL_ERROR_IO;
+    }
 
     fseek(db->file, 0, SEEK_SET);
     char buffer[4096];
     size_t bytes;
     while ((bytes = fread(buffer, 1, sizeof(buffer), db->file)) > 0) {
-        fwrite(buffer, 1, bytes, backup_file);
+        if (fwrite(buffer, 1, bytes, backup_file) != bytes) {
+            fclose(backup_file);
+            return FOSSIL_MYSHELL_ERROR_IO;
+        }
+    }
+
+    if (ferror(db->file)) {
+        fclose(backup_file);
+        return FOSSIL_MYSHELL_ERROR_IO;
     }
 
     fclose(backup_file);
@@ -606,7 +740,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_restore(const char *backup_path, 
             sscanf(hash_line, "#backup_hash=%llx", &file_hash);
             if (file_hash != expected_hash) {
                 fclose(backup_file);
-                return FOSSIL_MYSHELL_ERROR_CORRUPTED;
+                return FOSSIL_MYSHELL_ERROR_INTEGRITY;
             }
         } else {
             // If no hash line, treat as corrupted
@@ -627,7 +761,17 @@ fossil_bluecrab_myshell_error_t fossil_myshell_restore(const char *backup_path, 
     char buffer[4096];
     size_t bytes;
     while ((bytes = fread(buffer, 1, sizeof(buffer), backup_file)) > 0) {
-        fwrite(buffer, 1, bytes, target_file);
+        if (fwrite(buffer, 1, bytes, target_file) != bytes) {
+            fclose(backup_file);
+            fclose(target_file);
+            return FOSSIL_MYSHELL_ERROR_IO;
+        }
+    }
+
+    if (ferror(backup_file)) {
+        fclose(backup_file);
+        fclose(target_file);
+        return FOSSIL_MYSHELL_ERROR_IO;
     }
 
     fclose(backup_file);
@@ -635,13 +779,6 @@ fossil_bluecrab_myshell_error_t fossil_myshell_restore(const char *backup_path, 
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
-/**
- * o-Utility
- * Converts an error code to a human-readable string.
- * Time Complexity: O(1).
- * @param err Error code.
- * @return Error string.
- */
 const char *fossil_myshell_errstr(fossil_bluecrab_myshell_error_t err) {
     switch (err) {
         case FOSSIL_MYSHELL_ERROR_SUCCESS: return "Success";
@@ -662,8 +799,74 @@ const char *fossil_myshell_errstr(fossil_bluecrab_myshell_error_t err) {
         case FOSSIL_MYSHELL_ERROR_PARSE_FAILED: return "Parse failed";
         case FOSSIL_MYSHELL_ERROR_RESTORE_FAILED: return "Restore failed";
         case FOSSIL_MYSHELL_ERROR_LOCK_FAILED: return "Lock failed";
+        case FOSSIL_MYSHELL_ERROR_SCHEMA_MISMATCH: return "Schema mismatch";
+        case FOSSIL_MYSHELL_ERROR_VERSION_UNSUPPORTED: return "Version unsupported";
+        case FOSSIL_MYSHELL_ERROR_INDEX_CORRUPTED: return "Index corrupted";
+        case FOSSIL_MYSHELL_ERROR_INTEGRITY: return "Integrity check failed";
+        case FOSSIL_MYSHELL_ERROR_TRANSACTION_FAILED: return "Transaction failed";
+        case FOSSIL_MYSHELL_ERROR_CAPACITY_EXCEEDED: return "Capacity exceeded";
+        case FOSSIL_MYSHELL_ERROR_CONFIG_INVALID: return "Invalid configuration";
         case FOSSIL_MYSHELL_ERROR_UNKNOWN:
         default:
             return "Unknown error";
     }
+}
+
+fossil_bluecrab_myshell_error_t fossil_myshell_check_integrity(fossil_bluecrab_myshell_t *db) {
+    if (!db || !db->is_open) {
+        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+    }
+
+    // Check file size consistency
+    if (fseek(db->file, 0, SEEK_END) != 0)
+        return FOSSIL_MYSHELL_ERROR_IO;
+    size_t current_size = (size_t)ftell(db->file);
+    if (current_size != db->file_size) {
+        return FOSSIL_MYSHELL_ERROR_CORRUPTED;
+    }
+    if (fseek(db->file, 0, SEEK_SET) != 0)
+        return FOSSIL_MYSHELL_ERROR_IO;
+
+    // Verify commit hash chain integrity
+    char line[1024];
+    while (fgets(line, sizeof(line), db->file)) {
+        if (strncmp(line, "#commit ", 8) == 0) {
+            char hash_str[17] = {0};
+            char message[512] = {0};
+            long long timestamp = 0;
+            int n = sscanf(line, "#commit %16s %511[^\n] %lld", hash_str, message, &timestamp);
+            if (n == 3) {
+                uint64_t parsed_hash = 0;
+                sscanf(hash_str, "%llx", &parsed_hash);
+                char commit_data[1024];
+                snprintf(commit_data, sizeof(commit_data), "%s:%lld", message, timestamp);
+                uint64_t computed_hash = myshell_hash64(commit_data);
+                if (parsed_hash != computed_hash) {
+                    return FOSSIL_MYSHELL_ERROR_INTEGRITY;
+                }
+            } else {
+                return FOSSIL_MYSHELL_ERROR_PARSE_FAILED;
+            }
+        }
+        // Additional integrity checks: verify key-value hash
+        else {
+            char *eq = strchr(line, '=');
+            if (eq) {
+                *eq = '\0';
+                char *hash_comment = strstr(eq + 1, "#hash=");
+                if (hash_comment) {
+                    uint64_t file_hash = 0;
+                    sscanf(hash_comment, "#hash=%llx", &file_hash);
+                    uint64_t key_hash = myshell_hash64(line);
+                    if (file_hash != key_hash) {
+                        *eq = '='; // Restore
+                        return FOSSIL_MYSHELL_ERROR_INTEGRITY;
+                    }
+                }
+                *eq = '='; // Restore
+            }
+        }
+    }
+
+    return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }

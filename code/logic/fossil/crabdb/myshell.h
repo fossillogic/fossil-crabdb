@@ -74,84 +74,15 @@ typedef enum {
     FOSSIL_MYSHELL_ERROR_PARSE_FAILED,         /**< Parsing of input or file failed. */
     FOSSIL_MYSHELL_ERROR_RESTORE_FAILED,       /**< Restore operation failed. */
     FOSSIL_MYSHELL_ERROR_LOCK_FAILED,          /**< Failed to acquire or release lock. */
+    FOSSIL_MYSHELL_ERROR_SCHEMA_MISMATCH,      /**< Schema or format mismatch between versions. */
+    FOSSIL_MYSHELL_ERROR_VERSION_UNSUPPORTED,  /**< Database created with unsupported version. */
+    FOSSIL_MYSHELL_ERROR_INDEX_CORRUPTED,      /**< Index structure corrupted or unreadable. */
+    FOSSIL_MYSHELL_ERROR_INTEGRITY,            /**< Data integrity check failed (hash mismatch). */
+    FOSSIL_MYSHELL_ERROR_TRANSACTION_FAILED,   /**< Transaction aborted or rolled back. */
+    FOSSIL_MYSHELL_ERROR_CAPACITY_EXCEEDED,    /**< Reached maximum size or record capacity. */
+    FOSSIL_MYSHELL_ERROR_CONFIG_INVALID,       /**< Invalid configuration or options. */
     FOSSIL_MYSHELL_ERROR_UNKNOWN               /**< Unknown or unspecified error occurred. */
 } fossil_bluecrab_myshell_error_t;
-
-/**
- * ============================================================================
- * FSON v2 Compatible Value Representation (Local to MyShell)
- * ============================================================================
- * Enumerates supported value types for FSON v2 serialization/deserialization.
- * These types cover nulls, booleans, scalar integers/floats, literals, strings,
- * composite structures, and v2 additions such as enums and time/duration.
- */
-typedef enum {
-    MYSHELL_FSON_TYPE_NULL = 0,        /**< Null value. */
-    MYSHELL_FSON_TYPE_BOOL,            /**< Boolean value (true/false). */
-
-    /* Scalar integer and floating-point types */
-    MYSHELL_FSON_TYPE_I8,              /**< 8-bit signed integer. */
-    MYSHELL_FSON_TYPE_I16,             /**< 16-bit signed integer. */
-    MYSHELL_FSON_TYPE_I32,             /**< 32-bit signed integer. */
-    MYSHELL_FSON_TYPE_I64,             /**< 64-bit signed integer. */
-    MYSHELL_FSON_TYPE_U8,              /**< 8-bit unsigned integer. */
-    MYSHELL_FSON_TYPE_U16,             /**< 16-bit unsigned integer. */
-    MYSHELL_FSON_TYPE_U32,             /**< 32-bit unsigned integer. */
-    MYSHELL_FSON_TYPE_U64,             /**< 64-bit unsigned integer. */
-    MYSHELL_FSON_TYPE_F32,             /**< 32-bit floating-point value. */
-    MYSHELL_FSON_TYPE_F64,             /**< 64-bit floating-point value. */
-
-    /* Literal types */
-    MYSHELL_FSON_TYPE_OCT,             /**< Octal literal string. */
-    MYSHELL_FSON_TYPE_HEX,             /**< Hexadecimal literal string. */
-    MYSHELL_FSON_TYPE_BIN,             /**< Binary literal string. */
-
-    /* String types */
-    MYSHELL_FSON_TYPE_CHAR,            /**< Single character. */
-    MYSHELL_FSON_TYPE_CSTR,            /**< Null-terminated C string. */
-
-    /* Composite types */
-    MYSHELL_FSON_TYPE_ARRAY,           /**< Array of values. */
-    MYSHELL_FSON_TYPE_OBJECT,          /**< Object (key-value map). */
-
-    /* v2 Additions */
-    MYSHELL_FSON_TYPE_ENUM,            /**< Enum symbol. */
-    MYSHELL_FSON_TYPE_DATETIME,        /**< Date/time string. */
-    MYSHELL_FSON_TYPE_DURATION         /**< Duration string. */
-} fossil_bluecrab_myshell_fson_type_t;
-
-/**
- * @struct fossil_bluecrab_myshell_fson_value_t
- * Represents a typed value for FSON v2 serialization/deserialization.
- * The type field indicates the kind of value stored, and the union 'as'
- * holds the actual value data for the corresponding type.
- */
-typedef struct {
-    fossil_bluecrab_myshell_fson_type_t type; /**< Type of the value. */
-    union {
-        bool     b;               /**< Boolean value. */
-        int8_t   i8;              /**< 8-bit signed integer. */
-        int16_t  i16;             /**< 16-bit signed integer. */
-        int32_t  i32;             /**< 32-bit signed integer. */
-        int64_t  i64;             /**< 64-bit signed integer. */
-        uint8_t  u8;              /**< 8-bit unsigned integer. */
-        uint16_t u16;             /**< 16-bit unsigned integer. */
-        uint32_t u32;             /**< 32-bit unsigned integer. */
-        uint64_t u64;             /**< 64-bit unsigned integer. */
-        float    f32;             /**< 32-bit floating-point value. */
-        double   f64;             /**< 64-bit floating-point value. */
-        char    *oct;             /**< Octal literal string. */
-        char    *hex;             /**< Hexadecimal literal string. */
-        char    *bin;             /**< Binary literal string. */
-        char     c;               /**< Single character. */
-        char    *cstr;            /**< Null-terminated C string. */
-        char    *array;           /**< Array representation (serialized). */
-        char    *object;          /**< Object representation (serialized). */
-        char    *enum_symbol;     /**< Enum symbol string. */
-        char    *datetime;        /**< Date/time string. */
-        char    *duration;        /**< Duration string. */
-    } as;                         /**< Union holding the actual value data. */
-} fossil_bluecrab_myshell_fson_value_t;
 
 /**
  * -------------------------------
@@ -326,6 +257,14 @@ fossil_bluecrab_myshell_error_t fossil_myshell_restore(const char *backup_path, 
  * @return Error string.
  */
 const char *fossil_myshell_errstr(fossil_bluecrab_myshell_error_t err);
+
+/**
+ * Validates database integrity (hash chain, file size, corruption).
+ * Time Complexity: O(n) (n = number of records/commits).
+ * @param db Database handle.
+ * @return Error code.
+ */
+fossil_bluecrab_myshell_error_t fossil_myshell_check_integrity(fossil_bluecrab_myshell_t *db);
 
 #ifdef __cplusplus
 }
@@ -532,6 +471,16 @@ namespace fossil {
              */
             static const char* errstr(fossil_bluecrab_myshell_error_t err) {
                 return fossil_myshell_errstr(err);
+            }
+
+            /**
+             * o-Utility (check_integrity)
+             *   - Validates database integrity (hash chain, file size, corruption).
+             *   - Time Complexity: O(n) (n = number of records/commits).
+             * @return Error code.
+             */
+            fossil_bluecrab_myshell_error_t check_integrity() {
+                return fossil_myshell_check_integrity(db_);
             }
 
             /**
