@@ -25,6 +25,105 @@
 #include "fossil/crabdb/myshell.h"
 
 /**
+ * @brief Implements the core logic for the Fossil BlueCrab .myshell file database.
+ *
+ * This file provides functions for managing a simple versioned key-value store
+ * using the ".myshell" file format. It supports operations such as open, create,
+ * close, put, get, delete, commit, branch, checkout, merge, revert, stage, unstage,
+ * tag, log, backup, restore, error string conversion, and integrity checking.
+ *
+ * ## .myshell File Format Overview
+ * - Each .myshell file is a plain text file with lines representing key-value pairs,
+ *   commit history, branches, tags, and staged changes.
+ * - Key-value pairs are stored as: `key=value #hash=KEYHASH`
+ *   - `KEYHASH` is a 64-bit hash of the key for integrity verification.
+ * - Commits are recorded as: `#commit HASH MESSAGE TIMESTAMP`
+ * - Branches are recorded as: `#branch HASH BRANCHNAME`
+ * - Tags are recorded as: `#tag HASH TAGNAME`
+ * - Staged changes are recorded as: `#stage key=value #hash=KEYHASH`
+ * - Merges are recorded as: `#merge HASH SOURCEBRANCH MESSAGE TIMESTAMP`
+ * - Backups include a header: `#backup_hash=HASH`
+ *
+ * ## Sample .myshell File Contents
+ * ```
+ * key1=value1 #hash=0123456789abcdef
+ * key2=value2 #hash=abcdef0123456789
+ * #commit 0123456789abcdef Initial commit 1712345678
+ * #branch 89abcdef01234567 main
+ * #tag 0123456789abcdef v1.0
+ * #stage key3=value3 #hash=123456789abcdef0
+ * #merge 89abcdef01234567 feature "Merge feature branch" 1712345680
+ * ```
+ *
+ * ## More Sample .myshell File Contents
+ * ```
+ * username=alice #hash=1a2b3c4d5e6f7890
+ * password=secret #hash=0f1e2d3c4b5a6978
+ * #commit 1a2b3c4d5e6f7890 Added user 1712345700
+ * #branch 0f1e2d3c4b5a6978 dev
+ * #tag 1a2b3c4d5e6f7890 v2.0
+ * ```
+ *
+ * ## Another Example
+ * ```
+ * config=enabled #hash=deadbeefcafebabe
+ * mode=fast #hash=beefdeadbabecafe
+ * #commit deadbeefcafebabe Config enabled 1712345800
+ * #branch beefdeadbabecafe test
+ * #tag deadbeefcafebabe test-tag
+ * ```
+ *
+ * ## Fourth Example
+ * ```
+ * foo=bar #hash=1111222233334444
+ * baz=qux #hash=5555666677778888
+ * #commit 1111222233334444 FooBar commit 1712345900
+ * #branch 5555666677778888 feature-x
+ * #tag 1111222233334444 release-x
+ * ```
+ *
+ * ## Fifth Example
+ * ```
+ * alpha=beta #hash=9999aaaabbbbcccc
+ * gamma=delta #hash=ddddccccbbbbaaaa
+ * #commit 9999aaaabbbbcccc AlphaBeta commit 1712346000
+ * #branch ddddccccbbbbaaaa hotfix
+ * #tag 9999aaaabbbbcccc hotfix-1
+ * ```
+ *
+ * ## Main Functions
+ * - `myshell_hash64`: Computes a 64-bit hash for strings (MurmurHash3 variant).
+ * - `fossil_myshell_open`: Opens an existing .myshell database file.
+ * - `fossil_myshell_create`: Creates a new .myshell database file.
+ * - `fossil_myshell_close`: Closes and frees resources for a database.
+ * - `fossil_myshell_put`: Inserts or updates a key-value pair.
+ * - `fossil_myshell_get`: Retrieves the value for a given key.
+ * - `fossil_myshell_del`: Deletes a key-value pair.
+ * - `fossil_myshell_commit`: Records a commit with a message.
+ * - `fossil_myshell_branch`: Creates or switches to a branch.
+ * - `fossil_myshell_checkout`: Checks out a branch or commit.
+ * - `fossil_myshell_merge`: Merges a branch with a commit message.
+ * - `fossil_myshell_revert`: Reverts to a specific commit.
+ * - `fossil_myshell_stage`: Stages a key-value change.
+ * - `fossil_myshell_unstage`: Removes a staged change.
+ * - `fossil_myshell_tag`: Tags a commit.
+ * - `fossil_myshell_log`: Iterates commit history.
+ * - `fossil_myshell_backup`: Creates a backup of the database.
+ * - `fossil_myshell_restore`: Restores a database from backup.
+ * - `fossil_myshell_errstr`: Converts error codes to strings.
+ * - `fossil_myshell_check_integrity`: Verifies file and commit integrity.
+ *
+ * ## Error Handling
+ * All functions return a `fossil_bluecrab_myshell_error_t` code indicating success or the type of error.
+ *
+ * ## Usage Notes
+ * - Only files with the ".myshell" extension are supported.
+ * - All operations are performed directly on the file; there is no in-memory caching.
+ * - Integrity of data is ensured via hashes for keys and commits.
+ * - The API is designed for simple versioned key-value storage with basic VCS-like features.
+ */
+
+/**
  * Custom strdup implementation.
  */
 static char *myshell_strdup(const char *s) {
