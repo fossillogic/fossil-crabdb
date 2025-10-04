@@ -35,60 +35,62 @@
  * ## .myshell File Format Overview
  * - Each .myshell file is a plain text file with lines representing key-value pairs,
  *   commit history, branches, tags, and staged changes.
- * - Key-value pairs are stored as: `key=value #hash=KEYHASH`
+ * - Key-value pairs are stored as: `key=value #type=TYPE #hash=KEYHASH`
+ *   - `TYPE` is the FSON type name (see myshell_fson_type_names).
  *   - `KEYHASH` is a 64-bit hash of the key for integrity verification.
- * - Commits are recorded as: `#commit HASH MESSAGE TIMESTAMP`
- * - Branches are recorded as: `#branch HASH BRANCHNAME`
- * - Tags are recorded as: `#tag HASH TAGNAME`
- * - Staged changes are recorded as: `#stage key=value #hash=KEYHASH`
- * - Merges are recorded as: `#merge HASH SOURCEBRANCH MESSAGE TIMESTAMP`
+ * - Commits are recorded as: `#commit HASH MESSAGE TIMESTAMP #type=enum`
+ * - Branches are recorded as: `#branch HASH BRANCHNAME #type=enum`
+ * - Tags are recorded as: `#tag HASH TAGNAME #type=enum`
+ * - Staged changes are recorded as: `#stage key=value #type=TYPE #hash=KEYHASH`
+ * - Merges are recorded as: `#merge HASH SOURCEBRANCH MESSAGE TIMESTAMP #type=enum`
  * - Backups include a header: `#backup_hash=HASH`
+ * - FSON type system header: `#fson_types=null,bool,i8,i16,i32,i64,u8,u16,u32,u64,f32,f64,oct,hex,bin,char,cstr,array,object,enum,datetime,duration`
  *
  * ## Sample .myshell File Contents
  * ```
- * key1=value1 #hash=0123456789abcdef
- * key2=value2 #hash=abcdef0123456789
- * #commit 0123456789abcdef Initial commit 1712345678
- * #branch 89abcdef01234567 main
- * #tag 0123456789abcdef v1.0
- * #stage key3=value3 #hash=123456789abcdef0
- * #merge 89abcdef01234567 feature "Merge feature branch" 1712345680
+ * key1=value1 #type=i32 #hash=0123456789abcdef
+ * key2=value2 #type=cstr #hash=abcdef0123456789
+ * #commit 0123456789abcdef Initial commit 1712345678 #type=enum
+ * #branch 89abcdef01234567 main #type=enum
+ * #tag 0123456789abcdef v1.0 #type=enum
+ * #stage key3=value3 #type=bool #hash=123456789abcdef0
+ * #merge 89abcdef01234567 feature "Merge feature branch" 1712345680 #type=enum
  * ```
  *
  * ## More Sample .myshell File Contents
  * ```
- * username=alice #hash=1a2b3c4d5e6f7890
- * password=secret #hash=0f1e2d3c4b5a6978
- * #commit 1a2b3c4d5e6f7890 Added user 1712345700
- * #branch 0f1e2d3c4b5a6978 dev
- * #tag 1a2b3c4d5e6f7890 v2.0
+ * username=alice #type=cstr #hash=1a2b3c4d5e6f7890
+ * password=secret #type=cstr #hash=0f1e2d3c4b5a6978
+ * #commit 1a2b3c4d5e6f7890 Added user 1712345700 #type=enum
+ * #branch 0f1e2d3c4b5a6978 dev #type=enum
+ * #tag 1a2b3c4d5e6f7890 v2.0 #type=enum
  * ```
  *
  * ## Another Example
  * ```
- * config=enabled #hash=deadbeefcafebabe
- * mode=fast #hash=beefdeadbabecafe
- * #commit deadbeefcafebabe Config enabled 1712345800
- * #branch beefdeadbabecafe test
- * #tag deadbeefcafebabe test-tag
+ * config=enabled #type=bool #hash=deadbeefcafebabe
+ * mode=fast #type=enum #hash=beefdeadbabecafe
+ * #commit deadbeefcafebabe Config enabled 1712345800 #type=enum
+ * #branch beefdeadbabecafe test #type=enum
+ * #tag deadbeefcafebabe test-tag #type=enum
  * ```
  *
  * ## Fourth Example
  * ```
- * foo=bar #hash=1111222233334444
- * baz=qux #hash=5555666677778888
- * #commit 1111222233334444 FooBar commit 1712345900
- * #branch 5555666677778888 feature-x
- * #tag 1111222233334444 release-x
+ * foo=bar #type=cstr #hash=1111222233334444
+ * baz=qux #type=cstr #hash=5555666677778888
+ * #commit 1111222233334444 FooBar commit 1712345900 #type=enum
+ * #branch 5555666677778888 feature-x #type=enum
+ * #tag 1111222233334444 release-x #type=enum
  * ```
  *
  * ## Fifth Example
  * ```
- * alpha=beta #hash=9999aaaabbbbcccc
- * gamma=delta #hash=ddddccccbbbbaaaa
- * #commit 9999aaaabbbbcccc AlphaBeta commit 1712346000
- * #branch ddddccccbbbbaaaa hotfix
- * #tag 9999aaaabbbbcccc hotfix-1
+ * alpha=beta #type=cstr #hash=9999aaaabbbbcccc
+ * gamma=delta #type=cstr #hash=ddddccccbbbbaaaa
+ * #commit 9999aaaabbbbcccc AlphaBeta commit 1712346000 #type=enum
+ * #branch ddddccccbbbbaaaa hotfix #type=enum
+ * #tag 9999aaaabbbbcccc hotfix-1 #type=enum
  * ```
  *
  * ## Main Functions
@@ -96,7 +98,7 @@
  * - `fossil_myshell_open`: Opens an existing .myshell database file.
  * - `fossil_myshell_create`: Creates a new .myshell database file.
  * - `fossil_myshell_close`: Closes and frees resources for a database.
- * - `fossil_myshell_put`: Inserts or updates a key-value pair.
+ * - `fossil_myshell_put`: Inserts or updates a key-value pair (with FSON type and hash).
  * - `fossil_myshell_get`: Retrieves the value for a given key.
  * - `fossil_myshell_del`: Deletes a key-value pair.
  * - `fossil_myshell_commit`: Records a commit with a message.
@@ -121,7 +123,40 @@
  * - All operations are performed directly on the file; there is no in-memory caching.
  * - Integrity of data is ensured via hashes for keys and commits.
  * - The API is designed for simple versioned key-value storage with basic VCS-like features.
+ * - The FSON type system is enforced for all key-value and metadata entries.
  */
+
+// Lookup table for FSON type system
+static const char *myshell_fson_type_names[] = {
+    "null",      // MYSHELL_FSON_TYPE_NULL
+    "bool",      // MYSHELL_FSON_TYPE_BOOL
+    "i8",        // MYSHELL_FSON_TYPE_I8
+    "i16",       // MYSHELL_FSON_TYPE_I16
+    "i32",       // MYSHELL_FSON_TYPE_I32
+    "i64",       // MYSHELL_FSON_TYPE_I64
+    "u8",        // MYSHELL_FSON_TYPE_U8
+    "u16",       // MYSHELL_FSON_TYPE_U16
+    "u32",       // MYSHELL_FSON_TYPE_U32
+    "u64",       // MYSHELL_FSON_TYPE_U64
+    "f32",       // MYSHELL_FSON_TYPE_F32
+    "f64",       // MYSHELL_FSON_TYPE_F64
+    "oct",       // MYSHELL_FSON_TYPE_OCT
+    "hex",       // MYSHELL_FSON_TYPE_HEX
+    "bin",       // MYSHELL_FSON_TYPE_BIN
+    "char",      // MYSHELL_FSON_TYPE_CHAR
+    "cstr",      // MYSHELL_FSON_TYPE_CSTR
+    "array",     // MYSHELL_FSON_TYPE_ARRAY
+    "object",    // MYSHELL_FSON_TYPE_OBJECT
+    "enum",      // MYSHELL_FSON_TYPE_ENUM
+    "datetime",  // MYSHELL_FSON_TYPE_DATETIME
+    "duration"   // MYSHELL_FSON_TYPE_DURATION
+};
+
+static inline const char *myshell_fson_type_to_string(fossil_bluecrab_myshell_fson_type_t type) {
+    if (type < 0 || type > MYSHELL_FSON_TYPE_DURATION)
+        return "unknown";
+    return myshell_fson_type_names[type];
+}
 
 /**
  * Custom strdup implementation.
@@ -241,6 +276,40 @@ fossil_bluecrab_myshell_t *fossil_myshell_open(const char *path, fossil_bluecrab
     db->commit_head = myshell_hash64(path);
     db->error_code = FOSSIL_MYSHELL_ERROR_SUCCESS;
 
+    // FSON type system: scan file for type hints and validate
+    // (optional: could build a type map or validate lines)
+    // For now, just check that all #type=... fields match known types
+    fseek(file, 0, SEEK_SET);
+    char line[1024];
+    while (fgets(line, sizeof(line), file)) {
+        char *type_comment = strstr(line, "#type=");
+        if (type_comment) {
+            type_comment += 6;
+            char type_name[32] = {0};
+            int i = 0;
+            while (type_comment[i] && !isspace((unsigned char)type_comment[i]) && type_comment[i] != '#' && i < 31) {
+                type_name[i] = type_comment[i];
+                i++;
+            }
+            type_name[i] = '\0';
+            bool valid_type = false;
+            for (size_t j = 0; j <= MYSHELL_FSON_TYPE_DURATION; ++j) {
+                if (strcmp(type_name, myshell_fson_type_names[j]) == 0) {
+                    valid_type = true;
+                    break;
+                }
+            }
+            if (!valid_type) {
+                free(db->path);
+                free(db);
+                fclose(file);
+                if (err) *err = FOSSIL_MYSHELL_ERROR_CONFIG_INVALID;
+                return NULL;
+            }
+        }
+    }
+    fseek(file, 0, SEEK_SET);
+
     if (err) *err = FOSSIL_MYSHELL_ERROR_SUCCESS;
     return db;
 }
@@ -272,6 +341,14 @@ fossil_bluecrab_myshell_t *fossil_myshell_create(const char *path, fossil_bluecr
         return NULL;
     }
 
+    // Write FSON type system header for new file
+    fprintf(file, "#fson_types=");
+    for (size_t i = 0; i <= MYSHELL_FSON_TYPE_DURATION; ++i) {
+        fprintf(file, "%s", myshell_fson_type_names[i]);
+        if (i < MYSHELL_FSON_TYPE_DURATION) fprintf(file, ",");
+    }
+    fprintf(file, "\n");
+
     fossil_bluecrab_myshell_t *db = (fossil_bluecrab_myshell_t *)calloc(1, sizeof(fossil_bluecrab_myshell_t));
     if (!db) {
         fclose(file);
@@ -289,7 +366,7 @@ fossil_bluecrab_myshell_t *fossil_myshell_create(const char *path, fossil_bluecr
 
     db->file = file;
     db->is_open = true;
-    db->file_size = 0;
+    db->file_size = (size_t)ftell(file);
     db->last_modified = time(NULL);
     db->commit_head = myshell_hash64(path);
     db->error_code = FOSSIL_MYSHELL_ERROR_SUCCESS;
@@ -328,15 +405,29 @@ void fossil_myshell_close(fossil_bluecrab_myshell_t *db) {
     }
 }
 
-fossil_bluecrab_myshell_error_t fossil_myshell_put(fossil_bluecrab_myshell_t *db, const char *key, const char *value) {
+fossil_bluecrab_myshell_error_t fossil_myshell_put(fossil_bluecrab_myshell_t *db, const char *key, const char *type, const char *value) {
     if (!db || !db->is_open) {
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
     }
-    if (!key || !value) {
+    if (!key || !type || !value) {
         return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
     }
-    if (key[0] == '\0') {
+    if (key[0] == '\0' || type[0] == '\0') {
         return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
+    }
+
+    // Validate type against FSON type system
+    fossil_bluecrab_myshell_fson_type_t type_id = MYSHELL_FSON_TYPE_NULL;
+    bool valid_type = false;
+    for (size_t i = 0; i <= MYSHELL_FSON_TYPE_DURATION; ++i) {
+        if (strcmp(type, myshell_fson_type_names[i]) == 0) {
+            type_id = (fossil_bluecrab_myshell_fson_type_t)i;
+            valid_type = true;
+            break;
+        }
+    }
+    if (!valid_type) {
+        return FOSSIL_MYSHELL_ERROR_CONFIG_INVALID;
     }
 
     uint64_t key_hash = myshell_hash64(key);
@@ -360,14 +451,16 @@ fossil_bluecrab_myshell_error_t fossil_myshell_put(fossil_bluecrab_myshell_t *db
                 uint64_t file_hash = 0;
                 sscanf(hash_comment, "#hash=%llx", &file_hash);
                 if (strcmp(line, key) == 0 && file_hash == key_hash) {
-                    fprintf(temp_file, "%s=%s #hash=%016llx\n", key, value, key_hash);
+                    // Overwrite with new value and type
+                    fprintf(temp_file, "%s=%s #type=%s #hash=%016llx\n", key, value, myshell_fson_type_to_string(type_id), key_hash);
                     updated = true;
                     *eq = '='; // Restore
                     continue;
                 }
             } else {
                 if (strcmp(line, key) == 0) {
-                    fprintf(temp_file, "%s=%s #hash=%016llx\n", key, value, key_hash);
+                    // Overwrite with new value and type
+                    fprintf(temp_file, "%s=%s #type=%s #hash=%016llx\n", key, value, myshell_fson_type_to_string(type_id), key_hash);
                     updated = true;
                     *eq = '='; // Restore
                     continue;
@@ -379,7 +472,8 @@ fossil_bluecrab_myshell_error_t fossil_myshell_put(fossil_bluecrab_myshell_t *db
     }
 
     if (!updated) {
-        fprintf(temp_file, "%s=%s #hash=%016llx\n", key, value, key_hash);
+        // Add new entry with FSON type and hash
+        fprintf(temp_file, "%s=%s #type=%s #hash=%016llx\n", key, value, myshell_fson_type_to_string(type_id), key_hash);
     }
 
     fclose(temp_file);
@@ -403,7 +497,12 @@ fossil_bluecrab_myshell_error_t fossil_myshell_put(fossil_bluecrab_myshell_t *db
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
-fossil_bluecrab_myshell_error_t fossil_myshell_get(fossil_bluecrab_myshell_t *db, const char *key, char *out_value, size_t out_size) {
+fossil_bluecrab_myshell_error_t fossil_myshell_get(
+    fossil_bluecrab_myshell_t *db,
+    const char *key,
+    char *out_value,
+    size_t out_size
+) {
     if (!db || !db->is_open) {
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
     }
@@ -423,14 +522,22 @@ fossil_bluecrab_myshell_error_t fossil_myshell_get(fossil_bluecrab_myshell_t *db
         if (eq) {
             *eq = '\0';
             char *hash_comment = strstr(eq + 1, "#hash=");
+            char *type_comment = strstr(eq + 1, "#type=");
             if (hash_comment) {
                 uint64_t file_hash = 0;
                 sscanf(hash_comment, "#hash=%llx", &file_hash);
                 if (strcmp(line, key) == 0 && file_hash == key_hash) {
-                    size_t value_len = hash_comment - (eq + 1);
+                    // Extract value (between '=' and #type or #hash)
+                    size_t value_len = 0;
+                    if (type_comment && type_comment > eq + 1) {
+                        value_len = type_comment - (eq + 1);
+                    } else {
+                        value_len = hash_comment - (eq + 1);
+                    }
                     if (value_len >= out_size) value_len = out_size - 1;
                     strncpy(out_value, eq + 1, value_len);
                     out_value[value_len] = '\0';
+                    // Trim trailing whitespace/newline
                     size_t len = strlen(out_value);
                     while (len > 0 && (out_value[len - 1] == '\n' || out_value[len - 1] == ' ')) {
                         out_value[--len] = '\0';
@@ -440,11 +547,18 @@ fossil_bluecrab_myshell_error_t fossil_myshell_get(fossil_bluecrab_myshell_t *db
                 }
             } else {
                 if (strcmp(line, key) == 0) {
-                    strncpy(out_value, eq + 1, out_size - 1);
-                    out_value[out_size - 1] = '\0';
+                    // Extract value (up to end or comment)
+                    size_t value_len = out_size - 1;
+                    char *comment = strchr(eq + 1, '#');
+                    if (comment) {
+                        value_len = comment - (eq + 1);
+                        if (value_len >= out_size) value_len = out_size - 1;
+                    }
+                    strncpy(out_value, eq + 1, value_len);
+                    out_value[value_len] = '\0';
                     size_t len = strlen(out_value);
-                    if (len > 0 && out_value[len - 1] == '\n') {
-                        out_value[len - 1] = '\0';
+                    while (len > 0 && (out_value[len - 1] == '\n' || out_value[len - 1] == ' ')) {
+                        out_value[--len] = '\0';
                     }
                     *eq = '='; // Restore
                     return FOSSIL_MYSHELL_ERROR_SUCCESS;
@@ -467,7 +581,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_del(fossil_bluecrab_myshell_t *db
 
     uint64_t key_hash = myshell_hash64(key);
 
-    // Read all lines, rewrite excluding the deleted key (matching both key and hash)
+    // Read all lines, rewrite excluding the deleted key (matching both key, hash, and type)
     fseek(db->file, 0, SEEK_SET);
     char temp_path[256];
     snprintf(temp_path, sizeof(temp_path), "%s.tmp", db->path);
@@ -483,13 +597,40 @@ fossil_bluecrab_myshell_error_t fossil_myshell_del(fossil_bluecrab_myshell_t *db
         if (eq) {
             *eq = '\0';
             char *hash_comment = strstr(eq + 1, "#hash=");
+            char *type_comment = strstr(eq + 1, "#type=");
             if (hash_comment) {
                 uint64_t file_hash = 0;
                 sscanf(hash_comment, "#hash=%llx", &file_hash);
                 if (strcmp(line, key) == 0 && file_hash == key_hash) {
-                    found = true; // Skip this line
-                    *eq = '='; // Restore
-                    continue;
+                    // Optionally validate type against FSON type system
+                    if (type_comment) {
+                        char type_name[32] = {0};
+                        int i = 0;
+                        type_comment += 6;
+                        while (type_comment[i] && !isspace((unsigned char)type_comment[i]) && type_comment[i] != '#' && i < 31) {
+                            type_name[i] = type_comment[i];
+                            i++;
+                        }
+                        type_name[i] = '\0';
+                        bool valid_type = false;
+                        for (size_t j = 0; j <= MYSHELL_FSON_TYPE_DURATION; ++j) {
+                            if (strcmp(type_name, myshell_fson_type_names[j]) == 0) {
+                                valid_type = true;
+                                break;
+                            }
+                        }
+                        // If type is valid, skip line (delete)
+                        if (valid_type) {
+                            found = true;
+                            *eq = '='; // Restore
+                            continue;
+                        }
+                    } else {
+                        // No type info, still skip line
+                        found = true;
+                        *eq = '='; // Restore
+                        continue;
+                    }
                 }
             } else {
                 if (strcmp(line, key) == 0) {
@@ -541,10 +682,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_commit(fossil_bluecrab_myshell_t 
     if (!db->is_open) {
         return FOSSIL_MYSHELL_ERROR_LOCKED;
     }
-    if (!message) {
-        return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
-    }
-    if (strlen(message) == 0) {
+    if (!message || strlen(message) == 0) {
         return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
     }
 
@@ -591,7 +729,11 @@ fossil_bluecrab_myshell_error_t fossil_myshell_commit(fossil_bluecrab_myshell_t 
     if (fseek(db->file, 0, SEEK_END) != 0) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
-    if (fprintf(db->file, "#commit %016llx %s %lld\n", db->commit_head, message, (long long)db->commit_timestamp) < 0) {
+    // FSON v2: commit lines can optionally include a #type=enum for commit type
+    // For compatibility, always append #type=enum to commit lines
+    if (fprintf(db->file, "#commit %016llx %s %lld #type=%s\n",
+                db->commit_head, message, (long long)db->commit_timestamp,
+                myshell_fson_type_to_string(MYSHELL_FSON_TYPE_ENUM)) < 0) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
     fflush(db->file);
@@ -637,11 +779,14 @@ fossil_bluecrab_myshell_error_t fossil_myshell_branch(fossil_bluecrab_myshell_t 
     // Update commit_head to branch hash
     db->commit_head = myshell_hash64(branch_name);
 
+    // FSON type system: branch is always type "enum"
+    fossil_bluecrab_myshell_fson_type_t type_id = MYSHELL_FSON_TYPE_ENUM;
+
     // Optionally, write branch info to the file for history (simple append)
     if (fseek(db->file, 0, SEEK_END) != 0) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
-    if (fprintf(db->file, "#branch %016llx %s\n", db->commit_head, branch_name) < 0) {
+    if (fprintf(db->file, "#branch %016llx %s #type=%s\n", db->commit_head, branch_name, myshell_fson_type_to_string(type_id)) < 0) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
     fflush(db->file);
@@ -677,25 +822,28 @@ fossil_bluecrab_myshell_error_t fossil_myshell_checkout(fossil_bluecrab_myshell_
 
     bool branch_found = false;
     bool commit_found = false;
+    char found_branch_name[512] = {0};
     fseek(db->file, 0, SEEK_SET);
     char line[1024];
     while (fgets(line, sizeof(line), db->file)) {
         if (strncmp(line, "#branch ", 8) == 0) {
             char hash_str[17] = {0};
             char name[512] = {0};
-            int n = sscanf(line, "#branch %16s %511[^\n]", hash_str, name);
+            int n = sscanf(line, "#branch %16s %511s", hash_str, name);
             if (n >= 2) {
                 uint64_t parsed_hash = 0;
                 sscanf(hash_str, "%llx", &parsed_hash);
                 if ((strcmp(name, branch_or_commit) == 0) || (parsed_hash == hash)) {
                     branch_found = true;
+                    strncpy(found_branch_name, name, sizeof(found_branch_name));
+                    found_branch_name[sizeof(found_branch_name) - 1] = '\0';
                     break;
                 }
             }
         } else if (strncmp(line, "#commit ", 8) == 0) {
             char hash_str[17] = {0};
             int n = sscanf(line, "#commit %16s", hash_str);
-            if (n == 1) {
+            if (n >= 1) {
                 uint64_t parsed_hash = 0;
                 sscanf(hash_str, "%llx", &parsed_hash);
                 if (parsed_hash == hash) {
@@ -714,7 +862,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_checkout(fossil_bluecrab_myshell_
     if (db->branch) {
         free(db->branch);
     }
-    db->branch = myshell_strdup(branch_or_commit);
+    db->branch = myshell_strdup(branch_found ? found_branch_name : branch_or_commit);
     if (!db->branch) {
         return FOSSIL_MYSHELL_ERROR_OUT_OF_MEMORY;
     }
@@ -741,17 +889,19 @@ fossil_bluecrab_myshell_error_t fossil_myshell_merge(fossil_bluecrab_myshell_t *
         return FOSSIL_MYSHELL_ERROR_SCHEMA_MISMATCH;
     }
 
-    // Find the source branch and optionally record its hash/name
+    // Find the source branch and optionally record its hash/name and type
     uint64_t source_hash = myshell_hash64(source_branch);
     bool branch_found = false;
     char found_branch_name[512] = {0};
+    fossil_bluecrab_myshell_fson_type_t branch_type = MYSHELL_FSON_TYPE_ENUM;
     fseek(db->file, 0, SEEK_SET);
     char line[1024];
     while (fgets(line, sizeof(line), db->file)) {
         if (strncmp(line, "#branch ", 8) == 0) {
             char hash_str[17] = {0};
             char name[512] = {0};
-            int n = sscanf(line, "#branch %16s %511[^\n]", hash_str, name);
+            char type_name[32] = {0};
+            int n = sscanf(line, "#branch %16s %511s #type=%31s", hash_str, name, type_name);
             if (n >= 2) {
                 uint64_t parsed_hash = 0;
                 sscanf(hash_str, "%llx", &parsed_hash);
@@ -759,6 +909,14 @@ fossil_bluecrab_myshell_error_t fossil_myshell_merge(fossil_bluecrab_myshell_t *
                     branch_found = true;
                     strncpy(found_branch_name, name, sizeof(found_branch_name) - 1);
                     found_branch_name[sizeof(found_branch_name) - 1] = '\0';
+                    if (n == 3) {
+                        for (size_t i = 0; i <= MYSHELL_FSON_TYPE_DURATION; ++i) {
+                            if (strcmp(type_name, myshell_fson_type_names[i]) == 0) {
+                                branch_type = (fossil_bluecrab_myshell_fson_type_t)i;
+                                break;
+                            }
+                        }
+                    }
                     break;
                 }
             }
@@ -790,9 +948,11 @@ fossil_bluecrab_myshell_error_t fossil_myshell_merge(fossil_bluecrab_myshell_t *
     db->commit_head = myshell_hash64(commit_data);
     db->next_commit_hash = 0;
 
-    // Optionally, append merge info to file for history
+    // Optionally, append merge info to file for history, include FSON type
     if (fseek(db->file, 0, SEEK_END) == 0) {
-        fprintf(db->file, "#merge %016llx %s %s %lld\n", db->commit_head, found_branch_name, message, (long long)db->commit_timestamp);
+        fprintf(db->file, "#merge %016llx %s %s %lld #type=%s\n",
+            db->commit_head, found_branch_name, message, (long long)db->commit_timestamp,
+            myshell_fson_type_to_string(branch_type));
         fflush(db->file);
     }
 
@@ -814,17 +974,34 @@ fossil_bluecrab_myshell_error_t fossil_myshell_revert(fossil_bluecrab_myshell_t 
     uint64_t hash = myshell_hash64(commit_hash);
 
     bool commit_found = false;
+    fossil_bluecrab_myshell_fson_type_t found_type = MYSHELL_FSON_TYPE_NULL;
     fseek(db->file, 0, SEEK_SET);
     char line[1024];
     while (fgets(line, sizeof(line), db->file)) {
         if (strncmp(line, "#commit ", 8) == 0) {
             char hash_str[17] = {0};
-            int n = sscanf(line, "#commit %16s", hash_str);
-            if (n == 1) {
+            char type_name[32] = {0};
+            int n = sscanf(line, "#commit %16s %*[^#] #type=%31s", hash_str, type_name);
+            if (n >= 1) {
                 uint64_t parsed_hash = 0;
                 sscanf(hash_str, "%llx", &parsed_hash);
                 if (parsed_hash == hash) {
                     commit_found = true;
+                    // Validate FSON type if present
+                    if (n == 2) {
+                        for (size_t i = 0; i <= MYSHELL_FSON_TYPE_DURATION; ++i) {
+                            if (strcmp(type_name, myshell_fson_type_names[i]) == 0) {
+                                found_type = (fossil_bluecrab_myshell_fson_type_t)i;
+                                break;
+                            }
+                        }
+                        // If type is not valid, treat as config error
+                        if (found_type == MYSHELL_FSON_TYPE_NULL && strcmp(type_name, myshell_fson_type_names[0]) != 0) {
+                            return FOSSIL_MYSHELL_ERROR_CONFIG_INVALID;
+                        }
+                    } else {
+                        found_type = MYSHELL_FSON_TYPE_ENUM;
+                    }
                     break;
                 }
             }
@@ -840,23 +1017,39 @@ fossil_bluecrab_myshell_error_t fossil_myshell_revert(fossil_bluecrab_myshell_t 
 
     db->last_modified = time(NULL);
 
+    // Optionally, could store found_type in db if needed for future type-aware logic
+
     return FOSSIL_MYSHELL_ERROR_SUCCESS;
 }
 
-fossil_bluecrab_myshell_error_t fossil_myshell_stage(fossil_bluecrab_myshell_t *db, const char *key, const char *value) {
+fossil_bluecrab_myshell_error_t fossil_myshell_stage(fossil_bluecrab_myshell_t *db, const char *key, const char *type, const char *value) {
     if (!db || !db->is_open) {
         return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
     }
-    if (!key || !value) {
+    if (!key || !type || !value) {
         return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
     }
-    if (key[0] == '\0') {
+    if (key[0] == '\0' || type[0] == '\0') {
         return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
+    }
+
+    // Validate type against FSON type system
+    fossil_bluecrab_myshell_fson_type_t type_id = MYSHELL_FSON_TYPE_NULL;
+    bool valid_type = false;
+    for (size_t i = 0; i <= MYSHELL_FSON_TYPE_DURATION; ++i) {
+        if (strcmp(type, myshell_fson_type_names[i]) == 0) {
+            type_id = (fossil_bluecrab_myshell_fson_type_t)i;
+            valid_type = true;
+            break;
+        }
+    }
+    if (!valid_type) {
+        return FOSSIL_MYSHELL_ERROR_CONFIG_INVALID;
     }
 
     uint64_t key_hash = myshell_hash64(key);
 
-    // Advanced: Remove any previous staged entry for this key before adding new
+    // Remove any previous staged entry for this key before adding new
     fseek(db->file, 0, SEEK_SET);
     char temp_path[256];
     snprintf(temp_path, sizeof(temp_path), "%s.tmp", db->path);
@@ -876,7 +1069,6 @@ fossil_bluecrab_myshell_error_t fossil_myshell_stage(fossil_bluecrab_myshell_t *
                     uint64_t file_hash = 0;
                     sscanf(hash_comment, "#hash=%llx", &file_hash);
                     if (strcmp(line + 7, key) == 0 && file_hash == key_hash) {
-                        // Skip previous staged entry for this key
                         *eq = '='; // Restore
                         continue;
                     }
@@ -892,8 +1084,8 @@ fossil_bluecrab_myshell_error_t fossil_myshell_stage(fossil_bluecrab_myshell_t *
         fputs(line, temp_file);
     }
 
-    // Add new staged entry at the end
-    fprintf(temp_file, "#stage %s=%s #hash=%016llx\n", key, value, key_hash);
+    // Add new staged entry at the end, using FSON type system
+    fprintf(temp_file, "#stage %s=%s #type=%s #hash=%016llx\n", key, value, myshell_fson_type_to_string(type_id), key_hash);
 
     fclose(temp_file);
     fclose(db->file);
@@ -929,7 +1121,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_unstage(fossil_bluecrab_myshell_t
 
     uint64_t key_hash = myshell_hash64(key);
 
-    // Read all lines, rewrite excluding the unstaged key (matching both key and hash)
+    // Read all lines, rewrite excluding the unstaged key (matching key, hash, and FSON type)
     fseek(db->file, 0, SEEK_SET);
     char temp_path[256];
     snprintf(temp_path, sizeof(temp_path), "%s.tmp", db->path);
@@ -946,16 +1138,34 @@ fossil_bluecrab_myshell_error_t fossil_myshell_unstage(fossil_bluecrab_myshell_t
             if (eq) {
                 *eq = '\0';
                 char *hash_comment = strstr(eq + 1, "#hash=");
+                char *type_comment = strstr(eq + 1, "#type=");
+                bool valid_type = false;
+                if (type_comment) {
+                    char type_name[32] = {0};
+                    int i = 0;
+                    type_comment += 6;
+                    while (type_comment[i] && !isspace((unsigned char)type_comment[i]) && type_comment[i] != '#' && i < 31) {
+                        type_name[i] = type_comment[i];
+                        i++;
+                    }
+                    type_name[i] = '\0';
+                    for (size_t j = 0; j <= MYSHELL_FSON_TYPE_DURATION; ++j) {
+                        if (strcmp(type_name, myshell_fson_type_names[j]) == 0) {
+                            valid_type = true;
+                            break;
+                        }
+                    }
+                }
                 if (hash_comment) {
                     uint64_t file_hash = 0;
                     sscanf(hash_comment, "#hash=%llx", &file_hash);
-                    if (strcmp(line + 7, key) == 0 && file_hash == key_hash) {
+                    if (strcmp(line + 7, key) == 0 && file_hash == key_hash && (type_comment == NULL || valid_type)) {
                         found = true; // Skip this line
                         *eq = '='; // Restore
                         continue;
                     }
                 } else {
-                    if (strcmp(line + 7, key) == 0) {
+                    if (strcmp(line + 7, key) == 0 && (type_comment == NULL || valid_type)) {
                         found = true; // Skip this line
                         *eq = '='; // Restore
                         continue;
@@ -983,7 +1193,12 @@ fossil_bluecrab_myshell_error_t fossil_myshell_unstage(fossil_bluecrab_myshell_t
         }
     }
 
-    return FOSSIL_MYSHELL_ERROR_SUCCESS;
+    db->file = fopen(db->path, "rb+");
+    if (!db->file) {
+        return FOSSIL_MYSHELL_ERROR_IO;
+    }
+
+    return found ? FOSSIL_MYSHELL_ERROR_SUCCESS : FOSSIL_MYSHELL_ERROR_NOT_FOUND;
 }
 
 fossil_bluecrab_myshell_error_t fossil_myshell_tag(fossil_bluecrab_myshell_t *db, const char *commit_hash, const char *tag_name) {
@@ -1000,17 +1215,27 @@ fossil_bluecrab_myshell_error_t fossil_myshell_tag(fossil_bluecrab_myshell_t *db
     uint64_t hash = myshell_hash64(commit_hash);
 
     bool commit_found = false;
+    fossil_bluecrab_myshell_fson_type_t commit_type = MYSHELL_FSON_TYPE_ENUM;
     fseek(db->file, 0, SEEK_SET);
     char line[1024];
     while (fgets(line, sizeof(line), db->file)) {
         if (strncmp(line, "#commit ", 8) == 0) {
             char hash_str[17] = {0};
-            int n = sscanf(line, "#commit %16s", hash_str);
-            if (n == 1) {
+            char type_name[32] = {0};
+            int n = sscanf(line, "#commit %16s %*[^#] #type=%31s", hash_str, type_name);
+            if (n >= 1) {
                 uint64_t parsed_hash = 0;
                 sscanf(hash_str, "%llx", &parsed_hash);
                 if (parsed_hash == hash) {
                     commit_found = true;
+                    if (n == 2) {
+                        for (size_t i = 0; i <= MYSHELL_FSON_TYPE_DURATION; ++i) {
+                            if (strcmp(type_name, myshell_fson_type_names[i]) == 0) {
+                                commit_type = (fossil_bluecrab_myshell_fson_type_t)i;
+                                break;
+                            }
+                        }
+                    }
                     break;
                 }
             }
@@ -1021,11 +1246,11 @@ fossil_bluecrab_myshell_error_t fossil_myshell_tag(fossil_bluecrab_myshell_t *db
         return FOSSIL_MYSHELL_ERROR_NOT_FOUND;
     }
 
-    // Write tag info to the file for history (simple append)
+    // Write tag info to the file for history (simple append), include FSON type
     if (fseek(db->file, 0, SEEK_END) != 0) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
-    if (fprintf(db->file, "#tag %016llx %s\n", hash, tag_name) < 0) {
+    if (fprintf(db->file, "#tag %016llx %s #type=%s\n", hash, tag_name, myshell_fson_type_to_string(commit_type)) < 0) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
     fflush(db->file);
@@ -1046,7 +1271,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_log(fossil_bluecrab_myshell_t *db
         return FOSSIL_MYSHELL_ERROR_INVALID_QUERY;
     }
 
-    // Iterate over file and invoke callback for each commit line
+    // Iterate over file and invoke callback for each commit line, parsing FSON type if present
     if (fseek(db->file, 0, SEEK_SET) != 0) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
@@ -1056,32 +1281,31 @@ fossil_bluecrab_myshell_error_t fossil_myshell_log(fossil_bluecrab_myshell_t *db
             char hash_str[17] = {0};
             char message[512] = {0};
             long long timestamp = 0;
+            char type_name[32] = {0};
+            int n = sscanf(line, "#commit %16s %511[^\n] %lld #type=%31s", hash_str, message, &timestamp, type_name);
 
-            // Parse: "#commit %016llx %s %lld\n"
-            int n = sscanf(line, "#commit %16s %511[^\n] %lld", hash_str, message, &timestamp);
-            if (n >= 2) {
+            // FSON type system: parse type if present, default to ENUM
+            // (commit_type is not used, so skip parsing)
+
+            if (n >= 3) {
                 uint64_t parsed_hash = 0;
                 sscanf(hash_str, "%llx", &parsed_hash);
-
-                if (n == 3) {
-                    char commit_data[1024];
-                    snprintf(commit_data, sizeof(commit_data), "%s:%lld", message, timestamp);
-                    uint64_t computed_hash = myshell_hash64(commit_data);
-                    if (parsed_hash == computed_hash) {
-                        if (!cb(hash_str, message, user)) {
-                            return FOSSIL_MYSHELL_ERROR_SUCCESS;
-                        }
-                    } else {
-                        // Hash mismatch, integrity error
-                        return FOSSIL_MYSHELL_ERROR_INTEGRITY;
-                    }
-                } else {
+                char commit_data[1024];
+                snprintf(commit_data, sizeof(commit_data), "%s:%lld", message, timestamp);
+                uint64_t computed_hash = myshell_hash64(commit_data);
+                if (parsed_hash == computed_hash) {
+                    // Optionally, you could pass commit_type to the callback if its signature supports it
                     if (!cb(hash_str, message, user)) {
                         return FOSSIL_MYSHELL_ERROR_SUCCESS;
                     }
+                } else {
+                    return FOSSIL_MYSHELL_ERROR_INTEGRITY;
+                }
+            } else if (n == 2) {
+                if (!cb(hash_str, message, user)) {
+                    return FOSSIL_MYSHELL_ERROR_SUCCESS;
                 }
             } else {
-                // Parse failed
                 return FOSSIL_MYSHELL_ERROR_PARSE_FAILED;
             }
         }
@@ -1109,6 +1333,14 @@ fossil_bluecrab_myshell_error_t fossil_myshell_backup(fossil_bluecrab_myshell_t 
         fclose(backup_file);
         return FOSSIL_MYSHELL_ERROR_IO;
     }
+
+    // Write FSON type system header for backup file
+    fprintf(backup_file, "#fson_types=");
+    for (size_t i = 0; i <= MYSHELL_FSON_TYPE_DURATION; ++i) {
+        fprintf(backup_file, "%s", myshell_fson_type_names[i]);
+        if (i < MYSHELL_FSON_TYPE_DURATION) fprintf(backup_file, ",");
+    }
+    fprintf(backup_file, "\n");
 
     fseek(db->file, 0, SEEK_SET);
     char buffer[4096];
@@ -1152,7 +1384,6 @@ fossil_bluecrab_myshell_error_t fossil_myshell_restore(const char *backup_path, 
                 return FOSSIL_MYSHELL_ERROR_INTEGRITY;
             }
         } else {
-            // If no hash line, treat as corrupted
             fclose(backup_file);
             return FOSSIL_MYSHELL_ERROR_CORRUPTED;
         }
@@ -1161,11 +1392,44 @@ fossil_bluecrab_myshell_error_t fossil_myshell_restore(const char *backup_path, 
         return FOSSIL_MYSHELL_ERROR_CORRUPTED;
     }
 
+    // Next line should be FSON type system header
+    char fson_line[256];
+    if (fgets(fson_line, sizeof(fson_line), backup_file)) {
+        if (strncmp(fson_line, "#fson_types=", 12) != 0) {
+            fclose(backup_file);
+            return FOSSIL_MYSHELL_ERROR_CONFIG_INVALID;
+        }
+        // Optionally, validate that all types in header are known
+        char *types = fson_line + 12;
+        char *token = strtok(types, ",\n");
+        while (token) {
+            bool valid_type = false;
+            for (size_t i = 0; i <= MYSHELL_FSON_TYPE_DURATION; ++i) {
+                if (strcmp(token, myshell_fson_type_names[i]) == 0) {
+                    valid_type = true;
+                    break;
+                }
+            }
+            if (!valid_type) {
+                fclose(backup_file);
+                return FOSSIL_MYSHELL_ERROR_CONFIG_INVALID;
+            }
+            token = strtok(NULL, ",\n");
+        }
+    } else {
+        fclose(backup_file);
+        return FOSSIL_MYSHELL_ERROR_CONFIG_INVALID;
+    }
+
     FILE *target_file = fopen(target_path, "wb");
     if (!target_file) {
         fclose(backup_file);
         return FOSSIL_MYSHELL_ERROR_IO;
     }
+
+    // Write the validated hash and FSON header to the target file
+    fprintf(target_file, "%s", hash_line);
+    fprintf(target_file, "%s", fson_line);
 
     char buffer[4096];
     size_t bytes;
@@ -1236,15 +1500,29 @@ fossil_bluecrab_myshell_error_t fossil_myshell_check_integrity(fossil_bluecrab_m
     if (fseek(db->file, 0, SEEK_SET) != 0)
         return FOSSIL_MYSHELL_ERROR_IO;
 
-    // Verify commit hash chain integrity
     char line[1024];
     while (fgets(line, sizeof(line), db->file)) {
+        // Commit integrity: check hash and FSON type
         if (strncmp(line, "#commit ", 8) == 0) {
             char hash_str[17] = {0};
             char message[512] = {0};
             long long timestamp = 0;
-            int n = sscanf(line, "#commit %16s %511[^\n] %lld", hash_str, message, &timestamp);
-            if (n == 3) {
+            char type_name[32] = {0};
+            int n = sscanf(line, "#commit %16s %511[^\n] %lld #type=%31s", hash_str, message, &timestamp, type_name);
+
+            if (n == 4) {
+                bool valid_type = false;
+                for (size_t i = 0; i <= MYSHELL_FSON_TYPE_DURATION; ++i) {
+                    if (strcmp(type_name, myshell_fson_type_names[i]) == 0) {
+                        valid_type = true;
+                        break;
+                    }
+                }
+                if (!valid_type) {
+                    return FOSSIL_MYSHELL_ERROR_CONFIG_INVALID;
+                }
+            }
+            if (n >= 3) {
                 uint64_t parsed_hash = 0;
                 sscanf(hash_str, "%llx", &parsed_hash);
                 char commit_data[1024];
@@ -1257,12 +1535,60 @@ fossil_bluecrab_myshell_error_t fossil_myshell_check_integrity(fossil_bluecrab_m
                 return FOSSIL_MYSHELL_ERROR_PARSE_FAILED;
             }
         }
-        // Additional integrity checks: verify key-value hash
+        // Branch/tag/merge integrity: check FSON type if present
+        else if (strncmp(line, "#branch ", 8) == 0 ||
+                 strncmp(line, "#tag ", 5) == 0 ||
+                 strncmp(line, "#merge ", 7) == 0) {
+            char type_name[32] = {0};
+            char *type_comment = strstr(line, "#type=");
+            if (type_comment) {
+                type_comment += 6;
+                int i = 0;
+                while (type_comment[i] && !isspace((unsigned char)type_comment[i]) && type_comment[i] != '#' && i < 31) {
+                    type_name[i] = type_comment[i];
+                    i++;
+                }
+                type_name[i] = '\0';
+                bool valid_type = false;
+                for (size_t j = 0; j <= MYSHELL_FSON_TYPE_DURATION; ++j) {
+                    if (strcmp(type_name, myshell_fson_type_names[j]) == 0) {
+                        valid_type = true;
+                        break;
+                    }
+                }
+                if (!valid_type) {
+                    return FOSSIL_MYSHELL_ERROR_CONFIG_INVALID;
+                }
+            }
+        }
+        // Key-value integrity: check hash and FSON type
         else {
             char *eq = strchr(line, '=');
             if (eq) {
                 *eq = '\0';
                 char *hash_comment = strstr(eq + 1, "#hash=");
+                char *type_comment = strstr(eq + 1, "#type=");
+                if (type_comment) {
+                    type_comment += 6;
+                    char type_name[32] = {0};
+                    int i = 0;
+                    while (type_comment[i] && !isspace((unsigned char)type_comment[i]) && type_comment[i] != '#' && i < 31) {
+                        type_name[i] = type_comment[i];
+                        i++;
+                    }
+                    type_name[i] = '\0';
+                    bool valid_type = false;
+                    for (size_t j = 0; j <= MYSHELL_FSON_TYPE_DURATION; ++j) {
+                        if (strcmp(type_name, myshell_fson_type_names[j]) == 0) {
+                            valid_type = true;
+                            break;
+                        }
+                    }
+                    if (!valid_type) {
+                        *eq = '='; // Restore
+                        return FOSSIL_MYSHELL_ERROR_CONFIG_INVALID;
+                    }
+                }
                 if (hash_comment) {
                     uint64_t file_hash = 0;
                     sscanf(hash_comment, "#hash=%llx", &file_hash);

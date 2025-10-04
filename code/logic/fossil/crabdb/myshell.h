@@ -215,10 +215,11 @@ void fossil_myshell_close(fossil_bluecrab_myshell_t *db);
  * Time Complexity: O(1) for append, O(n) for update (n = number of records).
  * @param db Database handle.
  * @param key Key string.
+ * @param type Type string (FSON type).
  * @param value Value string.
  * @return Error code.
  */
-fossil_bluecrab_myshell_error_t fossil_myshell_put(fossil_bluecrab_myshell_t *db, const char *key, const char *value);
+fossil_bluecrab_myshell_error_t fossil_myshell_put(fossil_bluecrab_myshell_t *db, const char *key, const char *type, const char *value);
 
 /**
  * o-Record CRUD (key/value, git-like chain)
@@ -299,10 +300,11 @@ fossil_bluecrab_myshell_error_t fossil_myshell_revert(fossil_bluecrab_myshell_t 
  * Time Complexity: O(1) for append, O(n) for update (n = number of staged records).
  * @param db Database handle.
  * @param key Key string.
+ * @param type Type string (FSON type).
  * @param value Value string.
  * @return Error code.
  */
-fossil_bluecrab_myshell_error_t fossil_myshell_stage(fossil_bluecrab_myshell_t *db, const char *key, const char *value);
+fossil_bluecrab_myshell_error_t fossil_myshell_stage(fossil_bluecrab_myshell_t *db, const char *key, const char *type, const char *value);
 
 /**
  * o-Staging area 
@@ -449,8 +451,8 @@ namespace fossil {
             }
 
             // Record CRUD (put)
-            fossil_bluecrab_myshell_error_t put(const std::string& key, const std::string& value) {
-            return fossil_myshell_put(db_, key.c_str(), value.c_str());
+            fossil_bluecrab_myshell_error_t put(const std::string& key, const std::string& type, const std::string& value) {
+                return fossil_myshell_put(db_, key.c_str(), type.c_str(), value.c_str());
             }
 
             // Record CRUD (get)
@@ -494,8 +496,8 @@ namespace fossil {
             }
 
             // Staging (stage)
-            fossil_bluecrab_myshell_error_t stage(const std::string& key, const std::string& value) {
-            return fossil_myshell_stage(db_, key.c_str(), value.c_str());
+            fossil_bluecrab_myshell_error_t stage(const std::string& key, const std::string& type, const std::string& value) {
+                return fossil_myshell_stage(db_, key.c_str(), type.c_str(), value.c_str());
             }
 
             // Staging (unstage)
