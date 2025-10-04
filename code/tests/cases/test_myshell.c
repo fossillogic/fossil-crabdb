@@ -172,7 +172,7 @@ FOSSIL_TEST(c_test_myshell_commit_branch_tag_merge_revert) {
 
     // Tag
     char commit_hash[32];
-    snprintf(commit_hash, sizeof(commit_hash), "%016llx", (unsigned long long)db->commit_head);
+    snprintf(commit_hash, sizeof(commit_hash), "%016" PRIx64, (uint64_t)db->commit_head);
     err = fossil_myshell_tag(db, commit_hash, "v1.0");
     ASSUME_ITS_EQUAL_I32(err, FOSSIL_MYSHELL_ERROR_SUCCESS);
 
@@ -181,7 +181,7 @@ FOSSIL_TEST(c_test_myshell_commit_branch_tag_merge_revert) {
     ASSUME_ITS_EQUAL_I32(err, FOSSIL_MYSHELL_ERROR_SUCCESS);
 
     // Revert
-    snprintf(commit_hash, sizeof(commit_hash), "%016llx", (unsigned long long)db->commit_head);
+    snprintf(commit_hash, sizeof(commit_hash), "%016" PRIx64, (uint64_t)db->commit_head);
     err = fossil_myshell_revert(db, commit_hash);
     ASSUME_ITS_EQUAL_I32(err, FOSSIL_MYSHELL_ERROR_SUCCESS);
 

@@ -451,10 +451,10 @@ fossil_bluecrab_myshell_error_t fossil_myshell_put(fossil_bluecrab_myshell_t *db
             char *hash_comment = strstr(eq + 1, "#hash=");
             if (hash_comment) {
                 uint64_t file_hash = 0;
-                sscanf(hash_comment, "#hash=%llx", &file_hash);
+                sscanf(hash_comment, "#hash=%" SCNx64, &file_hash);
                 if (strcmp(line, key) == 0 && file_hash == key_hash) {
                     // Overwrite with new value and type
-                    fprintf(temp_file, "%s=%s #type=%s #hash=%016llx\n", key, value, myshell_fson_type_to_string(type_id), (unsigned long long)key_hash);
+                    fprintf(temp_file, "%s=%s #type=%s #hash=%016" PRIx64 "\n", key, value, myshell_fson_type_to_string(type_id), key_hash);
                     updated = true;
                     *eq = '='; // Restore
                     continue;
@@ -462,7 +462,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_put(fossil_bluecrab_myshell_t *db
             } else {
                 if (strcmp(line, key) == 0) {
                     // Overwrite with new value and type
-                    fprintf(temp_file, "%s=%s #type=%s #hash=%016llx\n", key, value, myshell_fson_type_to_string(type_id), (unsigned long long)key_hash);
+                    fprintf(temp_file, "%s=%s #type=%s #hash=%016" PRIx64 "\n", key, value, myshell_fson_type_to_string(type_id), key_hash);
                     updated = true;
                     *eq = '='; // Restore
                     continue;
@@ -475,7 +475,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_put(fossil_bluecrab_myshell_t *db
 
     if (!updated) {
         // Add new entry with FSON type and hash
-        fprintf(temp_file, "%s=%s #type=%s #hash=%016llx\n", key, value, myshell_fson_type_to_string(type_id), (unsigned long long)key_hash);
+        fprintf(temp_file, "%s=%s #type=%s #hash=%016" PRIx64 "\n", key, value, myshell_fson_type_to_string(type_id), key_hash);
     }
 
     fclose(temp_file);
@@ -527,7 +527,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_get(
             char *type_comment = strstr(eq + 1, "#type=");
             if (hash_comment) {
                 uint64_t file_hash = 0;
-                sscanf(hash_comment, "#hash=%llx", &file_hash);
+                sscanf(hash_comment, "#hash=%" SCNx64, &file_hash);
                 if (strcmp(line, key) == 0 && file_hash == key_hash) {
                     // Extract value (between '=' and #type or #hash)
                     size_t value_len = 0;
@@ -602,7 +602,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_del(fossil_bluecrab_myshell_t *db
             char *type_comment = strstr(eq + 1, "#type=");
             if (hash_comment) {
                 uint64_t file_hash = 0;
-                sscanf(hash_comment, "#hash=%llx", &file_hash);
+                sscanf(hash_comment, "#hash=%" SCNx64, &file_hash);
                 if (strcmp(line, key) == 0 && file_hash == key_hash) {
                     // Optionally validate type against FSON type system
                     if (type_comment) {
@@ -733,8 +733,8 @@ fossil_bluecrab_myshell_error_t fossil_myshell_commit(fossil_bluecrab_myshell_t 
     }
     // FSON v2: commit lines can optionally include a #type=enum for commit type
     // For compatibility, always append #type=enum to commit lines
-    if (fprintf(db->file, "#commit %016llx %s %lld #type=%s\n",
-                    (unsigned long long)db->commit_head, message, (long long)db->commit_timestamp,
+    if (fprintf(db->file, "#commit %016" PRIx64 " %s %lld #type=%s\n",
+                    db->commit_head, message, (long long)db->commit_timestamp,
                     myshell_fson_type_to_string(MYSHELL_FSON_TYPE_ENUM)) < 0) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
@@ -788,7 +788,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_branch(fossil_bluecrab_myshell_t 
     if (fseek(db->file, 0, SEEK_END) != 0) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
-    if (fprintf(db->file, "#branch %016llx %s #type=%s\n", (unsigned long long)db->commit_head, branch_name, myshell_fson_type_to_string(type_id)) < 0) {
+    if (fprintf(db->file, "#branch %016" PRIx64 " %s #type=%s\n", db->commit_head, branch_name, myshell_fson_type_to_string(type_id)) < 0) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
     fflush(db->file);
@@ -834,7 +834,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_checkout(fossil_bluecrab_myshell_
             int n = sscanf(line, "#branch %16s %511s", hash_str, name);
             if (n >= 2) {
                 uint64_t parsed_hash = 0;
-                sscanf(hash_str, "%llx", &parsed_hash);
+                sscanf(hash_str, "%" SCNx64, &parsed_hash);
                 if ((strcmp(name, branch_or_commit) == 0) || (parsed_hash == hash)) {
                     branch_found = true;
                     strncpy(found_branch_name, name, sizeof(found_branch_name));
@@ -847,7 +847,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_checkout(fossil_bluecrab_myshell_
             int n = sscanf(line, "#commit %16s", hash_str);
             if (n >= 1) {
                 uint64_t parsed_hash = 0;
-                sscanf(hash_str, "%llx", &parsed_hash);
+                sscanf(hash_str, "%" SCNx64, &parsed_hash);
                 if (parsed_hash == hash) {
                     commit_found = true;
                     break;
@@ -906,7 +906,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_merge(fossil_bluecrab_myshell_t *
             int n = sscanf(line, "#branch %16s %511s #type=%31s", hash_str, name, type_name);
             if (n >= 2) {
                 uint64_t parsed_hash = 0;
-                sscanf(hash_str, "%llx", &parsed_hash);
+                sscanf(hash_str, "%" SCNx64, &parsed_hash);
                 if ((strcmp(name, source_branch) == 0) || (parsed_hash == source_hash)) {
                     branch_found = true;
                     strncpy(found_branch_name, name, sizeof(found_branch_name) - 1);
@@ -952,9 +952,9 @@ fossil_bluecrab_myshell_error_t fossil_myshell_merge(fossil_bluecrab_myshell_t *
 
     // Optionally, append merge info to file for history, include FSON type
     if (fseek(db->file, 0, SEEK_END) == 0) {
-        fprintf(db->file, "#merge %016llx %s %s %lld #type=%s\n",
-                    (unsigned long long)db->commit_head, found_branch_name, message, (long long)db->commit_timestamp,
-                    myshell_fson_type_to_string(branch_type));
+        fprintf(db->file, "#merge %016" PRIx64 " %s %s %lld #type=%s\n",
+                db->commit_head, found_branch_name, message, (long long)db->commit_timestamp,
+                myshell_fson_type_to_string(branch_type));
         fflush(db->file);
     }
 
@@ -986,7 +986,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_revert(fossil_bluecrab_myshell_t 
             int n = sscanf(line, "#commit %16s %*[^#] #type=%31s", hash_str, type_name);
             if (n >= 1) {
                 uint64_t parsed_hash = 0;
-                sscanf(hash_str, "%llx", &parsed_hash);
+                sscanf(hash_str, "%" SCNx64, &parsed_hash);
                 if (parsed_hash == hash) {
                     commit_found = true;
                     // Validate FSON type if present
@@ -1069,7 +1069,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_stage(fossil_bluecrab_myshell_t *
                 char *hash_comment = strstr(eq + 1, "#hash=");
                 if (hash_comment) {
                     uint64_t file_hash = 0;
-                    sscanf(hash_comment, "#hash=%llx", &file_hash);
+                    sscanf(hash_comment, "#hash=%" SCNx64, &file_hash);
                     if (strcmp(line + 7, key) == 0 && file_hash == key_hash) {
                         *eq = '='; // Restore
                         continue;
@@ -1087,7 +1087,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_stage(fossil_bluecrab_myshell_t *
     }
 
     // Add new staged entry at the end, using FSON type system
-    fprintf(temp_file, "#stage %s=%s #type=%s #hash=%016llx\n", key, value, myshell_fson_type_to_string(type_id), (unsigned long long)key_hash);
+    fprintf(temp_file, "#stage %s=%s #type=%s #hash=%016" PRIx64 "\n", key, value, myshell_fson_type_to_string(type_id), key_hash);
 
     fclose(temp_file);
     fclose(db->file);
@@ -1160,7 +1160,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_unstage(fossil_bluecrab_myshell_t
                 }
                 if (hash_comment) {
                     uint64_t file_hash = 0;
-                    sscanf(hash_comment, "#hash=%llx", &file_hash);
+                    sscanf(hash_comment, "#hash=%" SCNx64, &file_hash);
                     if (strcmp(line + 7, key) == 0 && file_hash == key_hash && (type_comment == NULL || valid_type)) {
                         found = true; // Skip this line
                         *eq = '='; // Restore
@@ -1227,7 +1227,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_tag(fossil_bluecrab_myshell_t *db
             int n = sscanf(line, "#commit %16s %*[^#] #type=%31s", hash_str, type_name);
             if (n >= 1) {
                 uint64_t parsed_hash = 0;
-                sscanf(hash_str, "%llx", &parsed_hash);
+                sscanf(hash_str, "%" SCNx64, &parsed_hash);
                 if (parsed_hash == hash) {
                     commit_found = true;
                     if (n == 2) {
@@ -1252,7 +1252,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_tag(fossil_bluecrab_myshell_t *db
     if (fseek(db->file, 0, SEEK_END) != 0) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
-    if (fprintf(db->file, "#tag %016llx %s #type=%s\n", (unsigned long long)hash, tag_name, myshell_fson_type_to_string(commit_type)) < 0) {
+    if (fprintf(db->file, "#tag %016" PRIx64 " %s #type=%s\n", hash, tag_name, myshell_fson_type_to_string(commit_type)) < 0) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
     fflush(db->file);
@@ -1291,7 +1291,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_log(fossil_bluecrab_myshell_t *db
 
             if (n >= 3) {
                 uint64_t parsed_hash = 0;
-                sscanf(hash_str, "%llx", &parsed_hash);
+                sscanf(hash_str, "%" SCNx64, &parsed_hash);
                 char commit_data[1024];
                 snprintf(commit_data, sizeof(commit_data), "%s:%lld", message, timestamp);
                 uint64_t computed_hash = myshell_hash64(commit_data);
@@ -1331,7 +1331,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_backup(fossil_bluecrab_myshell_t 
 
     // Write a hash of the backup path as a comment for integrity
     uint64_t backup_hash = myshell_hash64(backup_path);
-    if (fprintf(backup_file, "#backup_hash=%016llx\n", (unsigned long long)backup_hash) < 0) {
+    if (fprintf(backup_file, "#backup_hash=%016" PRIx64 "\n", backup_hash) < 0) {
         fclose(backup_file);
         return FOSSIL_MYSHELL_ERROR_IO;
     }
@@ -1380,7 +1380,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_restore(const char *backup_path, 
     if (fgets(hash_line, sizeof(hash_line), backup_file)) {
         uint64_t file_hash = 0;
         if (strncmp(hash_line, "#backup_hash=", 13) == 0) {
-            sscanf(hash_line, "#backup_hash=%llx", &file_hash);
+            sscanf(hash_line, "#backup_hash=%" SCNx64, &file_hash);
             if (file_hash != expected_hash) {
                 fclose(backup_file);
                 return FOSSIL_MYSHELL_ERROR_INTEGRITY;
@@ -1526,7 +1526,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_check_integrity(fossil_bluecrab_m
             }
             if (n >= 3) {
                 uint64_t parsed_hash = 0;
-                sscanf(hash_str, "%llx", &parsed_hash);
+                sscanf(hash_str, "%" SCNx64, &parsed_hash);
                 char commit_data[1024];
                 snprintf(commit_data, sizeof(commit_data), "%s:%lld", message, timestamp);
                 uint64_t computed_hash = myshell_hash64(commit_data);
@@ -1593,7 +1593,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_check_integrity(fossil_bluecrab_m
                 }
                 if (hash_comment) {
                     uint64_t file_hash = 0;
-                    sscanf(hash_comment, "#hash=%llx", &file_hash);
+                    sscanf(hash_comment, "#hash=%" SCNx64, &file_hash);
                     uint64_t key_hash = myshell_hash64(line);
                     if (file_hash != key_hash) {
                         *eq = '='; // Restore
