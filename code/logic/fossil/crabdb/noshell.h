@@ -25,6 +25,7 @@
 #ifndef FOSSIL_CRABDB_NOSHELL_H
 #define FOSSIL_CRABDB_NOSHELL_H
 
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -33,6 +34,8 @@
 #include <sys/stat.h>   // for file size
 #include <errno.h>
 #include <stdio.h>
+#include <strings.h>
+#include <ctype.h>
 #include <time.h>
 
 #ifdef __cplusplus
@@ -54,8 +57,15 @@ typedef enum {
     FOSSIL_NOSHELL_ERROR_INVALID_QUERY,
     FOSSIL_NOSHELL_ERROR_CONCURRENCY,
     FOSSIL_NOSHELL_ERROR_NOT_FOUND,
+    FOSSIL_NOSHELL_ERROR_PERMISSION_DENIED,
+    FOSSIL_NOSHELL_ERROR_CORRUPTED,
+    FOSSIL_NOSHELL_ERROR_OUT_OF_MEMORY,
+    FOSSIL_NOSHELL_ERROR_UNSUPPORTED,
+    FOSSIL_NOSHELL_ERROR_LOCKED,
+    FOSSIL_NOSHELL_ERROR_TIMEOUT,
     FOSSIL_NOSHELL_ERROR_ALREADY_EXISTS,
     FOSSIL_NOSHELL_ERROR_BACKUP_FAILED,
+    FOSSIL_NOSHELL_ERROR_PARSE_FAILED,
     FOSSIL_NOSHELL_ERROR_RESTORE_FAILED,
     FOSSIL_NOSHELL_ERROR_UNKNOWN
 } fossil_bluecrab_noshell_error_t;

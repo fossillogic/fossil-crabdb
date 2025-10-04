@@ -47,101 +47,171 @@ FOSSIL_TEARDOWN(cpp_myshell_fixture) {
 // * Fossil Logic Test Blue CrabDB Database
 // * * * * * * * * * * * * * * * * * * * * * * * *
 
-// Test case for creating a new record in the database file
-FOSSIL_TEST(cpp_test_myshell_create_record) {
-    const std::string file_name = "test.crabdb";
-    fossil::bluecrab::MyShell::create_database(file_name);
-    fossil_bluecrab_myshell_error_t result = fossil::bluecrab::MyShell::create_record(file_name, "key1", "value1");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
+/*
+ * Test case for creating a new record in the database file (FSON encoding)
+ * Uses C++ RAII wrapper
+ */
+FOSSIL_TEST(cpp_test_myshell_open_create_close) {
+    fossil_bluecrab_myshell_error_t err;
+    const std::string file_name = "test2.myshell";
 
-    std::string value;
-    result = fossil::bluecrab::MyShell::read_record(file_name, "key1", value);
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_TRUE(value == "value1");
+    auto db = fossil::bluecrab::MyShell::create(file_name, err);
+    ASSUME_ITS_TRUE(db.is_open());
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
 
-    fossil::bluecrab::MyShell::delete_database(file_name);
+    db.close();
+
+    fossil::bluecrab::MyShell db2(file_name, err);
+    ASSUME_ITS_TRUE(db2.is_open());
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    db2.close();
+
+    remove(file_name.c_str());
 }
 
-// Test case for reading a non-existent record from the database file
-FOSSIL_TEST(cpp_test_myshell_read_nonexistent_record) {
-    const std::string file_name = "test.crabdb";
-    fossil::bluecrab::MyShell::create_database(file_name);
+FOSSIL_TEST(cpp_test_myshell_commit_branch_checkout) {
+    fossil_bluecrab_myshell_error_t err;
+    const std::string file_name = "test4.myshell";
+    auto db = fossil::bluecrab::MyShell::create(file_name, err);
+    ASSUME_ITS_TRUE(db.is_open());
 
-    std::string value;
-    fossil_bluecrab_myshell_error_t result = fossil::bluecrab::MyShell::read_record(file_name, "nonexistent_key", value);
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_NOT_FOUND);
+    err = db.put("key", "cstr", "val");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
 
-    fossil::bluecrab::MyShell::delete_database(file_name);
+    err = db.commit("Initial commit");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = db.branch("feature");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = db.checkout("feature");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    db.close();
+    remove(file_name.c_str());
 }
 
-// Test case for updating a non-existent record in the database file
-FOSSIL_TEST(cpp_test_myshell_update_nonexistent_record) {
-    const std::string file_name = "test.crabdb";
-    fossil::bluecrab::MyShell::create_database(file_name);
-
-    fossil_bluecrab_myshell_error_t result = fossil::bluecrab::MyShell::update_record(file_name, "nonexistent_key", "new_value");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_NOT_FOUND);
-
-    fossil::bluecrab::MyShell::delete_database(file_name);
+FOSSIL_TEST(cpp_test_myshell_errstr) {
+    ASSUME_ITS_EQUAL_CSTR(fossil::bluecrab::MyShell::errstr(FOSSIL_MYSHELL_ERROR_SUCCESS), "Success");
+    ASSUME_ITS_EQUAL_CSTR(fossil::bluecrab::MyShell::errstr(FOSSIL_MYSHELL_ERROR_NOT_FOUND), "Not found");
+    ASSUME_ITS_EQUAL_CSTR(fossil::bluecrab::MyShell::errstr(FOSSIL_MYSHELL_ERROR_INVALID_FILE), "Invalid file");
 }
 
-// Test case for deleting a non-existent record from the database file
-FOSSIL_TEST(cpp_test_myshell_delete_nonexistent_record) {
-    const std::string file_name = "test.crabdb";
-    fossil::bluecrab::MyShell::create_database(file_name);
+// Edge case tests for myshell
 
-    fossil_bluecrab_myshell_error_t result = fossil::bluecrab::MyShell::delete_record(file_name, "nonexistent_key");
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_NOT_FOUND);
+FOSSIL_TEST(cpp_test_myshell_corrupted_key_hash) {
+    fossil_bluecrab_myshell_error_t err;
+    const std::string file_name = "corrupt_key.myshell";
+    auto db = fossil::bluecrab::MyShell::create(file_name, err);
+    ASSUME_ITS_TRUE(db.is_open());
 
-    fossil::bluecrab::MyShell::delete_database(file_name);
+    db.put("corruptkey", "cstr", "corruptval");
+    db.commit("commit");
+
+    db.close();
+
+    // Corrupt the key hash in the file
+    FILE *file = fopen(file_name.c_str(), "rb+");
+    ASSUME_ITS_TRUE(file != NULL);
+    char line[1024];
+    long pos = 0;
+    while (fgets(line, sizeof(line), file)) {
+        char *hash_comment = strstr(line, "#hash=");
+        if (hash_comment) {
+            pos = ftell(file) - strlen(line) + (hash_comment - line) + 6;
+            break;
+        }
+    }
+    fseek(file, pos, SEEK_SET);
+    fputs("deadbeefdeadbeef", file); // overwrite hash with invalid value
+    fclose(file);
+
+    fossil::bluecrab::MyShell db2(file_name, err);
+    ASSUME_ITS_TRUE(db2.is_open());
+
+    err = db2.check_integrity();
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_INTEGRITY);
+
+    db2.close();
+    remove(file_name.c_str());
 }
 
-// Test case for backing up and restoring a database file
-FOSSIL_TEST(cpp_test_myshell_backup_restore) {
-    const std::string file_name = "test.crabdb";
-    const std::string backup_file = "backup.crabdb";
-    fossil::bluecrab::MyShell::create_database(file_name);
-    fossil::bluecrab::MyShell::create_record(file_name, "key1", "value1");
+FOSSIL_TEST(cpp_test_myshell_corrupted_file_size) {
+    fossil_bluecrab_myshell_error_t err;
+    const std::string file_name = "corrupt_size.myshell";
+    auto db = fossil::bluecrab::MyShell::create(file_name, err);
+    ASSUME_ITS_TRUE(db.is_open());
 
-    fossil_bluecrab_myshell_error_t result = fossil::bluecrab::MyShell::backup_database(file_name, backup_file);
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
+    db.put("sizekey", "cstr", "sizeval");
+    db.commit("commit");
 
-    fossil::bluecrab::MyShell::delete_database(file_name);
-    result = fossil::bluecrab::MyShell::restore_database(backup_file, file_name);
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
+    // Artificially change db->file_size to simulate corruption
+    db.handle()->file_size += 10;
 
-    std::string value;
-    result = fossil::bluecrab::MyShell::read_record(file_name, "key1", value);
-    ASSUME_ITS_TRUE(result == FOSSIL_MYSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_TRUE(value == "value1");
+    err = db.check_integrity();
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_CORRUPTED);
 
-    fossil::bluecrab::MyShell::delete_database(file_name);
-    fossil::bluecrab::MyShell::delete_database(backup_file);
+    db.close();
+    remove(file_name.c_str());
 }
 
-// Test case for validating the file extension of a database file
-FOSSIL_TEST(cpp_test_myshell_validate_extension) {
-    ASSUME_ITS_TRUE(fossil::bluecrab::MyShell::validate_extension("test.crabdb"));
-    ASSUME_ITS_FALSE(fossil::bluecrab::MyShell::validate_extension("test.txt"));
-}
+FOSSIL_TEST(cpp_test_myshell_parse_failed_commit) {
+    fossil_bluecrab_myshell_error_t err;
+    const std::string file_name = "parsefail.myshell";
+    auto db = fossil::bluecrab::MyShell::create(file_name, err);
+    ASSUME_ITS_TRUE(db.is_open());
 
-// Test case for validating data
-FOSSIL_TEST(cpp_test_myshell_validate_data) {
-    ASSUME_ITS_TRUE(fossil::bluecrab::MyShell::validate_data("valid_data"));
-    ASSUME_ITS_FALSE(fossil::bluecrab::MyShell::validate_data(""));
+    db.put("parsekey", "cstr", "parseval");
+    db.commit("parse commit");
+
+    db.close();
+
+    // Remove timestamp from commit line to cause parse failure
+    FILE *file = fopen(file_name.c_str(), "rb+");
+    ASSUME_ITS_TRUE(file != NULL);
+    char lines[10][1024];
+    int count = 0;
+    while (fgets(lines[count], sizeof(lines[count]), file)) {
+        count++;
+    }
+    fclose(file);
+
+    file = fopen(file_name.c_str(), "wb");
+    ASSUME_ITS_TRUE(file != NULL);
+    for (int i = 0; i < count; ++i) {
+        if (strncmp(lines[i], "#commit ", 8) == 0) {
+            char hash_str[17], msg[512];
+            int n = sscanf(lines[i], "#commit %16s %511[^\n]", hash_str, msg);
+            if (n == 2) {
+                fprintf(file, "#commit %s %s\n", hash_str, msg); // omit timestamp
+            }
+        } else {
+            fputs(lines[i], file);
+        }
+    }
+    fclose(file);
+
+    fossil::bluecrab::MyShell db2(file_name, err);
+    ASSUME_ITS_TRUE(db2.is_open());
+
+    err = db2.check_integrity();
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_PARSE_FAILED);
+
+    db2.close();
+    remove(file_name.c_str());
 }
 
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
 FOSSIL_TEST_GROUP(cpp_myshell_database_tests) {
-    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_create_record);
-    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_read_nonexistent_record);
-    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_update_nonexistent_record);
-    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_delete_nonexistent_record);
-    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_backup_restore);
-    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_validate_extension);
-    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_validate_data);
+    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_open_create_close);
+    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_commit_branch_checkout);
+    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_errstr);
+    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_corrupted_key_hash);
+    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_corrupted_file_size);
+    FOSSIL_TEST_ADD(cpp_myshell_fixture, cpp_test_myshell_parse_failed_commit);
 
     FOSSIL_TEST_REGISTER(cpp_myshell_fixture);
 } // end of tests
