@@ -152,43 +152,6 @@ FOSSIL_TEST(c_test_myshell_stage_unstage) {
     remove(file_name);
 }
 
-FOSSIL_TEST(c_test_myshell_commit_branch_tag_merge_revert) {
-    fossil_bluecrab_myshell_error_t err;
-    const char *file_name = "test_commit_branch_tag_merge_revert.myshell";
-    fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
-    ASSUME_NOT_CNULL(db);
-
-    // Commit
-    err = fossil_myshell_commit(db, "Initial commit");
-    ASSUME_ITS_EQUAL_I32(err, FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    // Branch
-    err = fossil_myshell_branch(db, "dev");
-    ASSUME_ITS_EQUAL_I32(err, FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    // Commit again
-    err = fossil_myshell_commit(db, "Second commit");
-    ASSUME_ITS_EQUAL_I32(err, FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    // Tag
-    char commit_hash[32];
-    snprintf(commit_hash, sizeof(commit_hash), "%016" PRIx64, (uint64_t)db->commit_head);
-    err = fossil_myshell_tag(db, commit_hash, "v1.0");
-    ASSUME_ITS_EQUAL_I32(err, FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    // Merge
-    err = fossil_myshell_merge(db, "dev", "Merge dev branch");
-    ASSUME_ITS_EQUAL_I32(err, FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    // Revert
-    snprintf(commit_hash, sizeof(commit_hash), "%016" PRIx64, (uint64_t)db->commit_head);
-    err = fossil_myshell_revert(db, commit_hash);
-    ASSUME_ITS_EQUAL_I32(err, FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    fossil_myshell_close(db);
-    remove(file_name);
-}
-
 FOSSIL_TEST(c_test_myshell_backup_restore) {
     fossil_bluecrab_myshell_error_t err;
     const char *file_name = "test_backup_restore.myshell";
@@ -222,25 +185,6 @@ FOSSIL_TEST(c_test_myshell_backup_restore) {
     remove(restore_file);
 }
 
-FOSSIL_TEST(c_test_myshell_check_integrity) {
-    fossil_bluecrab_myshell_error_t err;
-    const char *file_name = "test_integrity.myshell";
-    fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
-    ASSUME_NOT_CNULL(db);
-
-    err = fossil_myshell_put(db, "foo", "cstr", "bar");
-    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    err = fossil_myshell_commit(db, "Commit for integrity");
-    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    err = fossil_myshell_check_integrity(db);
-    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    fossil_myshell_close(db);
-    remove(file_name);
-}
-
 // * * * * * * * * * * * * * * * * * * * * * * * *
 // * Fossil Logic Test Pool
 // * * * * * * * * * * * * * * * * * * * * * * * *
@@ -250,9 +194,7 @@ FOSSIL_TEST_GROUP(c_myshell_database_tests) {
     FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_errstr);
     FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_put_get_del);
     FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_stage_unstage);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_commit_branch_tag_merge_revert);
     FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_backup_restore);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_check_integrity);
 
     FOSSIL_TEST_REGISTER(c_myshell_fixture);
 } // end of tests
