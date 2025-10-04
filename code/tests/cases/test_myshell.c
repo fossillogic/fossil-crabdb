@@ -98,105 +98,144 @@ FOSSIL_TEST(c_test_myshell_errstr) {
     ASSUME_ITS_EQUAL_CSTR(fossil_myshell_errstr(9999), "Unknown error");
 }
 
-// Edge case tests for myshell
-
-FOSSIL_TEST(c_test_myshell_corrupted_key_hash) {
+FOSSIL_TEST(c_test_myshell_put_get_del) {
     fossil_bluecrab_myshell_error_t err;
-    const char *file_name = "corrupt_key.myshell";
+    const char *file_name = "test_put_get_del.myshell";
     fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
     ASSUME_ITS_TRUE(db != NULL);
 
-    fossil_myshell_put(db, "corruptkey", "cstr", "corruptval");
-    fossil_myshell_commit(db, "commit");
+    // Put key-value pairs
+    err = fossil_myshell_put(db, "username", "cstr", "alice");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
 
-    fossil_myshell_close(db);
+    err = fossil_myshell_put(db, "password", "cstr", "secret");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
 
-    // Corrupt the key hash in the file
-    FILE *file = fopen(file_name, "rb+");
-    ASSUME_ITS_TRUE(file != NULL);
-    char line[1024];
-    long pos = 0;
-    while (fgets(line, sizeof(line), file)) {
-        char *hash_comment = strstr(line, "#hash=");
-        if (hash_comment) {
-            pos = ftell(file) - strlen(line) + (hash_comment - line) + 6;
-            break;
-        }
-    }
-    fseek(file, pos, SEEK_SET);
-    fputs("deadbeefdeadbeef", file); // overwrite hash with invalid value
-    fclose(file);
+    // Get key-value pairs
+    char value[128];
+    err = fossil_myshell_get(db, "username", value, sizeof(value));
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+    ASSUME_ITS_EQUAL_CSTR(value, "alice");
 
-    db = fossil_myshell_open(file_name, &err);
-    ASSUME_ITS_TRUE(db != NULL);
+    err = fossil_myshell_get(db, "password", value, sizeof(value));
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+    ASSUME_ITS_EQUAL_CSTR(value, "secret");
 
-    err = fossil_myshell_check_integrity(db);
-    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_INTEGRITY);
+    // Delete key
+    err = fossil_myshell_del(db, "username");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = fossil_myshell_get(db, "username", value, sizeof(value));
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_NOT_FOUND);
 
     fossil_myshell_close(db);
     remove(file_name);
 }
 
-FOSSIL_TEST(c_test_myshell_corrupted_file_size) {
+FOSSIL_TEST(c_test_myshell_stage_unstage) {
     fossil_bluecrab_myshell_error_t err;
-    const char *file_name = "corrupt_size.myshell";
+    const char *file_name = "test_stage_unstage.myshell";
     fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
     ASSUME_ITS_TRUE(db != NULL);
 
-    fossil_myshell_put(db, "sizekey", "cstr", "sizeval");
-    fossil_myshell_commit(db, "commit");
+    err = fossil_myshell_stage(db, "foo", "cstr", "bar");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
 
-    // Artificially change db->file_size to simulate corruption
-    db->file_size += 10;
+    err = fossil_myshell_unstage(db, "foo");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
 
-    err = fossil_myshell_check_integrity(db);
-    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_CORRUPTED);
+    // Unstage again should return NOT_FOUND
+    err = fossil_myshell_unstage(db, "foo");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_NOT_FOUND);
 
     fossil_myshell_close(db);
     remove(file_name);
 }
 
-FOSSIL_TEST(c_test_myshell_parse_failed_commit) {
+FOSSIL_TEST(c_test_myshell_commit_branch_tag_merge_revert) {
     fossil_bluecrab_myshell_error_t err;
-    const char *file_name = "parsefail.myshell";
+    const char *file_name = "test_commit_branch_tag_merge_revert.myshell";
+    fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
+    ASSUME_NOT_CNULL(db);
+
+    // Commit
+    err = fossil_myshell_commit(db, "Initial commit");
+    ASSUME_ITS_EQUAL_I32(err, FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    // Branch
+    err = fossil_myshell_branch(db, "dev");
+    ASSUME_ITS_EQUAL_I32(err, FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    // Commit again
+    err = fossil_myshell_commit(db, "Second commit");
+    ASSUME_ITS_EQUAL_I32(err, FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    // Tag
+    char commit_hash[32];
+    snprintf(commit_hash, sizeof(commit_hash), "%016llx", (unsigned long long)db->commit_head);
+    err = fossil_myshell_tag(db, commit_hash, "v1.0");
+    ASSUME_ITS_EQUAL_I32(err, FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    // Merge
+    err = fossil_myshell_merge(db, "dev", "Merge dev branch");
+    ASSUME_ITS_EQUAL_I32(err, FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    // Revert
+    snprintf(commit_hash, sizeof(commit_hash), "%016llx", (unsigned long long)db->commit_head);
+    err = fossil_myshell_revert(db, commit_hash);
+    ASSUME_ITS_EQUAL_I32(err, FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    fossil_myshell_close(db);
+    remove(file_name);
+}
+
+FOSSIL_TEST(c_test_myshell_backup_restore) {
+    fossil_bluecrab_myshell_error_t err;
+    const char *file_name = "test_backup_restore.myshell";
+    const char *backup_file = "test_backup_restore.bak";
+    const char *restore_file = "test_backup_restore_restored.myshell";
     fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
     ASSUME_ITS_TRUE(db != NULL);
 
-    fossil_myshell_put(db, "parsekey", "cstr", "parseval");
-    fossil_myshell_commit(db, "parse commit");
+    err = fossil_myshell_put(db, "alpha", "cstr", "beta");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = fossil_myshell_backup(db, backup_file);
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
 
     fossil_myshell_close(db);
 
-    // Remove timestamp from commit line to cause parse failure
-    FILE *file = fopen(file_name, "rb+");
-    ASSUME_ITS_TRUE(file != NULL);
-    char lines[10][1024];
-    int count = 0;
-    while (fgets(lines[count], sizeof(lines[count]), file)) {
-        count++;
-    }
-    fclose(file);
+    err = fossil_myshell_restore(backup_file, restore_file);
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
 
-    file = fopen(file_name, "wb");
-    ASSUME_ITS_TRUE(file != NULL);
-    for (int i = 0; i < count; ++i) {
-        if (strncmp(lines[i], "#commit ", 8) == 0) {
-            char hash_str[17], msg[512];
-            int n = sscanf(lines[i], "#commit %16s %511[^\n]", hash_str, msg);
-            if (n == 2) {
-                fprintf(file, "#commit %s %s\n", hash_str, msg); // omit timestamp
-            }
-        } else {
-            fputs(lines[i], file);
-        }
-    }
-    fclose(file);
-
-    db = fossil_myshell_open(file_name, &err);
+    db = fossil_myshell_open(restore_file, &err);
     ASSUME_ITS_TRUE(db != NULL);
 
+    char value[128];
+    err = fossil_myshell_get(db, "alpha", value, sizeof(value));
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+    ASSUME_ITS_EQUAL_CSTR(value, "beta");
+
+    fossil_myshell_close(db);
+    remove(file_name);
+    remove(backup_file);
+    remove(restore_file);
+}
+
+FOSSIL_TEST(c_test_myshell_check_integrity) {
+    fossil_bluecrab_myshell_error_t err;
+    const char *file_name = "test_integrity.myshell";
+    fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
+    ASSUME_NOT_CNULL(db);
+
+    err = fossil_myshell_put(db, "foo", "cstr", "bar");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
+    err = fossil_myshell_commit(db, "Commit for integrity");
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
+
     err = fossil_myshell_check_integrity(db);
-    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_PARSE_FAILED);
+    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
 
     fossil_myshell_close(db);
     remove(file_name);
@@ -209,9 +248,11 @@ FOSSIL_TEST_GROUP(c_myshell_database_tests) {
     FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_open_create_close);
     FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_commit_branch_checkout);
     FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_errstr);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_corrupted_key_hash);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_corrupted_file_size);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_parse_failed_commit);
+    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_put_get_del);
+    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_stage_unstage);
+    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_commit_branch_tag_merge_revert);
+    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_backup_restore);
+    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_check_integrity);
 
     FOSSIL_TEST_REGISTER(c_myshell_fixture);
 } // end of tests

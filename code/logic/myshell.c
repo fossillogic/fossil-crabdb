@@ -366,7 +366,9 @@ fossil_bluecrab_myshell_t *fossil_myshell_create(const char *path, fossil_bluecr
 
     db->file = file;
     db->is_open = true;
+    fseek(file, 0, SEEK_END);
     db->file_size = (size_t)ftell(file);
+    fseek(file, 0, SEEK_SET);
     db->last_modified = time(NULL);
     db->commit_head = myshell_hash64(path);
     db->error_code = FOSSIL_MYSHELL_ERROR_SUCCESS;
@@ -460,7 +462,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_put(fossil_bluecrab_myshell_t *db
             } else {
                 if (strcmp(line, key) == 0) {
                     // Overwrite with new value and type
-                    fprintf(temp_file, "%s=%s #type=%s #hash=%016llx\n", key, value, myshell_fson_type_to_string(type_id), key_hash);
+                    fprintf(temp_file, "%s=%s #type=%s #hash=%016llx\n", key, value, myshell_fson_type_to_string(type_id), (unsigned long long)key_hash);
                     updated = true;
                     *eq = '='; // Restore
                     continue;
@@ -600,7 +602,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_del(fossil_bluecrab_myshell_t *db
             char *type_comment = strstr(eq + 1, "#type=");
             if (hash_comment) {
                 uint64_t file_hash = 0;
-                sscanf(hash_comment, "#hash=%llx", &file_hash);
+                sscanf(hash_comment, "#hash=%llx", (unsigned long long *)&file_hash);
                 if (strcmp(line, key) == 0 && file_hash == key_hash) {
                     // Optionally validate type against FSON type system
                     if (type_comment) {
@@ -732,8 +734,8 @@ fossil_bluecrab_myshell_error_t fossil_myshell_commit(fossil_bluecrab_myshell_t 
     // FSON v2: commit lines can optionally include a #type=enum for commit type
     // For compatibility, always append #type=enum to commit lines
     if (fprintf(db->file, "#commit %016llx %s %lld #type=%s\n",
-                db->commit_head, message, (long long)db->commit_timestamp,
-                myshell_fson_type_to_string(MYSHELL_FSON_TYPE_ENUM)) < 0) {
+                    (unsigned long long)db->commit_head, message, (long long)db->commit_timestamp,
+                    myshell_fson_type_to_string(MYSHELL_FSON_TYPE_ENUM)) < 0) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
     fflush(db->file);
@@ -786,7 +788,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_branch(fossil_bluecrab_myshell_t 
     if (fseek(db->file, 0, SEEK_END) != 0) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
-    if (fprintf(db->file, "#branch %016llx %s #type=%s\n", db->commit_head, branch_name, myshell_fson_type_to_string(type_id)) < 0) {
+    if (fprintf(db->file, "#branch %016llx %s #type=%s\n", (unsigned long long)db->commit_head, branch_name, myshell_fson_type_to_string(type_id)) < 0) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
     fflush(db->file);
@@ -951,8 +953,8 @@ fossil_bluecrab_myshell_error_t fossil_myshell_merge(fossil_bluecrab_myshell_t *
     // Optionally, append merge info to file for history, include FSON type
     if (fseek(db->file, 0, SEEK_END) == 0) {
         fprintf(db->file, "#merge %016llx %s %s %lld #type=%s\n",
-            db->commit_head, found_branch_name, message, (long long)db->commit_timestamp,
-            myshell_fson_type_to_string(branch_type));
+                    (unsigned long long)db->commit_head, found_branch_name, message, (long long)db->commit_timestamp,
+                    myshell_fson_type_to_string(branch_type));
         fflush(db->file);
     }
 
@@ -1085,7 +1087,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_stage(fossil_bluecrab_myshell_t *
     }
 
     // Add new staged entry at the end, using FSON type system
-    fprintf(temp_file, "#stage %s=%s #type=%s #hash=%016llx\n", key, value, myshell_fson_type_to_string(type_id), key_hash);
+    fprintf(temp_file, "#stage %s=%s #type=%s #hash=%016llx\n", key, value, myshell_fson_type_to_string(type_id), (unsigned long long)key_hash);
 
     fclose(temp_file);
     fclose(db->file);
@@ -1250,7 +1252,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_tag(fossil_bluecrab_myshell_t *db
     if (fseek(db->file, 0, SEEK_END) != 0) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
-    if (fprintf(db->file, "#tag %016llx %s #type=%s\n", hash, tag_name, myshell_fson_type_to_string(commit_type)) < 0) {
+    if (fprintf(db->file, "#tag %016llx %s #type=%s\n", (unsigned long long)hash, tag_name, myshell_fson_type_to_string(commit_type)) < 0) {
         return FOSSIL_MYSHELL_ERROR_IO;
     }
     fflush(db->file);
