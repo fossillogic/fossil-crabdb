@@ -454,7 +454,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_put(fossil_bluecrab_myshell_t *db
                 sscanf(hash_comment, "#hash=%llx", &file_hash);
                 if (strcmp(line, key) == 0 && file_hash == key_hash) {
                     // Overwrite with new value and type
-                    fprintf(temp_file, "%s=%s #type=%s #hash=%016llx\n", key, value, myshell_fson_type_to_string(type_id), key_hash);
+                    fprintf(temp_file, "%s=%s #type=%s #hash=%016llx\n", key, value, myshell_fson_type_to_string(type_id), (unsigned long long)key_hash);
                     updated = true;
                     *eq = '='; // Restore
                     continue;
@@ -1331,7 +1331,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_backup(fossil_bluecrab_myshell_t 
 
     // Write a hash of the backup path as a comment for integrity
     uint64_t backup_hash = myshell_hash64(backup_path);
-    if (fprintf(backup_file, "#backup_hash=%016llx\n", backup_hash) < 0) {
+    if (fprintf(backup_file, "#backup_hash=%016llx\n", (unsigned long long)backup_hash) < 0) {
         fclose(backup_file);
         return FOSSIL_MYSHELL_ERROR_IO;
     }
