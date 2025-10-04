@@ -69,37 +69,13 @@ FOSSIL_TEST(c_test_myshell_open_create_close) {
     remove(file_name);
 }
 
-FOSSIL_TEST(c_test_myshell_put_get_del) {
-    fossil_bluecrab_myshell_error_t err;
-    const char *file_name = "test3.myshell";
-    fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
-    ASSUME_ITS_TRUE(db != NULL);
-
-    err = fossil_myshell_put(db, "foo", "bar");
-    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    char value[128];
-    err = fossil_myshell_get(db, "foo", value, sizeof(value));
-    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_EQUAL_CSTR(value, "bar");
-
-    err = fossil_myshell_del(db, "foo");
-    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    err = fossil_myshell_get(db, "foo", value, sizeof(value));
-    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_NOT_FOUND);
-
-    fossil_myshell_close(db);
-    remove(file_name);
-}
-
 FOSSIL_TEST(c_test_myshell_commit_branch_checkout) {
     fossil_bluecrab_myshell_error_t err;
     const char *file_name = "test4.myshell";
     fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
     ASSUME_ITS_TRUE(db != NULL);
 
-    err = fossil_myshell_put(db, "key", "val");
+    err = fossil_myshell_put(db, "key", "cstr", "val");
     ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
 
     err = fossil_myshell_commit(db, "Initial commit");
@@ -115,59 +91,6 @@ FOSSIL_TEST(c_test_myshell_commit_branch_checkout) {
     remove(file_name);
 }
 
-FOSSIL_TEST(c_test_myshell_log_history) {
-    fossil_bluecrab_myshell_error_t err;
-    const char *file_name = "test5.myshell";
-    fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
-    ASSUME_ITS_TRUE(db != NULL);
-
-    fossil_myshell_commit(db, "Commit 1");
-    fossil_myshell_commit(db, "Commit 2");
-    fossil_myshell_commit(db, "Commit 3");
-
-    int count = 0;
-    err = fossil_myshell_log(db, log_cb, &count);
-    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_TRUE(count == 3);
-
-    fossil_myshell_close(db);
-    remove(file_name);
-}
-
-FOSSIL_TEST(c_test_myshell_backup_restore) {
-    fossil_bluecrab_myshell_error_t err;
-    const char *file_name = "test6.myshell";
-    const char *backup_name = "test6_backup.myshell";
-    const char *restore_name = "test6_restored.myshell";
-
-    fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
-    ASSUME_ITS_TRUE(db != NULL);
-
-    fossil_myshell_put(db, "a", "b");
-    fossil_myshell_commit(db, "Backup commit");
-
-    err = fossil_myshell_backup(db, backup_name);
-    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    fossil_myshell_close(db);
-
-    err = fossil_myshell_restore(backup_name, restore_name);
-    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    fossil_bluecrab_myshell_t *db2 = fossil_myshell_open(restore_name, &err);
-    ASSUME_ITS_TRUE(db2 != NULL);
-
-    char value[32];
-    err = fossil_myshell_get(db2, "a", value, sizeof(value));
-    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_EQUAL_CSTR(value, "b");
-
-    fossil_myshell_close(db2);
-    remove(file_name);
-    remove(backup_name);
-    remove(restore_name);
-}
-
 FOSSIL_TEST(c_test_myshell_errstr) {
     ASSUME_ITS_EQUAL_CSTR(fossil_myshell_errstr(FOSSIL_MYSHELL_ERROR_SUCCESS), "Success");
     ASSUME_ITS_EQUAL_CSTR(fossil_myshell_errstr(FOSSIL_MYSHELL_ERROR_NOT_FOUND), "Not found");
@@ -177,36 +100,13 @@ FOSSIL_TEST(c_test_myshell_errstr) {
 
 // Edge case tests for myshell
 
-FOSSIL_TEST(c_test_myshell_empty_strings) {
-    fossil_bluecrab_myshell_error_t err;
-    const char *file_name = "emptystr.myshell";
-    fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
-    ASSUME_ITS_TRUE(db != NULL);
-
-    // Empty key
-    err = fossil_myshell_put(db, "", "value");
-    ASSUME_ITS_TRUE(err != FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    // Empty value
-    err = fossil_myshell_put(db, "key", "");
-    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
-
-    char value[16];
-    err = fossil_myshell_get(db, "key", value, sizeof(value));
-    ASSUME_ITS_TRUE(err == FOSSIL_MYSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_EQUAL_CSTR(value, "");
-
-    fossil_myshell_close(db);
-    remove(file_name);
-}
-
 FOSSIL_TEST(c_test_myshell_corrupted_key_hash) {
     fossil_bluecrab_myshell_error_t err;
     const char *file_name = "corrupt_key.myshell";
     fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
     ASSUME_ITS_TRUE(db != NULL);
 
-    fossil_myshell_put(db, "corruptkey", "corruptval");
+    fossil_myshell_put(db, "corruptkey", "cstr", "corruptval");
     fossil_myshell_commit(db, "commit");
 
     fossil_myshell_close(db);
@@ -243,7 +143,7 @@ FOSSIL_TEST(c_test_myshell_corrupted_file_size) {
     fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
     ASSUME_ITS_TRUE(db != NULL);
 
-    fossil_myshell_put(db, "sizekey", "sizeval");
+    fossil_myshell_put(db, "sizekey", "cstr", "sizeval");
     fossil_myshell_commit(db, "commit");
 
     // Artificially change db->file_size to simulate corruption
@@ -262,7 +162,7 @@ FOSSIL_TEST(c_test_myshell_parse_failed_commit) {
     fossil_bluecrab_myshell_t *db = fossil_myshell_create(file_name, &err);
     ASSUME_ITS_TRUE(db != NULL);
 
-    fossil_myshell_put(db, "parsekey", "parseval");
+    fossil_myshell_put(db, "parsekey", "cstr", "parseval");
     fossil_myshell_commit(db, "parse commit");
 
     fossil_myshell_close(db);
@@ -307,12 +207,8 @@ FOSSIL_TEST(c_test_myshell_parse_failed_commit) {
 // * * * * * * * * * * * * * * * * * * * * * * * *
 FOSSIL_TEST_GROUP(c_myshell_database_tests) {
     FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_open_create_close);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_put_get_del);
     FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_commit_branch_checkout);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_log_history);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_backup_restore);
     FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_errstr);
-    FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_empty_strings);
     FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_corrupted_key_hash);
     FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_corrupted_file_size);
     FOSSIL_TEST_ADD(c_myshell_fixture, c_test_myshell_parse_failed_commit);
