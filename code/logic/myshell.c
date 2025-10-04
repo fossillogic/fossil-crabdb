@@ -475,7 +475,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_put(fossil_bluecrab_myshell_t *db
 
     if (!updated) {
         // Add new entry with FSON type and hash
-        fprintf(temp_file, "%s=%s #type=%s #hash=%016llx\n", key, value, myshell_fson_type_to_string(type_id), key_hash);
+        fprintf(temp_file, "%s=%s #type=%s #hash=%016llx\n", key, value, myshell_fson_type_to_string(type_id), (unsigned long long)key_hash);
     }
 
     fclose(temp_file);
@@ -602,7 +602,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_del(fossil_bluecrab_myshell_t *db
             char *type_comment = strstr(eq + 1, "#type=");
             if (hash_comment) {
                 uint64_t file_hash = 0;
-                sscanf(hash_comment, "#hash=%llx", (unsigned long long *)&file_hash);
+                sscanf(hash_comment, "#hash=%llx", &file_hash);
                 if (strcmp(line, key) == 0 && file_hash == key_hash) {
                     // Optionally validate type against FSON type system
                     if (type_comment) {
