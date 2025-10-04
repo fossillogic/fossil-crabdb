@@ -198,12 +198,12 @@ uint64_t myshell_hash64(const char *str) {
     }
 
     switch (len & 7) {
-        case 7: hash ^= (uint64_t)data[6] << 48;
-        case 6: hash ^= (uint64_t)data[5] << 40;
-        case 5: hash ^= (uint64_t)data[4] << 32;
-        case 4: hash ^= (uint64_t)data[3] << 24;
-        case 3: hash ^= (uint64_t)data[2] << 16;
-        case 2: hash ^= (uint64_t)data[1] << 8;
+        case 7: hash ^= (uint64_t)data[6] << 48; /* fall through */
+        case 6: hash ^= (uint64_t)data[5] << 40; /* fall through */
+        case 5: hash ^= (uint64_t)data[4] << 32; /* fall through */
+        case 4: hash ^= (uint64_t)data[3] << 24; /* fall through */
+        case 3: hash ^= (uint64_t)data[2] << 16; /* fall through */
+        case 2: hash ^= (uint64_t)data[1] << 8;  /* fall through */
         case 1: hash ^= (uint64_t)data[0];
                 hash *= m;
     }
