@@ -80,6 +80,8 @@ typedef enum {
     FOSSIL_MYSHELL_ERROR_INTEGRITY,            /**< Data integrity check failed (hash mismatch). */
     FOSSIL_MYSHELL_ERROR_TRANSACTION_FAILED,   /**< Transaction aborted or rolled back. */
     FOSSIL_MYSHELL_ERROR_CAPACITY_EXCEEDED,    /**< Reached maximum size or record capacity. */
+    FOSSIL_MYSHELL_ERROR_BUFFER_TOO_SMALL,     /**< Provided buffer is too small for operation. */
+    FOSSIL_MYSHELL_ERROR_INVALID_TYPE,        /**< Invalid or unrecognized data type specified. */
     FOSSIL_MYSHELL_ERROR_CONFIG_INVALID,       /**< Invalid configuration or options. */
     FOSSIL_MYSHELL_ERROR_UNKNOWN               /**< Unknown or unspecified error occurred. */
 } fossil_bluecrab_myshell_error_t;
@@ -371,6 +373,23 @@ fossil_bluecrab_myshell_error_t fossil_myshell_restore(const char *backup_path, 
 
 /**
  * o-Utility
+ * Computes the difference between two database files and outputs the result.
+ * Time Complexity: O(n) (n = number of records/commits).
+ * @param db1 First database handle.
+ * @param db2 Second database handle.
+ * @param out_diff Output buffer for diff result.
+ * @param out_size Size of output buffer.
+ * @return Error code.
+ */
+fossil_bluecrab_myshell_error_t fossil_myshell_diff(
+    const fossil_bluecrab_myshell_t *db1,
+    const fossil_bluecrab_myshell_t *db2,
+    char *out_diff,
+    size_t out_size
+);
+
+/**
+ * o-Utility
  * Converts an error code to a human-readable string.
  * Time Complexity: O(1).
  * @param err Error code.
@@ -398,150 +417,265 @@ namespace fossil {
 
         /**
          * o-MyShell C++ RAII Wrapper for Database Operations
-         *
          * o-Overview:
          *   - Provides a modern C++ interface for MyShell database management.
          *   - Encapsulates resource management, error handling, and exposes high-level methods for CRUD,
          *     commit/branch, backup/restore, and utility functions, mapping directly to the underlying C API.
-         *
          * o-Resource Management:
          *   - Non-copyable, movable. Ensures single ownership of database handle.
          *   - Destructor and close() guarantee resource release.
-         *
          * o-Error Handling:
          *   - All operations return fossil_bluecrab_myshell_error_t error codes.
          *   - Use errstr() to obtain error descriptions.
-         *
          * o-Thread Safety:
          *   - Not thread-safe. External synchronization required for concurrent access.
          */
         class MyShell {
         public:
-            // Non-copyable, movable
+            /**
+             * o-Non-copyable, movable
+             * Ensures single ownership of database handle.
+             * Move constructor: O(1)
+             * Move assignment: O(1)
+             */
             MyShell(const MyShell&) = delete;
             MyShell& operator=(const MyShell&) = delete;
             MyShell(MyShell&& other) noexcept : db_(std::exchange(other.db_, nullptr)) {}
             MyShell& operator=(MyShell&& other) noexcept {
-            if (this != &other) {
-                close();
-                db_ = std::exchange(other.db_, nullptr);
-            }
-            return *this;
+                if (this != &other) {
+                    close();
+                    db_ = std::exchange(other.db_, nullptr);
+                }
+                return *this;
             }
 
-            // Open
+            /**
+             * o-Open
+             * Opens an existing database file.
+             * Time Complexity: O(1) for handle allocation, O(n) for file scan.
+             */
             explicit MyShell(const std::string& path, fossil_bluecrab_myshell_error_t& err) {
-            db_ = fossil_myshell_open(path.c_str(), &err);
+                db_ = fossil_myshell_open(path.c_str(), &err);
             }
 
-            // Create
+            /**
+             * o-Create
+             * Creates a new database file.
+             * Time Complexity: O(1) for file creation.
+             */
             static MyShell create(const std::string& path, fossil_bluecrab_myshell_error_t& err) {
-            MyShell shell;
-            shell.db_ = fossil_myshell_create(path.c_str(), &err);
-            return shell;
+                MyShell shell;
+                shell.db_ = fossil_myshell_create(path.c_str(), &err);
+                return shell;
             }
 
-            // Close
+            /**
+             * o-Close
+             * Closes the database handle and releases resources.
+             * Time Complexity: O(1)
+             */
             ~MyShell() { close(); }
+
+            /**
+             * o-Close
+             * Closes the database handle and releases resources.
+             * Time Complexity: O(1)
+             */
             void close() {
-            if (db_) {
-                fossil_myshell_close(db_);
-                db_ = nullptr;
-            }
+                if (db_) {
+                    fossil_myshell_close(db_);
+                    db_ = nullptr;
+                }
             }
 
-            // Record CRUD (put)
+            /**
+             * o-Record CRUD (put)
+             * Inserts or updates a key/value record in the database.
+             * Time Complexity: O(1) for append, O(n) for update.
+             */
             fossil_bluecrab_myshell_error_t put(const std::string& key, const std::string& type, const std::string& value) {
                 return fossil_myshell_put(db_, key.c_str(), type.c_str(), value.c_str());
             }
 
-            // Record CRUD (get)
+            /**
+             * o-Record CRUD (get)
+             * Retrieves the value for a given key from the database.
+             * Time Complexity: O(n)
+             */
             fossil_bluecrab_myshell_error_t get(const std::string& key, std::string& out_value) {
-            char buffer[4096] = {0};
-            fossil_bluecrab_myshell_error_t err = fossil_myshell_get(db_, key.c_str(), buffer, sizeof(buffer));
-            if (err == FOSSIL_MYSHELL_ERROR_SUCCESS) {
-                out_value = buffer;
-            }
-            return err;
+                char buffer[4096] = {0};
+                fossil_bluecrab_myshell_error_t err = fossil_myshell_get(db_, key.c_str(), buffer, sizeof(buffer));
+                if (err == FOSSIL_MYSHELL_ERROR_SUCCESS) {
+                    out_value = buffer;
+                }
+                return err;
             }
 
-            // Record CRUD (del)
+            /**
+             * o-Record CRUD (del)
+             * Deletes a key/value record from the database.
+             * Time Complexity: O(n)
+             */
             fossil_bluecrab_myshell_error_t del(const std::string& key) {
-            return fossil_myshell_del(db_, key.c_str());
+                return fossil_myshell_del(db_, key.c_str());
             }
 
-            // Commit
+            /**
+             * o-Commit
+             * Commits the current changes to the database with a message.
+             * Time Complexity: O(1) for metadata update.
+             */
             fossil_bluecrab_myshell_error_t commit(const std::string& message) {
-            return fossil_myshell_commit(db_, message.c_str());
+                return fossil_myshell_commit(db_, message.c_str());
             }
 
-            // Branch
+            /**
+             * o-Branch
+             * Creates a new branch in the database.
+             * Time Complexity: O(1)
+             */
             fossil_bluecrab_myshell_error_t branch(const std::string& branch_name) {
-            return fossil_myshell_branch(db_, branch_name.c_str());
+                return fossil_myshell_branch(db_, branch_name.c_str());
             }
 
-            // Checkout
+            /**
+             * o-Checkout
+             * Checks out a branch or commit in the database.
+             * Time Complexity: O(1) for branch, O(n) for commit scan.
+             */
             fossil_bluecrab_myshell_error_t checkout(const std::string& branch_or_commit) {
-            return fossil_myshell_checkout(db_, branch_or_commit.c_str());
+                return fossil_myshell_checkout(db_, branch_or_commit.c_str());
             }
 
-            // Merge
+            /**
+             * o-Merge
+             * Merges a source branch into the current branch with a commit message.
+             * Time Complexity: O(n) (n = number of commits in source branch)
+             */
             fossil_bluecrab_myshell_error_t merge(const std::string& source_branch, const std::string& message) {
-            return fossil_myshell_merge(db_, source_branch.c_str(), message.c_str());
+                return fossil_myshell_merge(db_, source_branch.c_str(), message.c_str());
             }
 
-            // Revert
+            /**
+             * o-Revert
+             * Reverts to a specific commit in the current branch.
+             * Time Complexity: O(n)
+             */
             fossil_bluecrab_myshell_error_t revert(const std::string& commit_hash) {
-            return fossil_myshell_revert(db_, commit_hash.c_str());
+                return fossil_myshell_revert(db_, commit_hash.c_str());
             }
 
-            // Staging (stage)
+            /**
+             * o-Staging (stage)
+             * Stages a key/value pair for the next commit.
+             * Time Complexity: O(1) for append, O(n) for update.
+             */
             fossil_bluecrab_myshell_error_t stage(const std::string& key, const std::string& type, const std::string& value) {
                 return fossil_myshell_stage(db_, key.c_str(), type.c_str(), value.c_str());
             }
 
-            // Staging (unstage)
+            /**
+             * o-Staging (unstage)
+             * Unstages a key/value pair from the staging area.
+             * Time Complexity: O(n)
+             */
             fossil_bluecrab_myshell_error_t unstage(const std::string& key) {
-            return fossil_myshell_unstage(db_, key.c_str());
+                return fossil_myshell_unstage(db_, key.c_str());
             }
 
-            // Tag
+            /**
+             * o-Tag
+             * Tags a specific commit with a name.
+             * Time Complexity: O(n)
+             */
             fossil_bluecrab_myshell_error_t tag(const std::string& commit_hash, const std::string& tag_name) {
-            return fossil_myshell_tag(db_, commit_hash.c_str(), tag_name.c_str());
+                return fossil_myshell_tag(db_, commit_hash.c_str(), tag_name.c_str());
             }
 
-            // History iteration (log)
+            /**
+             * o-History iteration (log)
+             * Iterates over the commit log, invoking the callback for each commit.
+             * Time Complexity: O(n)
+             */
             fossil_bluecrab_myshell_error_t log(fossil_myshell_commit_cb cb, void* user) {
-            return fossil_myshell_log(db_, cb, user);
+                return fossil_myshell_log(db_, cb, user);
             }
 
-            // Backup
+            /**
+             * o-Backup
+             * Creates a backup of the database file.
+             * Time Complexity: O(n)
+             */
             fossil_bluecrab_myshell_error_t backup(const std::string& backup_path) {
-            return fossil_myshell_backup(db_, backup_path.c_str());
+                 return fossil_myshell_backup(db_, backup_path.c_str());
             }
 
-            // Restore
+            /**
+             * o-Restore
+             * Restores a database file from a backup.
+             * Time Complexity: O(n)
+             */
             static fossil_bluecrab_myshell_error_t restore(const std::string& backup_path, const std::string& target_path) {
-            return fossil_myshell_restore(backup_path.c_str(), target_path.c_str());
+                return fossil_myshell_restore(backup_path.c_str(), target_path.c_str());
             }
 
-            // Utility (errstr)
+            /**
+             * o-Utility (diff)
+             * Computes the difference between two database files and outputs the result.
+             * Time Complexity: O(n)
+             */
+            fossil_bluecrab_myshell_error_t diff(const MyShell& other, std::string& out_diff) {
+                char buffer[4096] = {0};
+                fossil_bluecrab_myshell_error_t err = fossil_myshell_diff(
+                    db_,
+                    other.db_,
+                    buffer,
+                    sizeof(buffer)
+                );
+                if (err == FOSSIL_MYSHELL_ERROR_SUCCESS) {
+                    out_diff = buffer;
+                }
+                return err;
+            }
+
+            /**
+             * o-Utility (errstr)
+             * Converts an error code to a human-readable string.
+             * Time Complexity: O(1)
+             */
             static const char* errstr(fossil_bluecrab_myshell_error_t err) {
-            return fossil_myshell_errstr(err);
+                return fossil_myshell_errstr(err);
             }
 
-            // Utility (check_integrity)
+            /**
+             * o-Utility (check_integrity)
+             * Validates database integrity (hash chain, file size, corruption).
+             * Time Complexity: O(n)
+             */
             fossil_bluecrab_myshell_error_t check_integrity() {
-            return fossil_myshell_check_integrity(db_);
+                return fossil_myshell_check_integrity(db_);
             }
 
-            // Utility (is_open)
+            /**
+             * o-Utility (is_open)
+             * Checks if the database handle is open.
+             * Time Complexity: O(1)
+             */
             bool is_open() const { return db_ != nullptr; }
 
-            // Utility (handle)
+            /**
+             * o-Utility (handle)
+             * Returns the underlying C handle.
+             * Time Complexity: O(1)
+             */
             fossil_bluecrab_myshell_t* handle() const { return db_; }
 
         private:
+            /**
+             * o-Private default constructor
+             * Initializes db_ to nullptr.
+             * Time Complexity: O(1)
+             */
             MyShell() : db_(nullptr) {}
             fossil_bluecrab_myshell_t* db_;
         };

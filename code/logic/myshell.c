@@ -429,7 +429,7 @@ fossil_bluecrab_myshell_error_t fossil_myshell_put(fossil_bluecrab_myshell_t *db
         }
     }
     if (!valid_type) {
-        return FOSSIL_MYSHELL_ERROR_CONFIG_INVALID;
+        return FOSSIL_MYSHELL_ERROR_INVALID_TYPE;
     }
 
     uint64_t key_hash = myshell_hash64(key);
@@ -536,14 +536,16 @@ fossil_bluecrab_myshell_error_t fossil_myshell_get(
                     } else {
                         value_len = hash_comment - (eq + 1);
                     }
-                    if (value_len >= out_size) value_len = out_size - 1;
+                    // Trim trailing whitespace/newline from value_len
+                    while (value_len > 0 && ((eq + 1)[value_len - 1] == '\n' || (eq + 1)[value_len - 1] == ' ')) {
+                        value_len--;
+                    }
+                    if (value_len >= out_size) {
+                        *eq = '='; // Restore
+                        return FOSSIL_MYSHELL_ERROR_BUFFER_TOO_SMALL;
+                    }
                     strncpy(out_value, eq + 1, value_len);
                     out_value[value_len] = '\0';
-                    // Trim trailing whitespace/newline
-                    size_t len = strlen(out_value);
-                    while (len > 0 && (out_value[len - 1] == '\n' || out_value[len - 1] == ' ')) {
-                        out_value[--len] = '\0';
-                    }
                     *eq = '='; // Restore
                     return FOSSIL_MYSHELL_ERROR_SUCCESS;
                 }
@@ -554,14 +556,17 @@ fossil_bluecrab_myshell_error_t fossil_myshell_get(
                     char *comment = strchr(eq + 1, '#');
                     if (comment) {
                         value_len = comment - (eq + 1);
-                        if (value_len >= out_size) value_len = out_size - 1;
+                        // Trim trailing whitespace/newline from value_len
+                        while (value_len > 0 && ((eq + 1)[value_len - 1] == '\n' || (eq + 1)[value_len - 1] == ' ')) {
+                            value_len--;
+                        }
+                        if (value_len >= out_size) {
+                            *eq = '='; // Restore
+                            return FOSSIL_MYSHELL_ERROR_BUFFER_TOO_SMALL;
+                        }
                     }
                     strncpy(out_value, eq + 1, value_len);
                     out_value[value_len] = '\0';
-                    size_t len = strlen(out_value);
-                    while (len > 0 && (out_value[len - 1] == '\n' || out_value[len - 1] == ' ')) {
-                        out_value[--len] = '\0';
-                    }
                     *eq = '='; // Restore
                     return FOSSIL_MYSHELL_ERROR_SUCCESS;
                 }
@@ -1602,6 +1607,154 @@ fossil_bluecrab_myshell_error_t fossil_myshell_check_integrity(fossil_bluecrab_m
                 }
                 *eq = '='; // Restore
             }
+        }
+    }
+
+    return FOSSIL_MYSHELL_ERROR_SUCCESS;
+}
+
+fossil_bluecrab_myshell_error_t fossil_myshell_diff(
+    const fossil_bluecrab_myshell_t *db1,
+    const fossil_bluecrab_myshell_t *db2,
+    char *out_diff,
+    size_t out_size
+) {
+    if (!db1 || !db2 || !db1->is_open || !db2->is_open || !out_diff || out_size == 0) {
+        return FOSSIL_MYSHELL_ERROR_INVALID_FILE;
+    }
+
+    // Advanced diff: compare all commits and staged entries, report adds/removes/changes.
+    fseek(db1->file, 0, SEEK_SET);
+    fseek(db2->file, 0, SEEK_SET);
+
+    char line1[1024], line2[1024];
+    size_t pos = 0;
+
+    // --- Collect commits from both files ---
+    typedef struct { char hash[17]; char line[1024]; } commit_t;
+    commit_t commits1[128], commits2[128];
+    size_t n1 = 0, n2 = 0;
+
+    while (fgets(line1, sizeof(line1), db1->file)) {
+        if (strncmp(line1, "#commit ", 8) == 0) {
+            char hash[17] = {0};
+            sscanf(line1, "#commit %16s", hash);
+            strncpy(commits1[n1].hash, hash, sizeof(commits1[n1].hash));
+            commits1[n1].hash[sizeof(commits1[n1].hash) - 1] = '\0';
+            strncpy(commits1[n1].line, line1, sizeof(line1));
+            n1++;
+        }
+    }
+    while (fgets(line2, sizeof(line2), db2->file)) {
+        if (strncmp(line2, "#commit ", 8) == 0) {
+            char hash[17] = {0};
+            strncpy(commits2[n2].hash, hash, 16);
+            commits2[n2].hash[16] = '\0';
+            strncpy(commits2[n2].line, line2, sizeof(line2));
+            n2++;
+            n2++;
+        }
+    }
+
+    // --- Compare commits ---
+    for (size_t i = 0; i < n1; ++i) {
+        bool found = false;
+        for (size_t j = 0; j < n2; ++j) {
+            if (strcmp(commits1[i].hash, commits2[j].hash) == 0) {
+                found = true;
+                if (strcmp(commits1[i].line, commits2[j].line) != 0) {
+                    int n = snprintf(out_diff + pos, out_size - pos, "~ %s~ %s", commits1[i].line, commits2[j].line);
+                    if (n < 0 || (size_t)n >= out_size - pos) return FOSSIL_MYSHELL_ERROR_CAPACITY_EXCEEDED;
+                    pos += n;
+                }
+                break;
+            }
+        }
+        if (!found) {
+            int n = snprintf(out_diff + pos, out_size - pos, "- %s", commits1[i].line);
+            if (n < 0 || (size_t)n >= out_size - pos) return FOSSIL_MYSHELL_ERROR_CAPACITY_EXCEEDED;
+            pos += n;
+        }
+    }
+    for (size_t j = 0; j < n2; ++j) {
+        bool found = false;
+        for (size_t i = 0; i < n1; ++i) {
+            if (strcmp(commits2[j].hash, commits1[i].hash) == 0) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            int n = snprintf(out_diff + pos, out_size - pos, "+ %s", commits2[j].line);
+            if (n < 0 || (size_t)n >= out_size - pos) return FOSSIL_MYSHELL_ERROR_CAPACITY_EXCEEDED;
+            pos += n;
+        }
+    }
+
+    // --- Collect staged entries from both files ---
+    typedef struct { char key[256]; char line[1024]; } stage_t;
+    stage_t stages1[128], stages2[128];
+    size_t s1 = 0, s2 = 0;
+
+    fseek(db1->file, 0, SEEK_SET);
+    while (fgets(line1, sizeof(line1), db1->file)) {
+        if (strncmp(line1, "#stage ", 7) == 0) {
+            char *eq = strchr(line1 + 7, '=');
+            if (eq) {
+                size_t klen = eq - (line1 + 7);
+                strncpy(stages1[s1].key, line1 + 7, klen);
+                stages1[s1].key[klen] = '\0';
+                strncpy(stages1[s1].line, line1, sizeof(line1));
+                s1++;
+            }
+        }
+    }
+    fseek(db2->file, 0, SEEK_SET);
+    while (fgets(line2, sizeof(line2), db2->file)) {
+        if (strncmp(line2, "#stage ", 7) == 0) {
+            char *eq = strchr(line2 + 7, '=');
+            if (eq) {
+                size_t klen = eq - (line2 + 7);
+                strncpy(stages2[s2].key, line2 + 7, klen);
+                stages2[s2].key[klen] = '\0';
+                strncpy(stages2[s2].line, line2, sizeof(line2));
+                s2++;
+            }
+        }
+    }
+
+    // --- Compare staged entries ---
+    for (size_t i = 0; i < s1; ++i) {
+        bool found = false;
+        for (size_t j = 0; j < s2; ++j) {
+            if (strcmp(stages1[i].key, stages2[j].key) == 0) {
+                found = true;
+                if (strcmp(stages1[i].line, stages2[j].line) != 0) {
+                    int n = snprintf(out_diff + pos, out_size - pos, "~ %s~ %s", stages1[i].line, stages2[j].line);
+                    if (n < 0 || (size_t)n >= out_size - pos) return FOSSIL_MYSHELL_ERROR_CAPACITY_EXCEEDED;
+                    pos += n;
+                }
+                break;
+            }
+        }
+        if (!found) {
+            int n = snprintf(out_diff + pos, out_size - pos, "- %s", stages1[i].line);
+            if (n < 0 || (size_t)n >= out_size - pos) return FOSSIL_MYSHELL_ERROR_CAPACITY_EXCEEDED;
+            pos += n;
+        }
+    }
+    for (size_t j = 0; j < s2; ++j) {
+        bool found = false;
+        for (size_t i = 0; i < s1; ++i) {
+            if (strcmp(stages2[j].key, stages1[i].key) == 0) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            int n = snprintf(out_diff + pos, out_size - pos, "+ %s", stages2[j].line);
+            if (n < 0 || (size_t)n >= out_size - pos) return FOSSIL_MYSHELL_ERROR_CAPACITY_EXCEEDED;
+            pos += n;
         }
     }
 
