@@ -60,7 +60,6 @@
  *       "duration"   // NOSHELL_FSON_TYPE_DURATION
  *   };
  *   ```
- * - The function `noshell_fson_type_to_string` converts a type enum to its string name.
  *
  * ## .noshell File Format Overview
  * - Each .noshell file is a plain text file with lines representing key-value pairs
@@ -158,12 +157,6 @@ static const char *noshell_fson_type_names[] = {
     "duration"   // NOSHELL_FSON_TYPE_DURATION
 };
 
-static inline const char *noshell_fson_type_to_string(fossil_bluecrab_noshell_fson_type_t type) {
-    if (type < 0 || type > NOSHELL_FSON_TYPE_DURATION)
-        return "unknown";
-    return noshell_fson_type_names[type];
-}
-
 /**
  * Custom strdup implementation.
  */
@@ -230,11 +223,22 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_insert(
     const char *param_list,
     const char *type // type as string parameter
 ) {
-    if (!file_name || !document)
+    if (!file_name || !document || !type)
         return FOSSIL_NOSHELL_ERROR_INVALID_FILE;
 
     if (!fossil_bluecrab_noshell_validate_extension(file_name))
         return FOSSIL_NOSHELL_ERROR_INVALID_FILE;
+
+    // Check that type is valid (must match one of noshell_fson_type_names)
+    bool valid_type = false;
+    for (size_t i = 0; i <= NOSHELL_FSON_TYPE_DURATION; ++i) {
+        if (strcmp(type, noshell_fson_type_names[i]) == 0) {
+            valid_type = true;
+            break;
+        }
+    }
+    if (!valid_type)
+        return FOSSIL_NOSHELL_ERROR_INVALID_TYPE;
 
     // Basic FSON validation: must start with '{' or '['
     const char *doc_ptr = document;
@@ -242,15 +246,18 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_insert(
     if (*doc_ptr != '{' && *doc_ptr != '[')
         return FOSSIL_NOSHELL_ERROR_INVALID_TYPE;
 
+    // Generate document ID using hash64 of document string (FSON object)
+    uint64_t doc_id = noshell_hash64(document);
+
     FILE *fp = fopen(file_name, "a");
     if (!fp)
         return FOSSIL_NOSHELL_ERROR_IO;
 
-    // Optionally append param_list if provided, always append #type=TYPE
+    // Optionally append param_list if provided, always append #type=TYPE and #id=ID
     if (param_list && strlen(param_list) > 0) {
-        fprintf(fp, "%s %s #type=%s\n", document, param_list, type);
+        fprintf(fp, "%s %s #type=%s #id=%016" PRIx64 "\n", document, param_list, type, doc_id);
     } else {
-        fprintf(fp, "%s #type=%s\n", document, type);
+        fprintf(fp, "%s #type=%s #id=%016" PRIx64 "\n", document, type, doc_id);
     }
 
     fclose(fp);
@@ -265,11 +272,22 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_insert_with_id(
     char *out_id,
     size_t id_size
 ) {
-    if (!file_name || !document || !out_id || id_size < 17)
+    if (!file_name || !document || !type || !out_id || id_size < 17)
         return FOSSIL_NOSHELL_ERROR_INVALID_FILE;
 
     if (!fossil_bluecrab_noshell_validate_extension(file_name))
         return FOSSIL_NOSHELL_ERROR_INVALID_FILE;
+
+    // Check that type is valid (must match one of noshell_fson_type_names)
+    bool valid_type = false;
+    for (size_t i = 0; i <= NOSHELL_FSON_TYPE_DURATION; ++i) {
+        if (strcmp(type, noshell_fson_type_names[i]) == 0) {
+            valid_type = true;
+            break;
+        }
+    }
+    if (!valid_type)
+        return FOSSIL_NOSHELL_ERROR_INVALID_TYPE;
 
     // FSON format: must start with '{' or '['
     const char *doc_ptr = document;
@@ -279,7 +297,7 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_insert_with_id(
 
     // Generate document ID using hash64 of document string (FSON object)
     uint64_t doc_id = noshell_hash64(document);
-    snprintf(out_id, id_size, "%016llx", (unsigned long long)doc_id);
+    snprintf(out_id, id_size, "%016" PRIx64, doc_id);
 
     FILE *fp = fopen(file_name, "a");
     if (!fp)
@@ -308,6 +326,19 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_find(
 
     if (!fossil_bluecrab_noshell_validate_extension(file_name))
         return FOSSIL_NOSHELL_ERROR_INVALID_FILE;
+
+    // If type_id is provided, check it is valid using noshell_fson_type_names
+    if (type_id && strlen(type_id) > 0) {
+        bool valid_type = false;
+        for (size_t i = 0; i <= NOSHELL_FSON_TYPE_DURATION; ++i) {
+            if (strcmp(type_id, noshell_fson_type_names[i]) == 0) {
+                valid_type = true;
+                break;
+            }
+        }
+        if (!valid_type)
+            return FOSSIL_NOSHELL_ERROR_INVALID_TYPE;
+    }
 
     FILE *fp = fopen(file_name, "r");
     if (!fp)
@@ -383,6 +414,19 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_update(
 
     if (!fossil_bluecrab_noshell_validate_extension(file_name))
         return FOSSIL_NOSHELL_ERROR_INVALID_FILE;
+
+    // If type_id is provided, check it is valid using noshell_fson_type_names
+    if (type_id && strlen(type_id) > 0) {
+        bool valid_type = false;
+        for (size_t i = 0; i <= NOSHELL_FSON_TYPE_DURATION; ++i) {
+            if (strcmp(type_id, noshell_fson_type_names[i]) == 0) {
+                valid_type = true;
+                break;
+            }
+        }
+        if (!valid_type)
+            return FOSSIL_NOSHELL_ERROR_INVALID_TYPE;
+    }
 
     // Basic FSON validation: must start with '{' or '['
     const char *doc_ptr = new_document;
