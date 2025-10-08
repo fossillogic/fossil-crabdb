@@ -69,22 +69,23 @@ FOSSIL_TEST(c_test_noshell_insert_find_remove) {
     fossil_bluecrab_noshell_error_t err;
     const char *file_name = "test_noshell_insert.crabdb";
     const char *doc = "{\"user\":\"alice\",\"pass\":\"secret\"}";
+    const char *type = "user";
 
     err = fossil_bluecrab_noshell_create_database(file_name);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
-    err = fossil_bluecrab_noshell_insert(file_name, doc, NULL);
+    err = fossil_bluecrab_noshell_insert(file_name, doc, NULL, type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
     char result[128];
-    err = fossil_bluecrab_noshell_find(file_name, "user=alice", result, sizeof(result));
+    err = fossil_bluecrab_noshell_find(file_name, "user=alice", result, sizeof(result), type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_EQUAL_CSTR(result, doc);
+    ASSUME_ITS_TRUE(strstr(result, doc) != NULL);
 
     err = fossil_bluecrab_noshell_remove(file_name, "user=alice");
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
-    err = fossil_bluecrab_noshell_find(file_name, "user=alice", result, sizeof(result));
+    err = fossil_bluecrab_noshell_find(file_name, "user=alice", result, sizeof(result), type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_NOT_FOUND);
 
     fossil_bluecrab_noshell_delete_database(file_name);
@@ -94,18 +95,19 @@ FOSSIL_TEST(c_test_noshell_insert_with_id) {
     fossil_bluecrab_noshell_error_t err;
     const char *file_name = "test_noshell_with_id.crabdb";
     const char *doc = "{\"item\":\"book\"}";
+    const char *type = "item";
     char doc_id[64];
 
     err = fossil_bluecrab_noshell_create_database(file_name);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
-    err = fossil_bluecrab_noshell_insert_with_id(file_name, doc, NULL, doc_id, sizeof(doc_id));
+    err = fossil_bluecrab_noshell_insert_with_id(file_name, doc, NULL, type, doc_id, sizeof(doc_id));
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
     char result[128];
-    err = fossil_bluecrab_noshell_find(file_name, doc_id, result, sizeof(result));
+    err = fossil_bluecrab_noshell_find(file_name, doc_id, result, sizeof(result), type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_EQUAL_CSTR(result, doc);
+    ASSUME_ITS_TRUE(strstr(result, doc) != NULL);
 
     fossil_bluecrab_noshell_delete_database(file_name);
 }
@@ -115,20 +117,21 @@ FOSSIL_TEST(c_test_noshell_update) {
     const char *file_name = "test_noshell_update.crabdb";
     const char *doc = "{\"name\":\"bob\"}";
     const char *new_doc = "{\"name\":\"bob\",\"age\":30}";
+    const char *type = "person";
 
     err = fossil_bluecrab_noshell_create_database(file_name);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
-    err = fossil_bluecrab_noshell_insert(file_name, doc, NULL);
+    err = fossil_bluecrab_noshell_insert(file_name, doc, NULL, type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
-    err = fossil_bluecrab_noshell_update(file_name, "name=bob", new_doc, NULL);
+    err = fossil_bluecrab_noshell_update(file_name, "name=bob", new_doc, NULL, type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
     char result[128];
-    err = fossil_bluecrab_noshell_find(file_name, "name=bob", result, sizeof(result));
+    err = fossil_bluecrab_noshell_find(file_name, "name=bob", result, sizeof(result), type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_EQUAL_CSTR(result, new_doc);
+    ASSUME_ITS_TRUE(strstr(result, new_doc) != NULL);
 
     fossil_bluecrab_noshell_delete_database(file_name);
 }
@@ -139,11 +142,12 @@ FOSSIL_TEST(c_test_noshell_backup_restore) {
     const char *backup_file = "test_noshell_backup.bak";
     const char *restore_file = "test_noshell_restored.crabdb";
     const char *doc = "{\"x\":1}";
+    const char *type = "data";
 
     err = fossil_bluecrab_noshell_create_database(file_name);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
-    err = fossil_bluecrab_noshell_insert(file_name, doc, NULL);
+    err = fossil_bluecrab_noshell_insert(file_name, doc, NULL, type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
     err = fossil_bluecrab_noshell_backup_database(file_name, backup_file);
@@ -153,9 +157,9 @@ FOSSIL_TEST(c_test_noshell_backup_restore) {
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
     char result[128];
-    err = fossil_bluecrab_noshell_find(restore_file, "x=1", result, sizeof(result));
+    err = fossil_bluecrab_noshell_find(restore_file, "x=1", result, sizeof(result), type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_EQUAL_CSTR(result, doc);
+    ASSUME_ITS_TRUE(strstr(result, doc) != NULL);
 
     fossil_bluecrab_noshell_delete_database(file_name);
     fossil_bluecrab_noshell_delete_database(restore_file);
@@ -165,12 +169,13 @@ FOSSIL_TEST(c_test_noshell_backup_restore) {
 FOSSIL_TEST(c_test_noshell_count_and_size) {
     fossil_bluecrab_noshell_error_t err;
     const char *file_name = "test_noshell_count.crabdb";
+    const char *type = "count";
     err = fossil_bluecrab_noshell_create_database(file_name);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
-    err = fossil_bluecrab_noshell_insert(file_name, "{\"a\":1}", NULL);
+    err = fossil_bluecrab_noshell_insert(file_name, "{\"a\":1}", NULL, type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
-    err = fossil_bluecrab_noshell_insert(file_name, "{\"b\":2}", NULL);
+    err = fossil_bluecrab_noshell_insert(file_name, "{\"b\":2}", NULL, type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
     size_t count = 0;
@@ -189,12 +194,13 @@ FOSSIL_TEST(c_test_noshell_count_and_size) {
 FOSSIL_TEST(c_test_noshell_first_next_document) {
     fossil_bluecrab_noshell_error_t err;
     const char *file_name = "test_noshell_iter.crabdb";
+    const char *type = "iter";
     err = fossil_bluecrab_noshell_create_database(file_name);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
-    err = fossil_bluecrab_noshell_insert(file_name, "{\"id\":1}", NULL);
+    err = fossil_bluecrab_noshell_insert(file_name, "{\"id\":1}", NULL, type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
-    err = fossil_bluecrab_noshell_insert(file_name, "{\"id\":2}", NULL);
+    err = fossil_bluecrab_noshell_insert(file_name, "{\"id\":2}", NULL, type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
     char id1[64], id2[64];
@@ -214,10 +220,11 @@ FOSSIL_TEST(c_test_noshell_first_next_document) {
 FOSSIL_TEST(c_test_noshell_verify_database) {
     fossil_bluecrab_noshell_error_t err;
     const char *file_name = "test_noshell_verify.crabdb";
+    const char *type = "verify";
     err = fossil_bluecrab_noshell_create_database(file_name);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
-    err = fossil_bluecrab_noshell_insert(file_name, "{\"v\":42}", NULL);
+    err = fossil_bluecrab_noshell_insert(file_name, "{\"v\":42}", NULL, type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
     err = fossil_bluecrab_noshell_verify_database(file_name);

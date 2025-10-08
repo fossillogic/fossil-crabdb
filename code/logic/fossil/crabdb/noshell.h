@@ -161,9 +161,10 @@ typedef struct {
  * @param file_name     The database file name (.crabdb enforced).
  * @param document      The document string to insert.
  * @param param_list    Optional FSON parameter list for structured data (can be NULL).
+ * @param type          Document type as string parameter.
  * @return              FOSSIL_NOSHELL_ERROR_SUCCESS on success, otherwise error code.
  */
-fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_insert(const char *file_name, const char *document, const char *param_list);
+fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_insert(const char *file_name, const char *document, const char *param_list, const char *type);
 
 /**
  * @brief Inserts a document and returns a unique internal ID.
@@ -171,11 +172,12 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_insert(const char *file_
  * @param file_name     The database file name (.crabdb enforced).
  * @param document      The document string to insert.
  * @param param_list    Optional FSON parameter list for structured data (can be NULL).
+ * @param type          Document type as string parameter.
  * @param out_id        Buffer to store generated document ID.
  * @param id_size       Size of the buffer.
  * @return              FOSSIL_NOSHELL_ERROR_SUCCESS on success, otherwise error code.
  */
-fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_insert_with_id(const char *file_name, const char *document, const char *param_list, char *out_id, size_t id_size);
+fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_insert_with_id(const char *file_name, const char *document, const char *param_list, const char *type, char *out_id, size_t id_size);
 
 /**
  * @brief Finds a document based on a query string.
@@ -184,9 +186,10 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_insert_with_id(const cha
  * @param query         The query string to search.
  * @param result        Buffer to store the matching document.
  * @param buffer_size   Size of the buffer.
+ * @param type_id       Optional type id parameter.
  * @return              FOSSIL_NOSHELL_ERROR_SUCCESS on success, otherwise error code.
  */
-fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_find(const char *file_name, const char *query, char *result, size_t buffer_size);
+fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_find(const char *file_name, const char *query, char *result, size_t buffer_size, const char *type_id);
 
 /**
  * @brief Finds documents using a callback filter function.
@@ -205,9 +208,10 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_find_cb(const char *file
  * @param query         Query string to locate document(s).
  * @param new_document  New document content to replace matching documents.
  * @param param_list    Optional FSON parameter list for structured data (can be NULL).
+ * @param type_id       Optional type id parameter.
  * @return              FOSSIL_NOSHELL_ERROR_SUCCESS on success, otherwise error code.
  */
-fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_update(const char *file_name, const char *query, const char *new_document, const char *param_list);
+fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_update(const char *file_name, const char *query, const char *new_document, const char *param_list, const char *type_id);
 
 /**
  * @brief Removes a document from the database based on a query string.
@@ -388,11 +392,13 @@ namespace fossil {
              * @param file_name The database file name (.crabdb enforced).
              * @param document The document string to insert.
              * @param param_list Optional FSON parameter list for structured data (can be empty).
+             * @param type Document type as string parameter (can be empty).
              * @return FOSSIL_NOSHELL_ERROR_SUCCESS on success, otherwise error code.
              */
-            static fossil_bluecrab_noshell_error_t insert(const std::string& file_name, const std::string& document, const std::string& param_list = "") {
+            static fossil_bluecrab_noshell_error_t insert(const std::string& file_name, const std::string& document, const std::string& param_list = "", const std::string& type = "") {
                 const char* param = param_list.empty() ? nullptr : param_list.c_str();
-                return fossil_bluecrab_noshell_insert(file_name.c_str(), document.c_str(), param);
+                const char* type_str = type.empty() ? nullptr : type.c_str();
+                return fossil_bluecrab_noshell_insert(file_name.c_str(), document.c_str(), param, type_str);
             }
 
             /**
@@ -400,13 +406,15 @@ namespace fossil {
              * @param file_name The database file name (.crabdb enforced).
              * @param document The document string to insert.
              * @param param_list Optional FSON parameter list for structured data (can be empty).
+             * @param type Document type as string parameter (can be empty).
              * @param out_id Reference to a string to store the generated document ID.
              * @return FOSSIL_NOSHELL_ERROR_SUCCESS on success, otherwise error code.
              */
-            static fossil_bluecrab_noshell_error_t insert_with_id(const std::string& file_name, const std::string& document, const std::string& param_list, std::string& out_id) {
+            static fossil_bluecrab_noshell_error_t insert_with_id(const std::string& file_name, const std::string& document, const std::string& param_list, const std::string& type, std::string& out_id) {
                 char buffer[128] = {0};
                 const char* param = param_list.empty() ? nullptr : param_list.c_str();
-                fossil_bluecrab_noshell_error_t err = fossil_bluecrab_noshell_insert_with_id(file_name.c_str(), document.c_str(), param, buffer, sizeof(buffer));
+                const char* type_str = type.empty() ? nullptr : type.c_str();
+                fossil_bluecrab_noshell_error_t err = fossil_bluecrab_noshell_insert_with_id(file_name.c_str(), document.c_str(), param, type_str, buffer, sizeof(buffer));
                 if (err == FOSSIL_NOSHELL_ERROR_SUCCESS) {
                     out_id = buffer;
                 }
@@ -418,11 +426,13 @@ namespace fossil {
              * @param file_name The database file name.
              * @param query The query string to search.
              * @param result Reference to a string to store the matching document.
+             * @param type_id Optional type id parameter (can be empty).
              * @return FOSSIL_NOSHELL_ERROR_SUCCESS on success, otherwise error code.
              */
-            static fossil_bluecrab_noshell_error_t find(const std::string& file_name, const std::string& query, std::string& result) {
+            static fossil_bluecrab_noshell_error_t find(const std::string& file_name, const std::string& query, std::string& result, const std::string& type_id = "") {
                 char buffer[4096] = {0};
-                fossil_bluecrab_noshell_error_t err = fossil_bluecrab_noshell_find(file_name.c_str(), query.c_str(), buffer, sizeof(buffer));
+                const char* type_str = type_id.empty() ? nullptr : type_id.c_str();
+                fossil_bluecrab_noshell_error_t err = fossil_bluecrab_noshell_find(file_name.c_str(), query.c_str(), buffer, sizeof(buffer), type_str);
                 if (err == FOSSIL_NOSHELL_ERROR_SUCCESS) {
                     result = buffer;
                 }
@@ -435,11 +445,13 @@ namespace fossil {
              * @param query Query string to locate document(s).
              * @param new_document New document content to replace matching documents.
              * @param param_list Optional FSON parameter list for structured data (can be empty).
+             * @param type_id Optional type id parameter (can be empty).
              * @return FOSSIL_NOSHELL_ERROR_SUCCESS on success, otherwise error code.
              */
-            static fossil_bluecrab_noshell_error_t update(const std::string& file_name, const std::string& query, const std::string& new_document, const std::string& param_list = "") {
+            static fossil_bluecrab_noshell_error_t update(const std::string& file_name, const std::string& query, const std::string& new_document, const std::string& param_list = "", const std::string& type_id = "") {
                 const char* param = param_list.empty() ? nullptr : param_list.c_str();
-                return fossil_bluecrab_noshell_update(file_name.c_str(), query.c_str(), new_document.c_str(), param);
+                const char* type_str = type_id.empty() ? nullptr : type_id.c_str();
+                return fossil_bluecrab_noshell_update(file_name.c_str(), query.c_str(), new_document.c_str(), param, type_str);
             }
 
             /**

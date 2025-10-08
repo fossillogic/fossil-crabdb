@@ -227,7 +227,8 @@ uint64_t noshell_hash64(const char *str) {
 fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_insert(
     const char *file_name,
     const char *document,
-    const char *param_list
+    const char *param_list,
+    const char *type // type as string parameter
 ) {
     if (!file_name || !document)
         return FOSSIL_NOSHELL_ERROR_INVALID_FILE;
@@ -236,19 +237,20 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_insert(
         return FOSSIL_NOSHELL_ERROR_INVALID_FILE;
 
     // Basic FSON validation: must start with '{' or '['
-    while (isspace((unsigned char)*document)) document++;
-    if (*document != '{' && *document != '[')
+    const char *doc_ptr = document;
+    while (isspace((unsigned char)*doc_ptr)) doc_ptr++;
+    if (*doc_ptr != '{' && *doc_ptr != '[')
         return FOSSIL_NOSHELL_ERROR_INVALID_TYPE;
 
     FILE *fp = fopen(file_name, "a");
     if (!fp)
         return FOSSIL_NOSHELL_ERROR_IO;
 
-    // Optionally append param_list if provided
+    // Optionally append param_list if provided, always append #type=TYPE
     if (param_list && strlen(param_list) > 0) {
-        fprintf(fp, "%s %s\n", document, param_list);
+        fprintf(fp, "%s %s #type=%s\n", document, param_list, type);
     } else {
-        fprintf(fp, "%s\n", document);
+        fprintf(fp, "%s #type=%s\n", document, type);
     }
 
     fclose(fp);
@@ -259,6 +261,7 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_insert_with_id(
     const char *file_name,
     const char *document,
     const char *param_list,
+    const char *type, // type as string parameter
     char *out_id,
     size_t id_size
 ) {
@@ -282,11 +285,11 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_insert_with_id(
     if (!fp)
         return FOSSIL_NOSHELL_ERROR_IO;
 
-    // Write document in FSON format, append param_list and #id
+    // Write document in FSON format, append param_list, #type and #id
     if (param_list && strlen(param_list) > 0) {
-        fprintf(fp, "%s %s #id=%s\n", document, param_list, out_id);
+        fprintf(fp, "%s %s #type=%s #id=%s\n", document, param_list, type, out_id);
     } else {
-        fprintf(fp, "%s #id=%s\n", document, out_id);
+        fprintf(fp, "%s #type=%s #id=%s\n", document, type, out_id);
     }
 
     fclose(fp);
@@ -297,7 +300,8 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_find(
     const char *file_name,
     const char *query,
     char *result,
-    size_t buffer_size
+    size_t buffer_size,
+    const char *type_id // optional type id parameter
 ) {
     if (!file_name || !query || !result || buffer_size == 0)
         return FOSSIL_NOSHELL_ERROR_INVALID_FILE;
@@ -317,6 +321,12 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_find(
         if (*p != '{' && *p != '[')
             continue;
         if (strstr(line, query)) {
+            if (type_id && strlen(type_id) > 0) {
+                // Check for type match in line
+                char type_tag[32];
+                snprintf(type_tag, sizeof(type_tag), "#type=%s", type_id);
+                if (!strstr(line, type_tag)) continue;
+            }
             strncpy(result, line, buffer_size - 1);
             result[buffer_size - 1] = '\0';
             fclose(fp);
@@ -365,7 +375,8 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_update(
     const char *file_name,
     const char *query,
     const char *new_document,
-    const char *param_list
+    const char *param_list,
+    const char *type_id // optional type id parameter
 ) {
     if (!file_name || !query || !new_document)
         return FOSSIL_NOSHELL_ERROR_INVALID_FILE;
@@ -390,16 +401,40 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_update(
     bool updated = false;
 
     while (fgets(buf, sizeof(buf), fp)) {
-        // Only update FSON-formatted lines that match the query
+        // Only update FSON-formatted lines that match the query and (if provided) type_id
         char *p = buf;
         while (isspace((unsigned char)*p)) p++;
         if ((*p == '{' || *p == '[') && strstr(buf, query)) {
-            // Replace line with new_document (+ param_list if provided)
+            if (type_id && strlen(type_id) > 0) {
+                char type_tag[32];
+                snprintf(type_tag, sizeof(type_tag), "#type=%s", type_id);
+                if (!strstr(buf, type_tag)) {
+                    // Not matching type, keep original line
+                    if (count == cap) {
+                        cap = cap ? cap * 2 : 16;
+                        lines = (char **)realloc(lines, cap * sizeof(char *));
+                        if (!lines) {
+                            fclose(fp);
+                            return FOSSIL_NOSHELL_ERROR_OUT_OF_MEMORY;
+                        }
+                    }
+                    lines[count++] = noshell_strdup(buf);
+                    continue;
+                }
+            }
+            // Replace line with new_document (+ param_list if provided) and #type if type_id is given
             char new_line[1024];
-            if (param_list && strlen(param_list) > 0)
-                snprintf(new_line, sizeof(new_line), "%s %s\n", new_document, param_list);
-            else
-                snprintf(new_line, sizeof(new_line), "%s\n", new_document);
+            if (param_list && strlen(param_list) > 0) {
+                if (type_id && strlen(type_id) > 0)
+                    snprintf(new_line, sizeof(new_line), "%s %s #type=%s\n", new_document, param_list, type_id);
+                else
+                    snprintf(new_line, sizeof(new_line), "%s %s\n", new_document, param_list);
+            } else {
+                if (type_id && strlen(type_id) > 0)
+                    snprintf(new_line, sizeof(new_line), "%s #type=%s\n", new_document, type_id);
+                else
+                    snprintf(new_line, sizeof(new_line), "%s\n", new_document);
+            }
 
             if (count == cap) {
                 cap = cap ? cap * 2 : 16;
