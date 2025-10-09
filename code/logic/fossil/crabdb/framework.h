@@ -26,8 +26,6 @@
 #define FOSSIL_CRABDB_FRAMEWORK_H
 
 #include "cacheshell.h"
-#include "fileshell.h"
-#include "timeshell.h"
 #include "myshell.h"
 #include "noshell.h"
 
