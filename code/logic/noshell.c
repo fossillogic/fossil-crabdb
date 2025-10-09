@@ -346,7 +346,10 @@ fossil_bluecrab_noshell_error_t fossil_bluecrab_noshell_find(
 
     char line[1024];
     while (fgets(line, sizeof(line), fp)) {
-        // Skip non-FSON lines (must start with '{' or '[' after whitespace)
+        // Skip header lines
+        if (line[0] == '#')
+            continue;
+        // Only consider FSON-formatted lines (start with '{' or '[' after whitespace)
         char *p = line;
         while (isspace((unsigned char)*p)) p++;
         if (*p != '{' && *p != '[')
