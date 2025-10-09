@@ -53,7 +53,7 @@ FOSSIL_TEARDOWN(cpp_noshell_fixture) {
 
 FOSSIL_TEST(cpp_test_noshell_create_open_delete) {
     using fossil::bluecrab::NoShell;
-    const std::string file_name = "test_noshell.crabdb";
+    const std::string file_name = "test_noshell.noshell";
 
     auto err = NoShell::create_database(file_name);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
@@ -67,9 +67,9 @@ FOSSIL_TEST(cpp_test_noshell_create_open_delete) {
 
 FOSSIL_TEST(cpp_test_noshell_insert_find_remove) {
     using fossil::bluecrab::NoShell;
-    const std::string file_name = "test_noshell_insert.crabdb";
-    const std::string doc = "{\"user\":\"alice\",\"pass\":\"secret\"}";
-    const std::string type = "user";
+    const std::string file_name = "test_noshell_insert.noshell";
+    const std::string doc = "{ username: cstr: \"alice\", password: cstr: \"secret\" }";
+    const std::string type = "object";
 
     auto err = NoShell::create_database(file_name);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
@@ -78,14 +78,14 @@ FOSSIL_TEST(cpp_test_noshell_insert_find_remove) {
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
     std::string result;
-    err = NoShell::find(file_name, "user=alice", result, type);
+    err = NoShell::find(file_name, "username", result, type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_TRUE(result.find(doc) != std::string::npos);
+    ASSUME_ITS_TRUE(result.find("alice") != std::string::npos);
 
-    err = NoShell::remove(file_name, "user=alice");
+    err = NoShell::remove(file_name, "username");
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
-    err = NoShell::find(file_name, "user=alice", result, type);
+    err = NoShell::find(file_name, "username", result, type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_NOT_FOUND);
 
     NoShell::delete_database(file_name);
@@ -93,9 +93,9 @@ FOSSIL_TEST(cpp_test_noshell_insert_find_remove) {
 
 FOSSIL_TEST(cpp_test_noshell_insert_with_id) {
     using fossil::bluecrab::NoShell;
-    const std::string file_name = "test_noshell_with_id.crabdb";
-    const std::string doc = "{\"item\":\"book\"}";
-    const std::string type = "item";
+    const std::string file_name = "test_noshell_with_id.noshell";
+    const std::string doc = "{ item: cstr: \"book\" }";
+    const std::string type = "object";
     std::string docpp_id;
 
     auto err = NoShell::create_database(file_name);
@@ -107,17 +107,17 @@ FOSSIL_TEST(cpp_test_noshell_insert_with_id) {
     std::string result;
     err = NoShell::find(file_name, docpp_id, result, type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_TRUE(result.find(doc) != std::string::npos);
+    ASSUME_ITS_TRUE(result.find("book") != std::string::npos);
 
     NoShell::delete_database(file_name);
 }
 
 FOSSIL_TEST(cpp_test_noshell_update) {
     using fossil::bluecrab::NoShell;
-    const std::string file_name = "test_noshell_update.crabdb";
-    const std::string doc = "{\"name\":\"bob\"}";
-    const std::string new_doc = "{\"name\":\"bob\",\"age\":30}";
-    const std::string type = "person";
+    const std::string file_name = "test_noshell_update.noshell";
+    const std::string doc = "{ name: cstr: \"bob\" }";
+    const std::string new_doc = "{ name: cstr: \"bob\", age: i32: 30 }";
+    const std::string type = "object";
 
     auto err = NoShell::create_database(file_name);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
@@ -125,24 +125,24 @@ FOSSIL_TEST(cpp_test_noshell_update) {
     err = NoShell::insert(file_name, doc, "", type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
-    err = NoShell::update(file_name, "name=bob", new_doc, "", type);
+    err = NoShell::update(file_name, "name", new_doc, "", type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
     std::string result;
-    err = NoShell::find(file_name, "name=bob", result, type);
+    err = NoShell::find(file_name, "name", result, type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_TRUE(result.find(new_doc) != std::string::npos);
+    ASSUME_ITS_TRUE(result.find("age: i32: 30") != std::string::npos);
 
     NoShell::delete_database(file_name);
 }
 
 FOSSIL_TEST(cpp_test_noshell_backup_restore) {
     using fossil::bluecrab::NoShell;
-    const std::string file_name = "test_noshell_backup.crabdb";
-    const std::string backup_file = "test_noshell_backup.bak";
-    const std::string restore_file = "test_noshell_restored.crabdb";
-    const std::string doc = "{\"x\":1}";
-    const std::string type = "data";
+    const std::string file_name = "test_noshell_backup.noshell";
+    const std::string backup_file = "test_noshell_backup_file.noshell";
+    const std::string restore_file = "test_noshell_restored.noshell";
+    const std::string doc = "{ x: i32: 1 }";
+    const std::string type = "object";
 
     auto err = NoShell::create_database(file_name);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
@@ -157,9 +157,9 @@ FOSSIL_TEST(cpp_test_noshell_backup_restore) {
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
     std::string result;
-    err = NoShell::find(restore_file, "x=1", result, type);
+    err = NoShell::find(restore_file, "x", result, type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
-    ASSUME_ITS_TRUE(result.find(doc) != std::string::npos);
+    ASSUME_ITS_TRUE(result.find("x: i32: 1") != std::string::npos);
 
     NoShell::delete_database(file_name);
     NoShell::delete_database(restore_file);
@@ -168,14 +168,14 @@ FOSSIL_TEST(cpp_test_noshell_backup_restore) {
 
 FOSSIL_TEST(cpp_test_noshell_count_and_size) {
     using fossil::bluecrab::NoShell;
-    const std::string file_name = "test_noshell_count.crabdb";
-    const std::string type = "count";
+    const std::string file_name = "test_noshell_count.noshell";
+    const std::string type = "object";
     auto err = NoShell::create_database(file_name);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
-    err = NoShell::insert(file_name, "{\"a\":1}", "", type);
+    err = NoShell::insert(file_name, "{ a: i32: 1 }", "", type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
-    err = NoShell::insert(file_name, "{\"b\":2}", "", type);
+    err = NoShell::insert(file_name, "{ b: i32: 2 }", "", type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
     size_t count = 0;
@@ -193,14 +193,14 @@ FOSSIL_TEST(cpp_test_noshell_count_and_size) {
 
 FOSSIL_TEST(cpp_test_noshell_first_next_document) {
     using fossil::bluecrab::NoShell;
-    const std::string file_name = "test_noshell_iter.crabdb";
-    const std::string type = "iter";
+    const std::string file_name = "test_noshell_iter.noshell";
+    const std::string type = "object";
     auto err = NoShell::create_database(file_name);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
-    err = NoShell::insert(file_name, "{\"id\":1}", "", type);
+    err = NoShell::insert(file_name, "{ id: i32: 1 }", "", type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
-    err = NoShell::insert(file_name, "{\"id\":2}", "", type);
+    err = NoShell::insert(file_name, "{ id: i32: 2 }", "", type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
     std::string id1, id2;
@@ -219,12 +219,12 @@ FOSSIL_TEST(cpp_test_noshell_first_next_document) {
 
 FOSSIL_TEST(cpp_test_noshell_verify_database) {
     using fossil::bluecrab::NoShell;
-    const std::string file_name = "test_noshell_verify.crabdb";
-    const std::string type = "verify";
+    const std::string file_name = "test_noshell_verify.noshell";
+    const std::string type = "object";
     auto err = NoShell::create_database(file_name);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
-    err = NoShell::insert(file_name, "{\"v\":42}", "", type);
+    err = NoShell::insert(file_name, "{ v: i32: 42 }", "", type);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
     err = NoShell::verify_database(file_name);
@@ -235,15 +235,15 @@ FOSSIL_TEST(cpp_test_noshell_verify_database) {
 
 FOSSIL_TEST(cpp_test_noshell_validate_helpers) {
     using fossil::bluecrab::NoShell;
-    ASSUME_ITS_TRUE(NoShell::validate_extension("foo.crabdb"));
+    ASSUME_ITS_TRUE(NoShell::validate_extension("foo.noshell"));
     ASSUME_ITS_TRUE(!NoShell::validate_extension("foo.txt"));
-    ASSUME_ITS_TRUE(NoShell::validate_document("{\"ok\":true}"));
+    ASSUME_ITS_TRUE(NoShell::validate_document("{ ok: bool: true }"));
     ASSUME_ITS_TRUE(!NoShell::validate_document("not_a_json"));
 }
 
 FOSSIL_TEST(cpp_test_noshell_lock_unlock_is_locked) {
     using fossil::bluecrab::NoShell;
-    const std::string file_name = "test_noshell_lock.crabdb";
+    const std::string file_name = "test_noshell_lock.noshell";
     auto err = NoShell::create_database(file_name);
     ASSUME_ITS_TRUE(err == FOSSIL_NOSHELL_ERROR_SUCCESS);
 
