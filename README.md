@@ -1,12 +1,7 @@
 # ***Blue Crab by Fossil Logic***
 
-Blue Crab is a lightweight, portable key-value database built for speed, efficiency, and traceable data integrity.  
-It offers multiple interfaces to fit different workflows: **MyShell** for SQL-like commands with structured FSON queries,  
-**NoShell** for direct key-value operations backed by a git-chain commit model, and **CacheShell** for in-memory caching with TTL and optional FSON serialization.  
-
-Powered by the **git-chain experiment**, every change in Blue Crab can be versioned, branched, and merged like source code —  
-enabling transparent history, rollback, and auditability. The integrated **FSON type system** provides self-describing, schema-aware data structures  
-for both simple and complex records.  
+Blue Crab is a lightweight, portable key-value database built for speed, efficiency, and traceable data integrity.   It offers multiple interfaces to fit different workflows: **MyShell** for SQL-like commands with structured FSON queries, **NoShell** for direct key-value operations backed by a git-chain commit model, and **CacheShell** for in-memory caching with TTL and optional FSON serialization. Powered by the **git-chain experiment**, every change in Blue Crab can be versioned, branched, and merged like source code —  
+enabling transparent history, rollback, and auditability. The integrated **FSON type system** provides self-describing, schema-aware data structures for both simple and complex records.  
 
 ## Key Features
 
