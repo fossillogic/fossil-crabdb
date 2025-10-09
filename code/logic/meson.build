@@ -2,7 +2,6 @@ dir = include_directories('.')
 cc  = meson.get_compiler('c')
 
 dep = [
-    dependency('threads'),
     cc.find_library('m', required : false)
 ]
 
@@ -10,8 +9,6 @@ fossil_crabdb_lib = library('fossil_crabdb',
     files(
         'myshell.c',
         'noshell.c',
-        'fileshell.c',
-        'timeshell.c',
         'cacheshell.c'
         ),
     install: true,
