@@ -99,6 +99,14 @@ static size_t fossil_cache_hash(const char *key) {
 }
 
 #if defined(_WIN32) || defined(_WIN64)
+static void fossil_cache_lock_init(void) {
+    InitializeCriticalSection(&g_cache.lock);
+}
+
+static void fossil_cache_lock_destroy(void) {
+    DeleteCriticalSection(&g_cache.lock);
+}
+
 static void fossil_cache_lock(void) {
     if (g_cache.locking_enabled)
         EnterCriticalSection(&g_cache.lock);
@@ -109,6 +117,14 @@ static void fossil_cache_unlock(void) {
         LeaveCriticalSection(&g_cache.lock);
 }
 #else
+static void fossil_cache_lock_init(void) {
+    pthread_mutex_init(&g_cache.lock, NULL);
+}
+
+static void fossil_cache_lock_destroy(void) {
+    pthread_mutex_destroy(&g_cache.lock);
+}
+
 static void fossil_cache_lock(void) {
     if (g_cache.locking_enabled)
         pthread_mutex_lock(&g_cache.lock);
@@ -177,7 +193,7 @@ bool fossil_bluecrab_cacheshell_init(size_t max_entries) {
     g_cache.buckets = calloc(g_cache.bucket_count, sizeof(fossil_cache_entry_t *));
     if (!g_cache.buckets)
         return false;
-    pthread_mutex_init(&g_cache.lock, NULL);
+    fossil_cache_lock_init();
     return true;
 }
 
@@ -195,7 +211,7 @@ void fossil_bluecrab_cacheshell_shutdown(void) {
     g_cache.buckets = NULL;
     g_cache.entry_count = 0;
     fossil_cache_unlock();
-    pthread_mutex_destroy(&g_cache.lock);
+    fossil_cache_lock_destroy();
 }
 
 // ===========================================================
