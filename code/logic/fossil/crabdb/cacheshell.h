@@ -235,28 +235,6 @@ void fossil_bluecrab_cacheshell_iterate(fossil_bluecrab_cache_iter_cb cb, void *
 void fossil_bluecrab_cacheshell_threadsafe(bool enabled);
 
 // ===========================================================
-// FSON Integration (Optional)
-// ===========================================================
-
-/**
- * @brief Stores a value encoded as FSON.
- *
- * @param key       Key string.
- * @param fson_data Pointer to FSON-encoded data.
- * @return          true on success, false on failure.
- */
-bool fossil_bluecrab_cacheshell_set_fson(const char *key, const void *fson_data);
-
-/**
- * @brief Retrieves a value as FSON data.
- *
- * @param key       Key string.
- * @param out_fson  Output pointer for FSON data.
- * @return          true if found, false otherwise.
- */
-bool fossil_bluecrab_cacheshell_get_fson(const char *key, void **out_fson);
-
-// ===========================================================
 // Persistence (Optional)
 // ===========================================================
 

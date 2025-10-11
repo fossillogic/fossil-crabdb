@@ -472,3 +472,67 @@ void fossil_bluecrab_cacheshell_iterate(fossil_bluecrab_cache_iter_cb cb, void *
     }
     fossil_cache_unlock();
 }
+
+// ===========================================================
+// Persistence (Optional)
+// ===========================================================
+
+bool fossil_bluecrab_cacheshell_save(const char *path) {
+    fossil_cache_lock();
+    FILE *file = fopen(path, "wb");
+    if (!file) {
+        fossil_cache_unlock();
+        return false;
+    }
+
+    for (size_t i = 0; i < g_cache.bucket_count; ++i) {
+        fossil_cache_entry_t *entry = g_cache.buckets[i];
+        while (entry) {
+            fwrite(entry->key, 1, strlen(entry->key) + 1, file);
+            fwrite(&entry->size, sizeof(entry->size), 1, file);
+            fwrite(entry->data, 1, entry->size, file);
+            entry = entry->next;
+        }
+    }
+
+    fclose(file);
+    fossil_cache_unlock();
+    return true;
+}
+
+bool fossil_bluecrab_cacheshell_load(const char *path) {
+    fossil_cache_lock();
+    FILE *file = fopen(path, "rb");
+    if (!file) {
+        fossil_cache_unlock();
+        return false;
+    }
+
+    fossil_bluecrab_cacheshell_clear();
+
+    while (true) {
+        char key[256];
+        if (!fgets(key, sizeof(key), file))
+            break;
+        size_t key_len = strlen(key);
+        if (key_len > 0 && key[key_len - 1] == '\n')
+            key[key_len - 1] = '\0';
+
+        size_t size;
+        if (fread(&size, sizeof(size), 1, file) != 1)
+            break;
+
+        void *data = malloc(size);
+        if (!data || fread(data, 1, size, file) != size) {
+            free(data);
+            break;
+        }
+
+        fossil_bluecrab_cacheshell_set_binary(key, data, size);
+        free(data);
+    }
+
+    fclose(file);
+    fossil_cache_unlock();
+    return true;
+}
