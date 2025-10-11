@@ -33,6 +33,134 @@ typedef CRITICAL_SECTION pthread_mutex_t;
 #include <pthread.h>
 #endif
 
+/**
+ * @brief In-memory key/value cache (BlueCrab CacheShell).
+ *
+ * High-level:
+ *   A fixed-size hash table (1024 buckets) using separate chaining stores
+ *   entries (key, binary blob, size, optional expiry). Lookups hash the key,
+ *   traverse the chain, validate TTL, and return the data.
+ *
+ * Core Features:
+ *   - String & binary storage (size tracked, not null-terminated required)
+ *   - Optional per-entry TTL (seconds) with lazy + bulk eviction
+ *   - Optional thread safety (runtime toggle)
+ *   - Basic stats (hits / misses), memory usage, count
+ *   - Iteration callback over all entries
+ *   - Simple persistence (key + size + raw bytes) — TTL NOT persisted
+ *
+ * Data Structures:
+ *   fossil_cache_entry_t:
+ *       +-----------+--------------+-------+---------+----------+
+ *       | key (dup) | data (malloc)| size  | expiry  | *next    |
+ *       +-----------+--------------+-------+---------+----------+
+ *          expiry == 0 => non-expiring
+ *
+ *   Hash Table (array of bucket head pointers):
+ *
+ *       buckets[0] --> [entry] -> [entry] -> NULL
+ *       buckets[1] --> NULL
+ *       buckets[2] --> [entry] -> NULL
+ *       ...
+ *       buckets[1023] --> [entry] -> [entry] -> [entry] -> NULL
+ *
+ *   Example bucket chain (collision resolution via linked list):
+ *
+ *       +-----------+      +-----------+      +-----------+
+ *       |  key=A    |----->|  key=Q    |----->|  key=Z    |-> NULL
+ *       +-----------+      +-----------+      +-----------+
+ *
+ * Hash Function:
+ *   FNV-1a (32 or 64-bit) plus extra avalanche mixing for better
+ *   distribution. Final index = hash % bucket_count.
+ *
+ * TTL / Expiration:
+ *   - When fetched:
+ *       if (expiry != 0 && expiry <= now) -> removed + miss
+ *   - Bulk cleanup:
+ *       fossil_bluecrab_cacheshell_evict_expired()
+ *
+ *   Timeline (example):
+ *       set_with_ttl(K, 5s) at t=10
+ *       expiry = 15
+ *       access at t=12 -> valid
+ *       access at t=16 -> expired -> auto remove -> miss
+ *
+ * Thread Safety:
+ *   - Disabled by default for zero overhead.
+ *   - fossil_bluecrab_cacheshell_threadsafe(true) enables a global lock:
+ *
+ *        Public API:
+ *            lock()
+ *            ... mutate / read ...
+ *            unlock()
+ *
+ *   - Windows: CRITICAL_SECTION (typedef'd to pthread_mutex_t alias)
+ *   - POSIX: pthread_mutex_t
+ *
+ * Persistence Format (sequential stream):
+ *   For each entry (non-expired at save time):
+ *       key bytes including '\0'
+ *       size (size_t)
+ *       raw data bytes
+ *   NOT stored: expiry/TTL, stats, locking flag, bucket count.
+ *   On load: table cleared, entries appended (TTL defaults to 0).
+ *
+ * Memory Usage Calculation:
+ *   sum( sizeof(entry) + entry->size + strlen(key)+1 )
+ *
+ * Limitations / Trade-offs:
+ *   - No resizing: very large key counts per bucket degrade performance
+ *   - No eviction policy (LRU/LFU); rely on max_entries or TTL + manual removal
+ *   - Global singleton cache (g_cache) — not multi-instance
+ *   - Persistence is endian/ABI dependent (size_t & layout)
+ *
+ * Example Usage:
+ *
+ *   if (fossil_bluecrab_cacheshell_init(10000)) {
+ *       fossil_bluecrab_cacheshell_threadsafe(true);
+ *       fossil_bluecrab_cacheshell_set("greet", "hello");
+ *
+ *       char buf[32];
+ *       if (fossil_bluecrab_cacheshell_get("greet", buf, sizeof buf)) {
+ *           // buf == "hello"
+ *       }
+ *
+ *       fossil_bluecrab_cacheshell_set_with_ttl("temp", "123", 3);
+ *       // ... after >3s fossil_bluecrab_cacheshell_get("temp") -> miss
+ *
+ *       fossil_bluecrab_cacheshell_save("dump.cache");
+ *       fossil_bluecrab_cacheshell_clear();
+ *       fossil_bluecrab_cacheshell_load("dump.cache");
+ *
+ *       fossil_bluecrab_cacheshell_shutdown();
+ *   }
+ *
+ * ASCII Flow (lookup):
+ *
+ *     key -> hash -> bucket index -> traverse chain -> (match?)
+ *                                      | yes
+ *                                      v
+ *                               check expiry
+ *                                 | valid
+ *                                 v
+ *                               return data
+ *
+ * Error Conditions:
+ *   - Allocation failure -> false
+ *   - Exceeds max_entries -> false
+ *   - Missing key lookup -> false
+ *
+ * Complexity (average):
+ *   - set/get/remove: O(1) expected, O(n) worst (n = entries in a bucket)
+ *   - evict_expired: O(total_entries)
+ *   - iterate: O(total_entries)
+ *
+ * Safety Notes:
+ *   - Caller must provide adequate buffer for fossil_bluecrab_cacheshell_get
+ *   - Binary retrieval requires caller to check returned size (out_size)
+ */
+
 // ===========================================================
 // Internal Types
 // ===========================================================
@@ -65,6 +193,19 @@ static fossil_cache_t g_cache;
 // ===========================================================
 // Internal Helpers
 // ===========================================================
+
+/**
+ * Custom cacheshell_strdup implementation.
+ */
+static char *cacheshell_strdup(const char *s) {
+    if (!s) return NULL;
+    size_t len = strlen(s);
+    char *copy = (char *)malloc(len + 1);
+    if (copy) {
+        memcpy(copy, s, len + 1);
+    }
+    return copy;
+}
 
 // Enhanced hash: FNV-1a with architecture-aware final mixing (avalanche).
 // Keeps speed while improving distribution over classic djb2.
@@ -371,7 +512,7 @@ bool fossil_bluecrab_cacheshell_set_binary(const char *key, const void *data, si
         return false;
     }
 
-    entry->key = strdup(key);
+    entry->key = cacheshell_strdup(key);
     entry->data = malloc(size);
     if (!entry->key || !entry->data) {
         fossil_cache_free_entry(entry);
