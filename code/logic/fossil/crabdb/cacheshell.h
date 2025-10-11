@@ -39,9 +39,22 @@
 extern "C" {
 #endif
 
-// *****************************************************************************
-// CacheShell API - Prototypes
-// *****************************************************************************
+// ===========================================================
+// Initialization / Lifecycle
+// ===========================================================
+
+/**
+ * @brief Initializes the cache subsystem.
+ *
+ * @param max_entries   Optional maximum number of cache entries (0 = unlimited).
+ * @return              true on success, false on failure.
+ */
+bool fossil_bluecrab_cacheshell_init(size_t max_entries);
+
+/**
+ * @brief Shuts down the cache subsystem and releases all resources.
+ */
+void fossil_bluecrab_cacheshell_shutdown(void);
 
 // ===========================================================
 // Basic Key/Value Operations
@@ -74,6 +87,14 @@ bool fossil_bluecrab_cacheshell_get(const char *key, char *out_value, size_t buf
  */
 bool fossil_bluecrab_cacheshell_remove(const char *key);
 
+/**
+ * @brief Checks if a key exists in the cache.
+ *
+ * @param key   Key string.
+ * @return      true if key exists, false otherwise.
+ */
+bool fossil_bluecrab_cacheshell_exists(const char *key);
+
 // ===========================================================
 // Expiration / TTL (Time-to-Live)
 // ===========================================================
@@ -105,32 +126,23 @@ bool fossil_bluecrab_cacheshell_expire(const char *key, unsigned int ttl_sec);
  */
 int fossil_bluecrab_cacheshell_ttl(const char *key);
 
-// ===========================================================
-// Cache Management
-// ===========================================================
-
 /**
- * @brief Clears all keys/values from the cache.
- */
-void fossil_bluecrab_cacheshell_clear(void);
-
-/**
- * @brief Returns the number of keys currently in the cache.
- *
- * @return  Key count.
- */
-size_t fossil_bluecrab_cacheshell_count(void);
-
-/**
- * @brief Checks if a key exists in the cache.
+ * @brief Refreshes the TTL of a key without changing the value.
  *
  * @param key   Key string.
- * @return      true if key exists, false otherwise.
+ * @return      true if key found and refreshed, false otherwise.
  */
-bool fossil_bluecrab_cacheshell_exists(const char *key);
+bool fossil_bluecrab_cacheshell_touch(const char *key);
+
+/**
+ * @brief Manually evicts all expired keys.
+ *
+ * @return      Number of keys evicted.
+ */
+size_t fossil_bluecrab_cacheshell_evict_expired(void);
 
 // ===========================================================
-// Advanced / Optional Helpers
+// Binary-Safe Operations
 // ===========================================================
 
 /**
@@ -154,142 +166,498 @@ bool fossil_bluecrab_cacheshell_set_binary(const char *key, const void *data, si
  */
 bool fossil_bluecrab_cacheshell_get_binary(const char *key, void *out_buf, size_t buf_size, size_t *out_size);
 
+// ===========================================================
+// Cache Management
+// ===========================================================
+
+/**
+ * @brief Clears all keys/values from the cache.
+ */
+void fossil_bluecrab_cacheshell_clear(void);
+
+/**
+ * @brief Returns the number of keys currently in the cache.
+ *
+ * @return  Key count.
+ */
+size_t fossil_bluecrab_cacheshell_count(void);
+
+/**
+ * @brief Retrieves approximate memory usage by the cache.
+ *
+ * @return  Number of bytes used by stored entries.
+ */
+size_t fossil_bluecrab_cacheshell_memory_usage(void);
+
+// ===========================================================
+// Introspection / Statistics
+// ===========================================================
+
+/**
+ * @brief Retrieves cache hit/miss statistics.
+ *
+ * @param out_hits    Pointer to store hit count (nullable).
+ * @param out_misses  Pointer to store miss count (nullable).
+ */
+void fossil_bluecrab_cacheshell_stats(size_t *out_hits, size_t *out_misses);
+
+// ===========================================================
+// Iteration
+// ===========================================================
+
+/**
+ * @brief Callback type for cache iteration.
+ */
+typedef void (*fossil_bluecrab_cache_iter_cb)(
+    const char *key,
+    const void *value,
+    size_t value_size,
+    void *user_data
+);
+
+/**
+ * @brief Iterates over all cache entries.
+ *
+ * @param cb         Callback invoked per entry.
+ * @param user_data  Optional pointer passed to callback.
+ */
+void fossil_bluecrab_cacheshell_iterate(fossil_bluecrab_cache_iter_cb cb, void *user_data);
+
+// ===========================================================
+// Thread Safety
+// ===========================================================
+
+/**
+ * @brief Enables or disables internal locking for thread safety.
+ *
+ * @param enabled  true to enable locking, false to disable.
+ */
+void fossil_bluecrab_cacheshell_threadsafe(bool enabled);
+
+// ===========================================================
+// FSON Integration (Optional)
+// ===========================================================
+
+/**
+ * @brief Stores a value encoded as FSON.
+ *
+ * @param key       Key string.
+ * @param fson_data Pointer to FSON-encoded data.
+ * @return          true on success, false on failure.
+ */
+bool fossil_bluecrab_cacheshell_set_fson(const char *key, const void *fson_data);
+
+/**
+ * @brief Retrieves a value as FSON data.
+ *
+ * @param key       Key string.
+ * @param out_fson  Output pointer for FSON data.
+ * @return          true if found, false otherwise.
+ */
+bool fossil_bluecrab_cacheshell_get_fson(const char *key, void **out_fson);
+
+// ===========================================================
+// Persistence (Optional)
+// ===========================================================
+
+/**
+ * @brief Saves the cache contents to a file snapshot.
+ *
+ * @param path  File path to save to.
+ * @return      true on success, false on failure.
+ */
+bool fossil_bluecrab_cacheshell_save(const char *path);
+
+/**
+ * @brief Loads cache state from a snapshot file.
+ *
+ * @param path  File path to load from.
+ * @return      true on success, false on failure.
+ */
+bool fossil_bluecrab_cacheshell_load(const char *path);
+
 #ifdef __cplusplus
 }
 #include <string>
+#include <vector>
 
 namespace fossil {
 
     namespace bluecrab {
 
         /**
-         * @brief C++ wrapper class for the CacheShell C API.
+         * @brief High-level C++ RAII-friendly wrapper around the C CacheShell API.
          *
-         * Provides static methods for interacting with the cache using std::string
-         * and C++ idioms, mapping directly to the underlying C functions.
+         * This class provides a strongly-typed, exception-safe (no-throw) interface
+         * for interacting with the underlying C cache subsystem. All functions are
+         * thin inline pass‑throughs (zero or near-zero overhead) that:
+         *  - Accept / return C++ standard library types (std::string, std::vector, etc.).
+         *  - Preserve the semantics of the C counterparts.
+         *  - Avoid throwing exceptions (all error reporting via return values).
+         *
+         * THREAD SAFETY:
+         *  The underlying subsystem may be optionally made thread-safe via
+         *  threadsafe(true). Unless enabled, callers must externally synchronize.
+         *
+         * LIFETIME:
+         *  Use CacheShell::Guard for scoped automatic init / shutdown.
          */
         class CacheShell {
         public:
             /**
-             * @brief Inserts or updates a value in the cache.
+             * @brief Initialize the cache subsystem.
              *
-             * @param key   Key string.
-             * @param value Value string.
-             * @return      true on success, false on failure.
+             * @param max_entries Maximum entries (0 = unlimited).
+             * @return true on success, false on failure (e.g., already initialized or OOM).
+             */
+            static bool init(size_t max_entries = 0) {
+                return fossil_bluecrab_cacheshell_init(max_entries);
+            }
+
+            /**
+             * @brief Shutdown the cache subsystem. All entries are released.
+             *
+             * Safe to call multiple times; extra calls are ignored by the C layer.
+             */
+            static void shutdown() {
+                fossil_bluecrab_cacheshell_shutdown();
+            }
+
+            // -----------------------------------------------------------------
+            // Basic Key / Value Operations
+            // -----------------------------------------------------------------
+
+            /**
+             * @brief Insert or update a UTF-8 string value.
+             *
+             * @param key   Cache key.
+             * @param value Value to store.
+             * @return true on success, false on failure.
              */
             static bool set(const std::string& key, const std::string& value) {
                 return fossil_bluecrab_cacheshell_set(key.c_str(), value.c_str());
             }
 
             /**
-             * @brief Retrieves a value from the cache.
+             * @brief Retrieve a string value.
              *
-             * @param key        Key string.
-             * @param out_value  Output parameter to store the retrieved value.
-             * @return           true if key found, false otherwise.
+             * @param key       Cache key.
+             * @param out_value On success, replaced with the stored value.
+             * @param max_len   Temporary buffer size to attempt (acts as an upper bound).
+             * @return true if key found, false otherwise.
+             *
+             * NOTE: If the stored value length exceeds max_len - 1 it will be truncated
+             *       by the C API before we shrink to actual length. Adjust max_len if
+             *       larger values are expected.
              */
-            static bool get(const std::string& key, std::string& out_value) {
-                char buffer[4096];
-                if (fossil_bluecrab_cacheshell_get(key.c_str(), buffer, sizeof(buffer))) {
-                    out_value = buffer;
+            static bool get(const std::string& key, std::string& out_value, size_t max_len = 4096) {
+                std::string buffer;
+                buffer.resize(max_len);
+                if (fossil_bluecrab_cacheshell_get(key.c_str(), buffer.data(), buffer.size())) {
+                    buffer.resize(std::strlen(buffer.c_str()));
+                    out_value.swap(buffer);
                     return true;
                 }
                 return false;
             }
 
             /**
-             * @brief Removes a key/value pair from the cache.
-             *
-             * @param key   Key string.
-             * @return      true if removed, false if key not found.
+             * @brief Remove a key/value pair.
+             * @return true if removed, false if not present.
              */
             static bool remove(const std::string& key) {
                 return fossil_bluecrab_cacheshell_remove(key.c_str());
             }
 
             /**
-             * @brief Inserts or updates a value with expiration time (TTL).
+             * @brief Check if a key exists.
+             * @return true if exists, false otherwise.
+             */
+            static bool exists(const std::string& key) {
+                return fossil_bluecrab_cacheshell_exists(key.c_str());
+            }
+
+            // -----------------------------------------------------------------
+            // Time-To-Live (TTL) Operations
+            // -----------------------------------------------------------------
+
+            /**
+             * @brief Set a value with an expiration (TTL).
              *
-             * @param key      Key string.
-             * @param value    Value string.
-             * @param ttl_sec  Time-to-live in seconds.
-             * @return         true on success, false on failure.
+             * @param key      Key to set.
+             * @param value    Value to store.
+             * @param ttl_sec  Lifetime in seconds (0 may mean no TTL, depending on C layer).
+             * @return true on success, false on failure.
              */
             static bool set_with_ttl(const std::string& key, const std::string& value, unsigned int ttl_sec) {
                 return fossil_bluecrab_cacheshell_set_with_ttl(key.c_str(), value.c_str(), ttl_sec);
             }
 
             /**
-             * @brief Updates the TTL of an existing key.
+             * @brief Update TTL of an existing key.
              *
-             * @param key      Key string.
+             * @param key      Key to update.
              * @param ttl_sec  New TTL in seconds.
-             * @return         true if updated, false if key not found.
+             * @return true if updated, false if key not found.
              */
             static bool expire(const std::string& key, unsigned int ttl_sec) {
                 return fossil_bluecrab_cacheshell_expire(key.c_str(), ttl_sec);
             }
 
             /**
-             * @brief Gets the remaining TTL of a key.
+             * @brief Query remaining TTL.
              *
-             * @param key   Key string.
-             * @return      Remaining TTL in seconds, or -1 if not found or no TTL set.
+             * @param key Key to query.
+             * @return Remaining seconds, or -1 if not found or no TTL set.
              */
             static int ttl(const std::string& key) {
                 return fossil_bluecrab_cacheshell_ttl(key.c_str());
             }
 
             /**
-             * @brief Clears all keys/values from the cache.
+             * @brief Refresh TTL without altering value (similar to touch in Unix).
+             * @return true if refreshed, false otherwise.
              */
-            static void clear() {
-                fossil_bluecrab_cacheshell_clear();
+            static bool touch(const std::string& key) {
+                return fossil_bluecrab_cacheshell_touch(key.c_str());
             }
 
             /**
-             * @brief Returns the number of keys currently in the cache.
-             *
-             * @return  Key count.
+             * @brief Manually evict all expired keys.
+             * @return Count of evicted entries.
              */
-            static size_t count() {
-                return fossil_bluecrab_cacheshell_count();
+            static size_t evict_expired() {
+                return fossil_bluecrab_cacheshell_evict_expired();
             }
 
-            /**
-             * @brief Checks if a key exists in the cache.
-             *
-             * @param key   Key string.
-             * @return      true if key exists, false otherwise.
-             */
-            static bool exists(const std::string& key) {
-                return fossil_bluecrab_cacheshell_exists(key.c_str());
-            }
+            // -----------------------------------------------------------------
+            // Binary (Opaque Data) Operations
+            // -----------------------------------------------------------------
 
             /**
-             * @brief Sets a binary-safe value (arbitrary data).
+             * @brief Store arbitrary binary data.
              *
-             * @param key   Key string.
-             * @param data  Pointer to data buffer.
-             * @param size  Size of data buffer.
-             * @return      true on success, false on failure.
+             * @param key   Key.
+             * @param data  Pointer to raw bytes.
+             * @param size  Length in bytes.
+             * @return true on success, false on failure.
              */
             static bool set_binary(const std::string& key, const void* data, size_t size) {
                 return fossil_bluecrab_cacheshell_set_binary(key.c_str(), data, size);
             }
 
             /**
-             * @brief Retrieves a binary-safe value.
+             * @brief Retrieve binary data into a caller-provided buffer.
              *
-             * @param key       Key string.
-             * @param out_buf   Buffer to store data.
-             * @param buf_size  Size of buffer.
-             * @param out_size  Actual size of data returned.
-             * @return          true if found, false otherwise.
+             * @param key       Key.
+             * @param out_buf   Destination buffer.
+             * @param buf_size  Capacity of destination.
+             * @param out_size  (Optional) actual size stored / needed.
+             * @return true if found (even if truncated), false if not present.
              */
             static bool get_binary(const std::string& key, void* out_buf, size_t buf_size, size_t* out_size) {
                 return fossil_bluecrab_cacheshell_get_binary(key.c_str(), out_buf, buf_size, out_size);
             }
+
+            /**
+             * @brief Convenience helper returning binary data in a std::vector<uint8_t>.
+             *
+             * Performs a two-pass retrieval:
+             *  1) Query size by calling with nullptr buffer.
+             *  2) Allocate vector + fetch actual bytes.
+             *
+             * @param key Key to fetch.
+             * @param out Vector filled with data (cleared/reallocated as needed).
+             * @return true on success, false if key not found.
+             */
+            static bool get_binary_vector(const std::string& key, std::vector<uint8_t>& out) {
+                size_t sz = 0;
+                if (!fossil_bluecrab_cacheshell_get_binary(key.c_str(), nullptr, 0, &sz))
+                    return false;
+                out.resize(sz);
+                size_t got = 0;
+                if (!fossil_bluecrab_cacheshell_get_binary(key.c_str(), out.data(), sz, &got))
+                    return false;
+                out.resize(got);
+                return true;
+            }
+
+            // -----------------------------------------------------------------
+            // Cache Management
+            // -----------------------------------------------------------------
+
+            /**
+             * @brief Remove all entries (flush).
+             */
+            static void clear() {
+                fossil_bluecrab_cacheshell_clear();
+            }
+
+            /**
+             * @brief Number of currently stored keys.
+             */
+            static size_t count() {
+                return fossil_bluecrab_cacheshell_count();
+            }
+
+            /**
+             * @brief Approximate memory usage in bytes (implementation-defined).
+             */
+            static size_t memory_usage() {
+                return fossil_bluecrab_cacheshell_memory_usage();
+            }
+
+            // -----------------------------------------------------------------
+            // Statistics
+            // -----------------------------------------------------------------
+
+            /**
+             * @brief Simple hit/miss statistics POD.
+             */
+            struct Stats {
+            size_t hits = 0;    ///< Number of successful lookups.
+            size_t misses = 0;  ///< Number of failed lookups.
+            };
+
+            /**
+             * @brief Retrieve snapshot of hit/miss counters.
+             *
+             * @return Stats structure populated with current counters.
+             */
+            static Stats stats() {
+                Stats s;
+                fossil_bluecrab_cacheshell_stats(&s.hits, &s.misses);
+                return s;
+            }
+
+            // -----------------------------------------------------------------
+            // Iteration
+            // -----------------------------------------------------------------
+
+            /**
+             * @brief Iterate through all entries (no guaranteed ordering).
+             *
+             * WARNING: Modifying the cache within the callback may invalidate
+             * iteration (depends on underlying implementation). Keep callbacks brief.
+             *
+             * @param cb Callback invoked once per entry: (key, value_ptr, value_size).
+             */
+            static void iterate(const std::function<void(const std::string&, const void*, size_t)>& cb) {
+                struct Trampoline {
+                    static void call(const char* k, const void* v, size_t vsz, void* ud) {
+                    auto* fn = static_cast<const std::function<void(const std::string&, const void*, size_t)>*>(ud);
+                    (*fn)(k, v, vsz);
+                    }
+                };
+                fossil_bluecrab_cacheshell_iterate(&Trampoline::call,
+                                const_cast<void*>(reinterpret_cast<const void*>(&cb)));
+            }
+
+            // -----------------------------------------------------------------
+            // Thread Safety Control
+            // -----------------------------------------------------------------
+
+            /**
+             * @brief Enable or disable internal locking.
+             *
+             * @param enabled true to enable internal mutex protection, false to disable.
+             *                When disabled, caller must ensure external synchronization.
+             */
+            static void threadsafe(bool enabled) {
+                fossil_bluecrab_cacheshell_threadsafe(enabled);
+            }
+
+            // -----------------------------------------------------------------
+            // FSON Integration
+            // -----------------------------------------------------------------
+
+            /**
+             * @brief Store an FSON-encoded payload.
+             *
+             * Ownership / lifetime of fson_data is not transferred unless documented
+             * by the underlying C implementation (assumed copied).
+             *
+             * @param key       Key.
+             * @param fson_data Pointer to FSON blob.
+             * @return true on success, false on failure.
+             */
+            static bool set_fson(const std::string& key, const void* fson_data) {
+                return fossil_bluecrab_cacheshell_set_fson(key.c_str(), fson_data);
+            }
+
+            /**
+             * @brief Retrieve FSON payload pointer.
+             *
+             * @param key      Key.
+             * @param out_fson Receives pointer (ownership semantics defined by C layer).
+             * @return true if found, false otherwise.
+             */
+            static bool get_fson(const std::string& key, void** out_fson) {
+                return fossil_bluecrab_cacheshell_get_fson(key.c_str(), out_fson);
+            }
+
+            // -----------------------------------------------------------------
+            // Persistence
+            // -----------------------------------------------------------------
+
+            /**
+             * @brief Save cache snapshot to a file.
+             *
+             * @param path Filesystem path.
+             * @return true on success, false on failure (I/O error, permissions, etc.).
+             */
+            static bool save(const std::string& path) {
+                return fossil_bluecrab_cacheshell_save(path.c_str());
+            }
+
+            /**
+             * @brief Load cache snapshot from a file.
+             *
+             * NOTE: Existing contents may be replaced / merged depending on C API semantics.
+             *
+             * @param path Filesystem path.
+             * @return true on success, false on failure.
+             */
+            static bool load(const std::string& path) {
+                return fossil_bluecrab_cacheshell_load(path.c_str());
+            }
+
+            // -----------------------------------------------------------------
+            // RAII Guard
+            // -----------------------------------------------------------------
+
+            /**
+             * @brief Scoped initializer that automatically shuts down on destruction.
+             *
+             * Usage:
+             *   CacheShell::Guard guard(1024);
+             *   if (!guard.ok()) { /* handle error */ }
+             *
+             * Ensures balanced init/shutdown even across exceptions.
+             */
+            class Guard {
+            public:
+            /**
+             * @brief Construct and attempt to initialize.
+             * @param max_entries Forwarded to CacheShell::init.
+             */
+            explicit Guard(size_t max_entries = 0) : active_(CacheShell::init(max_entries)) {}
+
+            /**
+             * @brief Destructor calls shutdown if init succeeded.
+             */
+            ~Guard() { if (active_) CacheShell::shutdown(); }
+
+            Guard(const Guard&) = delete;
+            Guard& operator=(const Guard&) = delete;
+
+            /**
+             * @brief Check whether initialization succeeded.
+             */
+            bool ok() const { return active_; }
+            private:
+            bool active_; ///< Tracks successful initialization.
+            };
         };
 
     } // namespace bluecrab
