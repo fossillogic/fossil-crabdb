@@ -364,14 +364,31 @@ bool fossil_bluecrab_cacheshell_set(const char *key, const char *value) {
 }
 
 bool fossil_bluecrab_cacheshell_get(const char *key, char *out_value, size_t buffer_size) {
+    // Always attempt to set a deterministic state for out_value
+    if (out_value && buffer_size > 0) {
+        out_value[0] = '\0';
+    }
+    if (!out_value || buffer_size == 0) {
+        return false;
+    }
+
     fossil_cache_lock();
     fossil_cache_entry_t *entry = fossil_cache_find(key);
     if (!entry) {
         fossil_cache_unlock();
+        // out_value already set to ""
         return false;
     }
-    strncpy(out_value, entry->data, buffer_size - 1);
-    out_value[buffer_size - 1] = '\0';
+
+    size_t copy_len = entry->size;
+    if (copy_len >= buffer_size) {
+        copy_len = buffer_size - 1; // reserve space for terminator
+    }
+    if (copy_len > 0) {
+        memcpy(out_value, entry->data, copy_len);
+    }
+    out_value[copy_len] = '\0';
+
     fossil_cache_unlock();
     return true;
 }
