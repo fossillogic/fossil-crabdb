@@ -547,35 +547,6 @@ namespace fossil {
             }
 
             // -----------------------------------------------------------------
-            // FSON Integration
-            // -----------------------------------------------------------------
-
-            /**
-             * @brief Store an FSON-encoded payload.
-             *
-             * Ownership / lifetime of fson_data is not transferred unless documented
-             * by the underlying C implementation (assumed copied).
-             *
-             * @param key       Key.
-             * @param fson_data Pointer to FSON blob.
-             * @return true on success, false on failure.
-             */
-            static bool set_fson(const std::string& key, const void* fson_data) {
-                return fossil_bluecrab_cacheshell_set_fson(key.c_str(), fson_data);
-            }
-
-            /**
-             * @brief Retrieve FSON payload pointer.
-             *
-             * @param key      Key.
-             * @param out_fson Receives pointer (ownership semantics defined by C layer).
-             * @return true if found, false otherwise.
-             */
-            static bool get_fson(const std::string& key, void** out_fson) {
-                return fossil_bluecrab_cacheshell_get_fson(key.c_str(), out_fson);
-            }
-
-            // -----------------------------------------------------------------
             // Persistence
             // -----------------------------------------------------------------
 
