@@ -26,28 +26,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
 typedef CRITICAL_SECTION pthread_mutex_t;
-// Lightweight pthread mutex compatibility layer for Windows
-static int pthread_mutex_init(pthread_mutex_t *m, void *attr) {
-    (void)attr;
-    InitializeCriticalSection(m);
-    return 0;
-}
-static int pthread_mutex_lock(pthread_mutex_t *m) {
-    EnterCriticalSection(m);
-    return 0;
-}
-static int pthread_mutex_unlock(pthread_mutex_t *m) {
-    LeaveCriticalSection(m);
-    return 0;
-}
-static int pthread_mutex_destroy(pthread_mutex_t *m) {
-    DeleteCriticalSection(m);
-    return 0;
-}
 #else
 #include <pthread.h>
 #endif
@@ -85,14 +66,59 @@ static fossil_cache_t g_cache;
 // Internal Helpers
 // ===========================================================
 
+// Enhanced hash: FNV-1a with architecture-aware final mixing (avalanche).
+// Keeps speed while improving distribution over classic djb2.
 static size_t fossil_cache_hash(const char *key) {
-    // djb2 hash
-    size_t hash = 5381;
-    unsigned char c;
-    while ((c = (unsigned char)*key++))
-        hash = ((hash << 5) + hash) + c;
-    return hash;
+#if SIZE_MAX > 0xFFFFFFFFu  // 64-bit size_t
+    uint64_t h = 1469598103934665603ull;          // FNV-1a 64-bit offset
+    while (*key) {
+        h ^= (uint8_t)*key++;
+        h *= 1099511628211ull;                   // FNV prime
+    }
+    // Mix (inspired by SplitMix64 / Murmur finalizers)
+    h ^= h >> 32;
+    h *= 0x9e3779b97f4a7c15ull;
+    h ^= h >> 29;
+    h *= 0x94d049bb133111ebull;
+    h ^= h >> 32;
+    return (size_t)h;
+#else // 32-bit size_t
+    uint32_t h = 2166136261u;                    // FNV-1a 32-bit offset
+    while (*key) {
+        h ^= (uint8_t)*key++;
+        h *= 16777619u;                          // FNV prime
+    }
+    // Final avalanche (MurMur / Jenkins style)
+    h ^= h >> 15;
+    h *= 0x85ebca6bu;
+    h ^= h >> 13;
+    h *= 0xc2b2ae35u;
+    h ^= h >> 16;
+    return (size_t)h;
+#endif
 }
+
+#if defined(_WIN32) || defined(_WIN64)
+static void fossil_cache_lock(void) {
+    if (g_cache.locking_enabled)
+        EnterCriticalSection(&g_cache.lock);
+}
+
+static void fossil_cache_unlock(void) {
+    if (g_cache.locking_enabled)
+        LeaveCriticalSection(&g_cache.lock);
+}
+#else
+static void fossil_cache_lock(void) {
+    if (g_cache.locking_enabled)
+        pthread_mutex_lock(&g_cache.lock);
+}
+
+static void fossil_cache_unlock(void) {
+    if (g_cache.locking_enabled)
+        pthread_mutex_unlock(&g_cache.lock);
+}
+#endif
 
 static void fossil_cache_free_entry(fossil_cache_entry_t *entry) {
     if (!entry) return;
