@@ -280,6 +280,7 @@ bool fossil_bluecrab_cacheshell_load(const char *path);
 }
 #include <string>
 #include <vector>
+#include <functional>
 
 namespace fossil {
 
@@ -622,42 +623,6 @@ namespace fossil {
                 return fossil_bluecrab_cacheshell_load(path.c_str());
             }
 
-            // -----------------------------------------------------------------
-            // RAII Guard
-            // -----------------------------------------------------------------
-
-            /**
-             * @brief Scoped initializer that automatically shuts down on destruction.
-             *
-             * Usage:
-             *   CacheShell::Guard guard(1024);
-             *   if (!guard.ok()) { /* handle error */ }
-             *
-             * Ensures balanced init/shutdown even across exceptions.
-             */
-            class Guard {
-            public:
-            /**
-             * @brief Construct and attempt to initialize.
-             * @param max_entries Forwarded to CacheShell::init.
-             */
-            explicit Guard(size_t max_entries = 0) : active_(CacheShell::init(max_entries)) {}
-
-            /**
-             * @brief Destructor calls shutdown if init succeeded.
-             */
-            ~Guard() { if (active_) CacheShell::shutdown(); }
-
-            Guard(const Guard&) = delete;
-            Guard& operator=(const Guard&) = delete;
-
-            /**
-             * @brief Check whether initialization succeeded.
-             */
-            bool ok() const { return active_; }
-            private:
-            bool active_; ///< Tracks successful initialization.
-            };
         };
 
     } // namespace bluecrab
