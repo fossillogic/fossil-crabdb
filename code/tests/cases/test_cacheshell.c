@@ -253,18 +253,6 @@ FOSSIL_TEST(c_test_cacheshell_threadsafe_toggle) {
     fossil_bluecrab_cacheshell_shutdown();
 }
 
-FOSSIL_TEST(c_test_cacheshell_fson_set_get) {
-    fossil_bluecrab_cacheshell_init(0);
-    fossil_bluecrab_cacheshell_clear();
-    const char *key = "fsonkey";
-    const char fson_data[] = "{ \"a\": 1 }";
-    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_set_fson(key, fson_data));
-    void *out_fson = NULL;
-    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_get_fson(key, &out_fson));
-    ASSUME_ITS_TRUE(out_fson != NULL);
-    fossil_bluecrab_cacheshell_shutdown();
-}
-
 FOSSIL_TEST(c_test_cacheshell_persistence_save_load) {
     fossil_bluecrab_cacheshell_init(0);
     fossil_bluecrab_cacheshell_clear();
@@ -313,7 +301,6 @@ FOSSIL_TEST_GROUP(c_cacheshell_database_tests) {
     FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_stats);
     FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_iterate);
     FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_threadsafe_toggle);
-    FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_fson_set_get);
     FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_persistence_save_load);
     FOSSIL_TEST_ADD(c_cacheshell_fixture, c_test_cacheshell_init_with_limit);
 

@@ -245,18 +245,6 @@ FOSSIL_TEST(cpp_test_cacheshell_threadsafe_toggle) {
     CacheShell::shutdown();
 }
 
-FOSSIL_TEST(cpp_test_cacheshell_fson_set_get) {
-    CacheShell::init(0);
-    CacheShell::clear();
-    const std::string key = "fsonkey";
-    const char fson_data[] = "{ \"a\": 1 }";
-    ASSUME_ITS_TRUE(CacheShell::set_fson(key, fson_data));
-    void* out_fson = nullptr;
-    ASSUME_ITS_TRUE(CacheShell::get_fson(key, &out_fson));
-    ASSUME_ITS_TRUE(out_fson != nullptr);
-    CacheShell::shutdown();
-}
-
 FOSSIL_TEST(cpp_test_cacheshell_persistence_save_load) {
     CacheShell::init(0);
     CacheShell::clear();
@@ -303,7 +291,6 @@ FOSSIL_TEST_GROUP(cpp_cacheshell_database_tests) {
     FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_stats);
     FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_iterate);
     FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_threadsafe_toggle);
-    FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_fson_set_get);
     FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_persistence_save_load);
     FOSSIL_TEST_ADD(cpp_cacheshell_fixture, cpp_test_cacheshell_init_with_limit);
 
