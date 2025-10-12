@@ -257,21 +257,34 @@ FOSSIL_TEST(cpp_test_cacheshell_threadsafe_toggle) {
 }
 
 FOSSIL_TEST(cpp_test_cacheshell_persistence_save_load) {
+    std::string snapshot;
+    try {
+        snapshot = (std::filesystem::temp_directory_path() / "cacheshell_test.snapshot").string();
+    } catch (...) {
+        snapshot = "cacheshell_test.snapshot"; // fallback
+    }
+
     CacheShell::init(0);
     CacheShell::clear();
     ASSUME_ITS_TRUE(CacheShell::set("persist", "value"));
-    ASSUME_ITS_TRUE(CacheShell::save("/tmp/cacheshell_test.snapshot"));
-
+    ASSUME_ITS_TRUE(CacheShell::save(snapshot.c_str()));
     CacheShell::shutdown();
 
     ASSUME_ITS_TRUE(CacheShell::init(0));
     CacheShell::clear();
     ASSUME_ITS_FALSE(CacheShell::exists("persist"));
 
-    ASSUME_ITS_TRUE(CacheShell::load("/tmp/cacheshell_test.snapshot"));
-    ASSUME_ITS_TRUE(CacheShell::load("/tmp/cacheshell_test.snapshot"));
+    // Load twice to ensure idempotent behavior
+    ASSUME_ITS_TRUE(CacheShell::load(snapshot.c_str()));
+    ASSUME_ITS_TRUE(CacheShell::load(snapshot.c_str()));
+    std::string val;
+    ASSUME_ITS_TRUE(CacheShell::get("persist", val));
+    ASSUME_ITS_TRUE(val == "value");
 
     CacheShell::shutdown();
+
+    // Best-effort cleanup
+    (void)std::filesystem::remove(snapshot);
 }
 
 FOSSIL_TEST(cpp_test_cacheshell_init_with_limit) {

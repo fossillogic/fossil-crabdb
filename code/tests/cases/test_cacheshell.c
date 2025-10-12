@@ -260,22 +260,29 @@ FOSSIL_TEST(c_test_cacheshell_threadsafe_toggle) {
 }
 
 FOSSIL_TEST(c_test_cacheshell_persistence_save_load) {
-    fossil_bluecrab_cacheshell_init(0);
+#ifdef _WIN32
+    const char *snapshot_path = ".\\cacheshell_test.snapshot";
+#else
+    const char *snapshot_path = "/tmp/cacheshell_test.snapshot";
+#endif
+
+    remove(snapshot_path); // ensure clean start
+
+    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_init(0));
     fossil_bluecrab_cacheshell_clear();
     ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_set("persist", "value"));
-    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_save("/tmp/cacheshell_test.snapshot"));
-
+    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_save(snapshot_path));
     fossil_bluecrab_cacheshell_shutdown();
 
     ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_init(0));
-
     fossil_bluecrab_cacheshell_clear();
     ASSUME_ITS_FALSE(fossil_bluecrab_cacheshell_exists("persist"));
 
-    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_load("/tmp/cacheshell_test.snapshot"));
-    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_load("/tmp/cacheshell_test.snapshot"));
+    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_load(snapshot_path));
+    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_load(snapshot_path)); // idempotent load
 
     fossil_bluecrab_cacheshell_shutdown();
+    remove(snapshot_path); // cleanup
 }
 
 FOSSIL_TEST(c_test_cacheshell_init_with_limit) {

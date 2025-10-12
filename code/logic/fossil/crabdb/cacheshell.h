@@ -260,6 +260,7 @@ bool fossil_bluecrab_cacheshell_load(const char *path);
 }
 #include <string>
 #include <vector>
+#include <filesystem>
 #include <functional>
 #include <cstring>
 
