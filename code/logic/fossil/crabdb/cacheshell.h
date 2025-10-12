@@ -75,9 +75,9 @@ bool fossil_bluecrab_cacheshell_set(const char *key, const char *value);
  * @param key           Null-terminated key string.
  * @param out_value     Buffer to store retrieved value.
  * @param buffer_size   Size of output buffer.
- * @return              true if key found, false otherwise.
+ * @return              Pointer to the retrieved value, or NULL if not found.
  */
-bool fossil_bluecrab_cacheshell_get(const char *key, char *out_value, size_t buffer_size);
+char *fossil_bluecrab_cacheshell_get(const char *key, size_t buffer_size);
 
 /**
  * @brief Removes a key/value pair from the cache.
@@ -158,13 +158,15 @@ bool fossil_bluecrab_cacheshell_set_binary(const char *key, const void *data, si
 /**
  * @brief Retrieves a binary-safe value.
  *
+ * Returns a pointer to the internal stored binary data for the given key, or NULL
+ * if the key does not exist. The lifetime of the returned pointer is managed by
+ * the cache; copy it if you need to retain it. Do not modify the pointed data.
+ *
  * @param key       Key string.
- * @param out_buf   Buffer to store data.
- * @param buf_size  Size of buffer.
- * @param out_size  Actual size of data returned.
- * @return          true if found, false otherwise.
+ * @param out_size  (Optional) Receives size of the binary value in bytes.
+ * @return          Pointer to binary data, or NULL if not found.
  */
-bool fossil_bluecrab_cacheshell_get_binary(const char *key, void *out_buf, size_t buf_size, size_t *out_size);
+const void *fossil_bluecrab_cacheshell_get_binary(const char *key, size_t *out_size);
 
 // ===========================================================
 // Cache Management
@@ -323,22 +325,18 @@ namespace fossil {
              *
              * @param key       Cache key.
              * @param out_value On success, replaced with the stored value.
-             * @param max_len   Temporary buffer size to attempt (acts as an upper bound).
+             * @param max_len   Upper bound hint passed to C API (may truncate longer data).
              * @return true if key found, false otherwise.
              *
-             * NOTE: If the stored value length exceeds max_len - 1 it will be truncated
-             *       by the C API before we shrink to actual length. Adjust max_len if
-             *       larger values are expected.
+             * NOTE: The C API returns a pointer to an internal (or transient) buffer.
+             *       We copy it immediately into out_value to ensure safety.
              */
             static bool get(const std::string& key, std::string& out_value, size_t max_len = 4096) {
-                std::string buffer;
-                buffer.resize(max_len);
-                if (fossil_bluecrab_cacheshell_get(key.c_str(), buffer.data(), buffer.size())) {
-                    buffer.resize(std::strlen(buffer.c_str()));
-                    out_value.swap(buffer);
-                    return true;
-                }
-                return false;
+                char *val = fossil_bluecrab_cacheshell_get(key.c_str(), max_len);
+                if (!val)
+                    return false;
+                out_value.assign(val);
+                return true;
             }
 
             /**
@@ -429,15 +427,55 @@ namespace fossil {
             /**
              * @brief Retrieve binary data into a caller-provided buffer.
              *
+             * Copies up to buf_size bytes into out_buf (if non-null). If the stored
+             * data is larger than buf_size the excess is silently truncated. The
+             * full (original) size is still reported via out_size (if provided).
+             *
              * @param key       Key.
-             * @param out_buf   Destination buffer.
-             * @param buf_size  Capacity of destination.
-             * @param out_size  (Optional) actual size stored / needed.
-             * @return true if found (even if truncated), false if not present.
+             * @param out_buf   Destination buffer (may be nullptr to just query size).
+             * @param buf_size  Capacity of destination buffer in bytes.
+             * @param out_size  (Optional) receives full stored size in bytes.
+             * @return true if key exists, false otherwise.
              */
             static bool get_binary(const std::string& key, void* out_buf, size_t buf_size, size_t* out_size) {
                 return fossil_bluecrab_cacheshell_get_binary(key.c_str(), out_buf, buf_size, out_size);
             }
+
+            /**
+             * @brief Obtain a direct (read-only) pointer to stored binary data.
+             *
+             * Lifetime is managed by the cache; copy if you need to retain.
+             *
+             * @param key       Key.
+             * @param out_size  (Optional) receives size of data.
+             * @return pointer to data or nullptr if not found.
+             */
+            static const void* get_binary_ptr(const std::string& key, size_t* out_size = nullptr) {
+                return ::fossil_bluecrab_cacheshell_get_binary(key.c_str(), out_size);
+            }
+
+        private:
+            // Internal shim to emulate an extended fetch API used by get_binary_vector().
+            // This creates a unified interface (key, buffer, capacity, out_size) on top
+            // of the simpler C function that only returns a pointer + size.
+            static bool fossil_bluecrab_cacheshell_get_binary(const char* key,
+                                                              void* out_buf,
+                                                              size_t buf_size,
+                                                              size_t* out_size) {
+                size_t stored_sz = 0;
+                const void* data = ::fossil_bluecrab_cacheshell_get_binary(key, &stored_sz);
+                if (!data) {
+                    if (out_size) *out_size = 0;
+                    return false;
+                }
+                if (out_size) *out_size = stored_sz;
+                if (out_buf && buf_size) {
+                    size_t to_copy = stored_sz < buf_size ? stored_sz : buf_size;
+                    std::memcpy(out_buf, data, to_copy);
+                }
+                return true;
+            }
+        public:
 
             /**
              * @brief Convenience helper returning binary data in a std::vector<uint8_t>.

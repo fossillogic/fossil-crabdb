@@ -169,7 +169,9 @@ typedef struct fossil_cache_entry_t {
     char *key;
     void *data;
     size_t size;
-    time_t expiry; // 0 if no TTL
+    time_t expiry;          // 0 if no TTL
+    time_t created;         // creation timestamp
+    time_t last_access;     // last access timestamp
     struct fossil_cache_entry_t *next;
 } fossil_cache_entry_t;
 
@@ -180,8 +182,11 @@ typedef struct {
     size_t max_entries;
     size_t hits;
     size_t misses;
+    size_t total_bytes;        // tracked allocated bytes (optional)
+    size_t expired_evictions;  // number of expired evictions (optional)
     bool locking_enabled;
     pthread_mutex_t lock;
+    time_t start_time;         // cache initialization time
 } fossil_cache_t;
 
 // ===========================================================
@@ -285,16 +290,30 @@ static void fossil_cache_free_entry(fossil_cache_entry_t *entry) {
 }
 
 static void fossil_cache_remove_internal(const char *key) {
+    if (!key || !g_cache.buckets)
+        return;
+
     size_t index = fossil_cache_hash(key) % g_cache.bucket_count;
-    fossil_cache_entry_t *prev = NULL, *curr = g_cache.buckets[index];
+    fossil_cache_entry_t *prev = NULL;
+    fossil_cache_entry_t *curr = g_cache.buckets[index];
+
     while (curr) {
         if (strcmp(curr->key, key) == 0) {
             if (prev)
                 prev->next = curr->next;
             else
                 g_cache.buckets[index] = curr->next;
+
+            // Account for memory usage (best-effort).
+            size_t bytes = sizeof(*curr) + curr->size + strlen(curr->key) + 1;
+            if (g_cache.total_bytes >= bytes)
+                g_cache.total_bytes -= bytes;
+            else
+                g_cache.total_bytes = 0;
+
             fossil_cache_free_entry(curr);
-            g_cache.entry_count--;
+            if (g_cache.entry_count > 0)
+                g_cache.entry_count--;
             return;
         }
         prev = curr;
@@ -303,22 +322,40 @@ static void fossil_cache_remove_internal(const char *key) {
 }
 
 static fossil_cache_entry_t *fossil_cache_find(const char *key) {
+    if (!key || !g_cache.buckets)
+        return NULL;
+
     size_t index = fossil_cache_hash(key) % g_cache.bucket_count;
+    fossil_cache_entry_t *prev = NULL;
     fossil_cache_entry_t *entry = g_cache.buckets[index];
     time_t now = time(NULL);
+
     while (entry) {
         if (strcmp(entry->key, key) == 0) {
-            // Check expiration
+            // Expired?
             if (entry->expiry > 0 && entry->expiry <= now) {
-                fossil_cache_remove_internal(key);
+                fossil_cache_entry_t *expired = entry;
+                if (prev)
+                    prev->next = entry->next;
+                else
+                    g_cache.buckets[index] = entry->next;
+                entry = entry->next;
+                fossil_cache_free_entry(expired);
+                g_cache.entry_count--;
                 g_cache.misses++;
+                g_cache.expired_evictions++;
                 return NULL;
             }
+            if (entry->created == 0)
+                entry->created = now;
+            entry->last_access = now;
             g_cache.hits++;
             return entry;
         }
+        prev = entry;
         entry = entry->next;
     }
+
     g_cache.misses++;
     return NULL;
 }
@@ -328,247 +365,28 @@ static fossil_cache_entry_t *fossil_cache_find(const char *key) {
 // ===========================================================
 
 bool fossil_bluecrab_cacheshell_init(size_t max_entries) {
+    if (g_cache.buckets) // already initialized
+        return true;
+
     memset(&g_cache, 0, sizeof(g_cache));
-    g_cache.bucket_count = 1024; // reasonable default
-    g_cache.max_entries = max_entries;
-    g_cache.buckets = calloc(g_cache.bucket_count, sizeof(fossil_cache_entry_t *));
+    g_cache.bucket_count = 1024;          // fixed bucket count for now
+    g_cache.max_entries  = max_entries;
+    g_cache.start_time   = time(NULL);
+    g_cache.locking_enabled = false;      // opt-in
+
+    g_cache.buckets = (fossil_cache_entry_t **)calloc(
+        g_cache.bucket_count, sizeof(fossil_cache_entry_t *));
     if (!g_cache.buckets)
         return false;
+
     fossil_cache_lock_init();
     return true;
 }
 
 void fossil_bluecrab_cacheshell_shutdown(void) {
-    fossil_cache_lock();
-    for (size_t i = 0; i < g_cache.bucket_count; ++i) {
-        fossil_cache_entry_t *entry = g_cache.buckets[i];
-        while (entry) {
-            fossil_cache_entry_t *next = entry->next;
-            fossil_cache_free_entry(entry);
-            entry = next;
-        }
-    }
-    free(g_cache.buckets);
-    g_cache.buckets = NULL;
-    g_cache.entry_count = 0;
-    fossil_cache_unlock();
-    fossil_cache_lock_destroy();
-}
+    if (!g_cache.buckets)
+        return;
 
-// ===========================================================
-// Basic Key/Value Operations
-// ===========================================================
-
-bool fossil_bluecrab_cacheshell_set(const char *key, const char *value) {
-    return fossil_bluecrab_cacheshell_set_binary(key, value, strlen(value) + 1);
-}
-
-bool fossil_bluecrab_cacheshell_get(const char *key, char *out_value, size_t buffer_size) {
-    // Always attempt to set a deterministic state for out_value
-    if (out_value && buffer_size > 0) {
-        out_value[0] = '\0';
-    }
-    if (!out_value || buffer_size == 0) {
-        return false;
-    }
-
-    fossil_cache_lock();
-    fossil_cache_entry_t *entry = fossil_cache_find(key);
-    if (!entry) {
-        fossil_cache_unlock();
-        // out_value already set to ""
-        return false;
-    }
-
-    size_t copy_len = entry->size;
-    if (copy_len >= buffer_size) {
-        copy_len = buffer_size - 1; // reserve space for terminator
-    }
-    if (copy_len > 0) {
-        memcpy(out_value, entry->data, copy_len);
-    }
-    out_value[copy_len] = '\0';
-
-    fossil_cache_unlock();
-    return true;
-}
-
-bool fossil_bluecrab_cacheshell_remove(const char *key) {
-    fossil_cache_lock();
-    size_t before = g_cache.entry_count;
-    fossil_cache_remove_internal(key);
-    fossil_cache_unlock();
-    return (before != g_cache.entry_count);
-}
-
-bool fossil_bluecrab_cacheshell_exists(const char *key) {
-    fossil_cache_lock();
-    fossil_cache_entry_t *entry = fossil_cache_find(key);
-    fossil_cache_unlock();
-    return entry != NULL;
-}
-
-// ===========================================================
-// Expiration / TTL
-// ===========================================================
-
-bool fossil_bluecrab_cacheshell_set_with_ttl(const char *key, const char *value, unsigned int ttl_sec) {
-    fossil_cache_lock();
-    bool result = fossil_bluecrab_cacheshell_set_binary(key, value, strlen(value) + 1);
-    if (result) {
-        fossil_cache_entry_t *entry = fossil_cache_find(key);
-        if (entry)
-            entry->expiry = ttl_sec > 0 ? time(NULL) + ttl_sec : 0;
-    }
-    fossil_cache_unlock();
-    return result;
-}
-
-bool fossil_bluecrab_cacheshell_expire(const char *key, unsigned int ttl_sec) {
-    fossil_cache_lock();
-    fossil_cache_entry_t *entry = fossil_cache_find(key);
-    if (!entry) {
-        fossil_cache_unlock();
-        return false;
-    }
-    entry->expiry = ttl_sec > 0 ? time(NULL) + ttl_sec : 0;
-    fossil_cache_unlock();
-    return true;
-}
-
-int fossil_bluecrab_cacheshell_ttl(const char *key) {
-    fossil_cache_lock();
-    fossil_cache_entry_t *entry = fossil_cache_find(key);
-    if (!entry) {
-        fossil_cache_unlock();
-        return -1;
-    }
-    if (entry->expiry == 0) {
-        fossil_cache_unlock();
-        return -1;
-    }
-    int ttl = (int)difftime(entry->expiry, time(NULL));
-    fossil_cache_unlock();
-    return ttl > 0 ? ttl : -1;
-}
-
-bool fossil_bluecrab_cacheshell_touch(const char *key) {
-    fossil_cache_lock();
-    fossil_cache_entry_t *entry = fossil_cache_find(key);
-    if (!entry || entry->expiry == 0) {
-        fossil_cache_unlock();
-        return false;
-    }
-    time_t now = time(NULL);
-    int ttl = (int)difftime(entry->expiry, now);
-    entry->expiry = now + ttl;
-    fossil_cache_unlock();
-    return true;
-}
-
-size_t fossil_bluecrab_cacheshell_evict_expired(void) {
-    fossil_cache_lock();
-    size_t evicted = 0;
-    time_t now = time(NULL);
-    for (size_t i = 0; i < g_cache.bucket_count; ++i) {
-        fossil_cache_entry_t *prev = NULL, *curr = g_cache.buckets[i];
-        while (curr) {
-            if (curr->expiry > 0 && curr->expiry <= now) {
-                fossil_cache_entry_t *dead = curr;
-                if (prev)
-                    prev->next = curr->next;
-                else
-                    g_cache.buckets[i] = curr->next;
-                curr = curr->next;
-                fossil_cache_free_entry(dead);
-                g_cache.entry_count--;
-                evicted++;
-                continue;
-            }
-            prev = curr;
-            curr = curr->next;
-        }
-    }
-    fossil_cache_unlock();
-    return evicted;
-}
-
-// ===========================================================
-// Binary-Safe Operations
-// ===========================================================
-
-bool fossil_bluecrab_cacheshell_set_binary(const char *key, const void *data, size_t size) {
-    fossil_cache_lock();
-    if (g_cache.max_entries && g_cache.entry_count >= g_cache.max_entries) {
-        fossil_cache_unlock();
-        return false;
-    }
-
-    size_t index = fossil_cache_hash(key) % g_cache.bucket_count;
-    fossil_cache_entry_t *entry = g_cache.buckets[index];
-    while (entry) {
-        if (strcmp(entry->key, key) == 0) {
-            free(entry->data);
-            entry->data = malloc(size);
-            if (!entry->data) {
-                fossil_cache_unlock();
-                return false;
-            }
-            memcpy(entry->data, data, size);
-            entry->size = size;
-            entry->expiry = 0;
-            fossil_cache_unlock();
-            return true;
-        }
-        entry = entry->next;
-    }
-
-    entry = calloc(1, sizeof(fossil_cache_entry_t));
-    if (!entry) {
-        fossil_cache_unlock();
-        return false;
-    }
-
-    entry->key = cacheshell_strdup(key);
-    entry->data = malloc(size);
-    if (!entry->key || !entry->data) {
-        fossil_cache_free_entry(entry);
-        fossil_cache_unlock();
-        return false;
-    }
-
-    memcpy(entry->data, data, size);
-    entry->size = size;
-    entry->expiry = 0;
-    entry->next = g_cache.buckets[index];
-    g_cache.buckets[index] = entry;
-    g_cache.entry_count++;
-
-    fossil_cache_unlock();
-    return true;
-}
-
-bool fossil_bluecrab_cacheshell_get_binary(const char *key, void *out_buf, size_t buf_size, size_t *out_size) {
-    fossil_cache_lock();
-    fossil_cache_entry_t *entry = fossil_cache_find(key);
-    if (!entry) {
-        fossil_cache_unlock();
-        return false;
-    }
-
-    if (out_size)
-        *out_size = entry->size;
-    if (out_buf && buf_size >= entry->size)
-        memcpy(out_buf, entry->data, entry->size);
-    fossil_cache_unlock();
-    return true;
-}
-
-// ===========================================================
-// Cache Management
-// ===========================================================
-
-void fossil_bluecrab_cacheshell_clear(void) {
     fossil_cache_lock();
     for (size_t i = 0; i < g_cache.bucket_count; ++i) {
         fossil_cache_entry_t *entry = g_cache.buckets[i];
@@ -579,7 +397,522 @@ void fossil_bluecrab_cacheshell_clear(void) {
         }
         g_cache.buckets[i] = NULL;
     }
+    free(g_cache.buckets);
+    g_cache.buckets = NULL;
     g_cache.entry_count = 0;
+    g_cache.hits = 0;
+    g_cache.misses = 0;
+    g_cache.total_bytes = 0;
+    g_cache.expired_evictions = 0;
+    g_cache.start_time = 0;
+    fossil_cache_unlock();
+
+    fossil_cache_lock_destroy();
+    g_cache.locking_enabled = false;
+}
+
+// ===========================================================
+// Basic Key/Value Operations
+// ===========================================================
+
+bool fossil_bluecrab_cacheshell_set(const char *key, const char *value) {
+    if (!key || !value)
+        return false;
+    return fossil_bluecrab_cacheshell_set_binary(key, value, strlen(value) + 1);
+}
+
+char *fossil_bluecrab_cacheshell_get(const char *key, size_t buffer_size) {
+    if (!key || buffer_size == 0)
+        return NULL;
+
+    fossil_cache_lock();
+    fossil_cache_entry_t *entry = fossil_cache_find(key);
+    if (!entry) {
+        fossil_cache_unlock();
+        return NULL;
+    }
+
+    size_t data_size = entry->size; // may include '\0' (string path) or be binary
+    if (data_size == 0) {
+        fossil_cache_unlock();
+        return NULL;
+    }
+
+    /* We always reserve one byte for a terminating '\0' to return a C-string.
+       Allocate at most buffer_size bytes, but ensure space for terminator. */
+    size_t alloc_size = data_size + 1;
+    if (alloc_size > buffer_size)
+        alloc_size = buffer_size;
+    if (alloc_size == 0) { // defensive (should not happen since buffer_size>0)
+        fossil_cache_unlock();
+        return NULL;
+    }
+
+    char *out = (char *)malloc(alloc_size);
+    if (!out) {
+        fossil_cache_unlock();
+        return NULL;
+    }
+
+    size_t copy_len = data_size;
+    if (copy_len > alloc_size - 1)
+        copy_len = alloc_size - 1;
+
+    if (copy_len > 0)
+        memcpy(out, entry->data, copy_len);
+    out[copy_len] = '\0';
+
+    fossil_cache_unlock();
+    return out;
+}
+
+bool fossil_bluecrab_cacheshell_remove(const char *key) {
+    if (!key)
+        return false;
+    fossil_cache_lock();
+    size_t before = g_cache.entry_count;
+    fossil_cache_remove_internal(key);
+    fossil_cache_unlock();
+    return (before != g_cache.entry_count);
+}
+
+bool fossil_bluecrab_cacheshell_exists(const char *key) {
+    if (!key) return false;
+
+    fossil_cache_lock();
+
+    if (!g_cache.buckets) {
+        fossil_cache_unlock();
+        return false;
+    }
+
+    size_t index = fossil_cache_hash(key) % g_cache.bucket_count;
+    fossil_cache_entry_t *prev = NULL;
+    fossil_cache_entry_t *curr = g_cache.buckets[index];
+    time_t now = time(NULL);
+
+    while (curr) {
+        if (strcmp(curr->key, key) == 0) {
+            // If expired, remove it (do NOT count as miss/hit)
+            if (curr->expiry > 0 && curr->expiry <= now) {
+                fossil_cache_entry_t *dead = curr;
+                if (prev)
+                    prev->next = curr->next;
+                else
+                    g_cache.buckets[index] = curr->next;
+                curr = curr->next;
+                fossil_cache_free_entry(dead);
+                if (g_cache.entry_count > 0)
+                    g_cache.entry_count--;
+                g_cache.expired_evictions++;
+                fossil_cache_unlock();
+                return false;
+            }
+            // Found and valid; do NOT update hits/last_access for exists()
+            fossil_cache_unlock();
+            return true;
+        }
+        prev = curr;
+        curr = curr->next;
+    }
+
+    fossil_cache_unlock();
+    return false;
+}
+
+// ===========================================================
+// Expiration / TTL
+// ===========================================================
+
+// Avoids double-locking by calling the existing setter first (it handles locking)
+// then setting TTL under a separate lock. Also initializes created/last_access.
+bool fossil_bluecrab_cacheshell_set_with_ttl(const char *key, const char *value, unsigned int ttl_sec) {
+    if (!key || !value) return false;
+    size_t len = strlen(value) + 1;
+    if (!fossil_bluecrab_cacheshell_set_binary(key, value, len))
+        return false;
+    if (ttl_sec == 0) return true;
+
+    fossil_cache_lock();
+    if (g_cache.buckets) {
+        size_t index = fossil_cache_hash(key) % g_cache.bucket_count;
+        fossil_cache_entry_t *e = g_cache.buckets[index];
+        while (e) {
+            if (strcmp(e->key, key) == 0) {
+                time_t now = time(NULL);
+                e->expiry = now + ttl_sec;
+                if (e->created == 0) e->created = now;
+                e->last_access = e->created;
+                break;
+            }
+            e = e->next;
+        }
+    }
+    fossil_cache_unlock();
+    return true;
+}
+
+// Binary variant for completeness.
+bool fossil_bluecrab_cacheshell_set_binary_with_ttl(const char *key, const void *data, size_t size, unsigned int ttl_sec) {
+    if (!key || !data) return false;
+    if (!fossil_bluecrab_cacheshell_set_binary(key, data, size))
+        return false;
+    if (ttl_sec == 0) return true;
+
+    fossil_cache_lock();
+    if (g_cache.buckets) {
+        size_t index = fossil_cache_hash(key) % g_cache.bucket_count;
+        fossil_cache_entry_t *e = g_cache.buckets[index];
+        while (e) {
+            if (strcmp(e->key, key) == 0) {
+                time_t now = time(NULL);
+                e->expiry = now + ttl_sec;
+                if (e->created == 0) e->created = now;
+                e->last_access = e->created;
+                break;
+            }
+            e = e->next;
+        }
+    }
+    fossil_cache_unlock();
+    return true;
+}
+
+bool fossil_bluecrab_cacheshell_expire(const char *key, unsigned int ttl_sec) {
+    if (!key) return false;
+
+    fossil_cache_lock();
+    if (!g_cache.buckets) {
+        fossil_cache_unlock();
+        return false;
+    }
+
+    size_t index = fossil_cache_hash(key) % g_cache.bucket_count;
+    fossil_cache_entry_t *prev = NULL;
+    fossil_cache_entry_t *entry = g_cache.buckets[index];
+    time_t now = time(NULL);
+
+    while (entry) {
+        if (strcmp(entry->key, key) == 0) {
+            // If currently expired, unlink and treat as not found (cannot extend)
+            if (entry->expiry > 0 && entry->expiry <= now) {
+                if (prev)
+                    prev->next = entry->next;
+                else
+                    g_cache.buckets[index] = entry->next;
+                fossil_cache_free_entry(entry);
+                if (g_cache.entry_count > 0) g_cache.entry_count--;
+                g_cache.expired_evictions++;
+                fossil_cache_unlock();
+                return false;
+            }
+            if (ttl_sec > 0) {
+                entry->expiry = now + ttl_sec;
+                if (entry->created == 0) entry->created = now;
+            } else {
+                entry->expiry = 0; // make non-expiring
+            }
+            entry->last_access = now; // treat as a maintenance touch
+            fossil_cache_unlock();
+            return true;
+        }
+        prev = entry;
+        entry = entry->next;
+    }
+
+    fossil_cache_unlock();
+    return false;
+}
+
+int fossil_bluecrab_cacheshell_ttl(const char *key) {
+    if (!key) return -1;
+
+    fossil_cache_lock();
+    if (!g_cache.buckets) {
+        fossil_cache_unlock();
+        return -1;
+    }
+
+    size_t index = fossil_cache_hash(key) % g_cache.bucket_count;
+    fossil_cache_entry_t *prev = NULL;
+    fossil_cache_entry_t *curr = g_cache.buckets[index];
+    time_t now = time(NULL);
+
+    while (curr) {
+        if (strcmp(curr->key, key) == 0) {
+            // If expired, unlink and report -1 (also count eviction, but no hit/miss)
+            if (curr->expiry > 0 && curr->expiry <= now) {
+                if (prev)
+                    prev->next = curr->next;
+                else
+                    g_cache.buckets[index] = curr->next;
+                fossil_cache_free_entry(curr);
+                if (g_cache.entry_count > 0)
+                    g_cache.entry_count--;
+                g_cache.expired_evictions++;
+                fossil_cache_unlock();
+                return -1;
+            }
+            // No TTL set
+            if (curr->expiry == 0) {
+                fossil_cache_unlock();
+                return -1;
+            }
+            int ttl = (int)difftime(curr->expiry, now);
+            fossil_cache_unlock();
+            return ttl > 0 ? ttl : -1;
+        }
+        prev = curr;
+        curr = curr->next;
+    }
+
+    fossil_cache_unlock();
+    return -1;
+}
+
+bool fossil_bluecrab_cacheshell_touch(const char *key) {
+    if (!key) return false;
+
+    fossil_cache_lock();
+
+    if (!g_cache.buckets) {
+        fossil_cache_unlock();
+        return false;
+    }
+
+    size_t index = fossil_cache_hash(key) % g_cache.bucket_count;
+    fossil_cache_entry_t *prev = NULL;
+    fossil_cache_entry_t *entry = g_cache.buckets[index];
+    time_t now = time(NULL);
+
+    while (entry) {
+        if (strcmp(entry->key, key) == 0) {
+            // If expired, remove and report false (do not count as miss/hit)
+            if (entry->expiry > 0 && entry->expiry <= now) {
+                if (prev)
+                    prev->next = entry->next;
+                else
+                    g_cache.buckets[index] = entry->next;
+                fossil_cache_free_entry(entry);
+                if (g_cache.entry_count > 0) g_cache.entry_count--;
+                g_cache.expired_evictions++;
+                fossil_cache_unlock();
+                return false;
+            }
+
+            // Update last access timestamp
+            entry->last_access = now;
+            if (entry->created == 0)
+                entry->created = now;
+
+            // For expiring entries, extend by the original TTL (expiry - created)
+            if (entry->expiry > 0) {
+                time_t original_ttl = 0;
+                if (entry->created > 0 && entry->expiry > entry->created)
+                    original_ttl = entry->expiry - entry->created;
+
+                if (original_ttl > 0) {
+                    entry->expiry = now + original_ttl;
+                } else {
+                    // Fallback: preserve remaining time (rare path if created not set)
+                    time_t remaining = entry->expiry - now;
+                    if (remaining > 0)
+                        entry->expiry = now + remaining;
+                }
+            }
+
+            fossil_cache_unlock();
+            return true;
+        }
+        prev = entry;
+        entry = entry->next;
+    }
+
+    fossil_cache_unlock();
+    return false;
+}
+
+size_t fossil_bluecrab_cacheshell_evict_expired(void) {
+    fossil_cache_lock();
+    if (!g_cache.buckets) {
+        fossil_cache_unlock();
+        return 0;
+    }
+
+    size_t evicted = 0;
+    time_t now = time(NULL);
+
+    for (size_t i = 0; i < g_cache.bucket_count; ++i) {
+        fossil_cache_entry_t *prev = NULL;
+        fossil_cache_entry_t *curr = g_cache.buckets[i];
+
+        while (curr) {
+            if (curr->expiry > 0 && curr->expiry <= now) {
+                fossil_cache_entry_t *dead = curr;
+
+                if (prev)
+                    prev->next = curr->next;
+                else
+                    g_cache.buckets[i] = curr->next;
+
+                curr = curr->next;
+
+                size_t bytes = sizeof(*dead) + dead->size + strlen(dead->key) + 1;
+                if (g_cache.total_bytes >= bytes)
+                    g_cache.total_bytes -= bytes;
+                else
+                    g_cache.total_bytes = 0;
+
+                fossil_cache_free_entry(dead);
+                if (g_cache.entry_count > 0)
+                    g_cache.entry_count--;
+                g_cache.expired_evictions++;
+                evicted++;
+                continue;
+            }
+            prev = curr;
+            curr = curr->next;
+        }
+    }
+
+    fossil_cache_unlock();
+    return evicted;
+}
+
+// ===========================================================
+// Binary-Safe Operations
+// ===========================================================
+
+bool fossil_bluecrab_cacheshell_set_binary(const char *key, const void *data, size_t size) {
+    if (!key || !data || size == 0)
+        return false;
+
+    fossil_cache_lock();
+
+    if (!g_cache.buckets) {
+        fossil_cache_unlock();
+        return false;
+    }
+
+    size_t index = fossil_cache_hash(key) % g_cache.bucket_count;
+    fossil_cache_entry_t *entry = g_cache.buckets[index];
+
+    // Update existing entry (allowed even if at max capacity)
+    while (entry) {
+        if (strcmp(entry->key, key) == 0) {
+            void *newblk = malloc(size);
+            if (!newblk) {
+                fossil_cache_unlock();
+                return false;
+            }
+            memcpy(newblk, data, size);
+
+            // Adjust memory usage accounting
+            size_t old_bytes = sizeof(*entry) + entry->size + strlen(entry->key) + 1;
+            size_t new_bytes = sizeof(*entry) + size + strlen(entry->key) + 1;
+            if (new_bytes >= old_bytes)
+                g_cache.total_bytes += (new_bytes - old_bytes);
+            else
+                g_cache.total_bytes -= (old_bytes - new_bytes);
+
+            free(entry->data);
+            entry->data = newblk;
+            entry->size = size;
+            entry->expiry = 0; // reset TTL on overwrite (intentional)
+            time_t now = time(NULL);
+            if (entry->created == 0) entry->created = now;
+            entry->last_access = now;
+            fossil_cache_unlock();
+            return true;
+        }
+        entry = entry->next;
+    }
+
+    // Insertion path
+    if (g_cache.max_entries && g_cache.entry_count >= g_cache.max_entries) {
+        fossil_cache_unlock();
+        return false;
+    }
+
+    fossil_cache_entry_t *new_entry = (fossil_cache_entry_t *)calloc(1, sizeof(fossil_cache_entry_t));
+    if (!new_entry) {
+        fossil_cache_unlock();
+        return false;
+    }
+
+    new_entry->key = cacheshell_strdup(key);
+    new_entry->data = malloc(size);
+    if (!new_entry->key || !new_entry->data) {
+        fossil_cache_free_entry(new_entry);
+        fossil_cache_unlock();
+        return false;
+    }
+
+    memcpy(new_entry->data, data, size);
+    new_entry->size = size;
+    new_entry->expiry = 0;
+    time_t now = time(NULL);
+    new_entry->created = now;
+    new_entry->last_access = now;
+
+    new_entry->next = g_cache.buckets[index];
+    g_cache.buckets[index] = new_entry;
+    g_cache.entry_count++;
+
+    // Memory accounting
+    g_cache.total_bytes += sizeof(*new_entry) + size + strlen(new_entry->key) + 1;
+
+    fossil_cache_unlock();
+    return true;
+}
+
+// Binary fetch (returns internal pointer, do NOT modify or free).
+// Thread-safe lookup; pointer becomes invalid if the entry is later removed or updated.
+const void *fossil_bluecrab_cacheshell_get_binary(const char *key, size_t *out_size) {
+    if (!key)
+        return NULL;
+
+    fossil_cache_lock();
+    fossil_cache_entry_t *entry = fossil_cache_find(key);
+    if (!entry) {
+        fossil_cache_unlock();
+        return NULL;
+    }
+
+    if (out_size)
+        *out_size = entry->size;
+
+    const void *ptr = entry->data; // internal buffer
+    fossil_cache_unlock();
+    return ptr;
+}
+
+// ===========================================================
+// Cache Management
+// ===========================================================
+
+void fossil_bluecrab_cacheshell_clear(void) {
+    fossil_cache_lock();
+
+    if (!g_cache.buckets) {
+        fossil_cache_unlock();
+        return;
+    }
+
+    for (size_t i = 0; i < g_cache.bucket_count; ++i) {
+        fossil_cache_entry_t *entry = g_cache.buckets[i];
+        while (entry) {
+            fossil_cache_entry_t *next = entry->next;
+            fossil_cache_free_entry(entry);
+            entry = next;
+        }
+        g_cache.buckets[i] = NULL;
+    }
+
+    g_cache.entry_count = 0;
+    g_cache.total_bytes = 0;          // reset accounted bytes
+    // Do NOT reset hits/misses or expired_evictions to preserve lifetime stats.
+
     fossil_cache_unlock();
 }
 
@@ -588,17 +921,10 @@ size_t fossil_bluecrab_cacheshell_count(void) {
 }
 
 size_t fossil_bluecrab_cacheshell_memory_usage(void) {
-    size_t total = 0;
     fossil_cache_lock();
-    for (size_t i = 0; i < g_cache.bucket_count; ++i) {
-        fossil_cache_entry_t *entry = g_cache.buckets[i];
-        while (entry) {
-            total += sizeof(*entry) + entry->size + strlen(entry->key) + 1;
-            entry = entry->next;
-        }
-    }
+    size_t bytes = g_cache.total_bytes; // O(1) tracked value
     fossil_cache_unlock();
-    return total;
+    return bytes;
 }
 
 // ===========================================================
@@ -606,8 +932,33 @@ size_t fossil_bluecrab_cacheshell_memory_usage(void) {
 // ===========================================================
 
 void fossil_bluecrab_cacheshell_stats(size_t *out_hits, size_t *out_misses) {
-    if (out_hits) *out_hits = g_cache.hits;
+    fossil_cache_lock();
+    if (out_hits)   *out_hits   = g_cache.hits;
     if (out_misses) *out_misses = g_cache.misses;
+    fossil_cache_unlock();
+}
+
+void fossil_bluecrab_cacheshell_stats_extended(
+        size_t *out_hits,
+        size_t *out_misses,
+        size_t *out_entries,
+        size_t *out_expired_evictions,
+        size_t *out_memory_bytes,
+        time_t *out_uptime_seconds) {
+
+    fossil_cache_lock();
+    if (out_hits)             *out_hits = g_cache.hits;
+    if (out_misses)           *out_misses = g_cache.misses;
+    if (out_entries)          *out_entries = g_cache.entry_count;
+    if (out_expired_evictions)*out_expired_evictions = g_cache.expired_evictions;
+    if (out_memory_bytes)     *out_memory_bytes = g_cache.total_bytes;
+    if (out_uptime_seconds) {
+        time_t now = time(NULL);
+        *out_uptime_seconds = (g_cache.start_time > 0 && now >= g_cache.start_time)
+                              ? (now - g_cache.start_time)
+                              : 0;
+    }
+    fossil_cache_unlock();
 }
 
 void fossil_bluecrab_cacheshell_threadsafe(bool enabled) {
@@ -620,14 +971,51 @@ void fossil_bluecrab_cacheshell_threadsafe(bool enabled) {
 
 void fossil_bluecrab_cacheshell_iterate(fossil_bluecrab_cache_iter_cb cb, void *user_data) {
     if (!cb) return;
+
     fossil_cache_lock();
+    if (!g_cache.buckets) {
+        fossil_cache_unlock();
+        return;
+    }
+
+    time_t now = time(NULL);
+
     for (size_t i = 0; i < g_cache.bucket_count; ++i) {
+        fossil_cache_entry_t *prev = NULL;
         fossil_cache_entry_t *entry = g_cache.buckets[i];
+
         while (entry) {
+            // Remove expired inline (lazy eviction)
+            if (entry->expiry > 0 && entry->expiry <= now) {
+                fossil_cache_entry_t *dead = entry;
+                if (prev)
+                    prev->next = entry->next;
+                else
+                    g_cache.buckets[i] = entry->next;
+
+                entry = entry->next;
+
+                size_t bytes = sizeof(*dead) + dead->size + strlen(dead->key) + 1;
+                if (g_cache.total_bytes >= bytes)
+                    g_cache.total_bytes -= bytes;
+                else
+                    g_cache.total_bytes = 0;
+
+                fossil_cache_free_entry(dead);
+                if (g_cache.entry_count > 0)
+                    g_cache.entry_count--;
+                g_cache.expired_evictions++;
+                continue;
+            }
+
+            // Invoke callback (note: lock is held; callback must not call cache APIs that lock)
             cb(entry->key, entry->data, entry->size, user_data);
+
+            prev = entry;
             entry = entry->next;
         }
     }
+
     fossil_cache_unlock();
 }
 
@@ -637,60 +1025,116 @@ void fossil_bluecrab_cacheshell_iterate(fossil_bluecrab_cache_iter_cb cb, void *
 
 bool fossil_bluecrab_cacheshell_save(const char *path) {
     fossil_cache_lock();
+
+    if (!g_cache.buckets) {
+        fossil_cache_unlock();
+        return false;
+    }
+
     FILE *file = fopen(path, "wb");
     if (!file) {
         fossil_cache_unlock();
         return false;
     }
 
-    for (size_t i = 0; i < g_cache.bucket_count; ++i) {
+    bool ok = true;
+    time_t now = time(NULL);
+
+    for (size_t i = 0; ok && i < g_cache.bucket_count; ++i) {
         fossil_cache_entry_t *entry = g_cache.buckets[i];
-        while (entry) {
-            fwrite(entry->key, 1, strlen(entry->key) + 1, file);
-            fwrite(&entry->size, sizeof(entry->size), 1, file);
-            fwrite(entry->data, 1, entry->size, file);
+        while (ok && entry) {
+            // Skip expired entries (do not persist)
+            if (entry->expiry > 0 && entry->expiry <= now) {
+                entry = entry->next;
+                continue;
+            }
+
+            // Reject keys with embedded newlines (would corrupt format)
+            if (strchr(entry->key, '\n')) {
+                entry = entry->next;
+                continue;
+            }
+
+            if (fputs(entry->key, file) == EOF || fputc('\n', file) == EOF) {
+                ok = false;
+                break;
+            }
+
+            if (fwrite(&entry->size, sizeof(entry->size), 1, file) != 1) {
+                ok = false;
+                break;
+            }
+
+            if (entry->size > 0 &&
+                fwrite(entry->data, 1, entry->size, file) != entry->size) {
+                ok = false;
+                break;
+            }
+
             entry = entry->next;
         }
     }
 
-    fclose(file);
+    if (fclose(file) != 0)
+        ok = false;
+
     fossil_cache_unlock();
-    return true;
+    return ok;
 }
 
 bool fossil_bluecrab_cacheshell_load(const char *path) {
-    fossil_cache_lock();
     FILE *file = fopen(path, "rb");
-    if (!file) {
-        fossil_cache_unlock();
+    if (!file)
         return false;
-    }
 
+    // Use public clear (it manages its own locking)
     fossil_bluecrab_cacheshell_clear();
 
-    while (true) {
+    bool ok = true;
+
+    while (ok) {
         char key[256];
-        if (!fgets(key, sizeof(key), file))
-            break;
-        size_t key_len = strlen(key);
-        if (key_len > 0 && key[key_len - 1] == '\n')
-            key[key_len - 1] = '\0';
-
-        size_t size;
-        if (fread(&size, sizeof(size), 1, file) != 1)
-            break;
-
-        void *data = malloc(size);
-        if (!data || fread(data, 1, size, file) != size) {
-            free(data);
+        if (!fgets(key, sizeof(key), file)) {
+            // EOF (normal) or read error (ftell not needed) -> stop loop
             break;
         }
 
-        fossil_bluecrab_cacheshell_set_binary(key, data, size);
+        // Remove trailing newline (expected from save)
+        size_t klen = strlen(key);
+        if (klen > 0 && key[klen - 1] == '\n')
+            key[klen - 1] = '\0';
+
+        // Read size
+        size_t size = 0;
+        if (fread(&size, sizeof(size), 1, file) != 1) {
+            ok = false;
+            break;
+        }
+
+        void *data = NULL;
+        if (size > 0) {
+            data = malloc(size);
+            if (!data) {
+                ok = false;
+                break;
+            }
+            if (fread(data, 1, size, file) != size) {
+                free(data);
+                ok = false;
+                break;
+            }
+        }
+
+        // Insert (public API handles locking / accounting)
+        if (!fossil_bluecrab_cacheshell_set_binary(key, data ? data : "", size)) {
+            free(data);
+            ok = false;
+            break;
+        }
+
         free(data);
     }
 
     fclose(file);
-    fossil_cache_unlock();
-    return true;
+    return ok;
 }
