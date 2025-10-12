@@ -54,19 +54,18 @@ FOSSIL_TEST(c_test_cacheshell_set_and_get) {
     fossil_bluecrab_cacheshell_clear();
     const char *key = "foo";
     const char *value = "bar";
-    char out[32] = {0};
 
     ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_set(key, value));
-    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_get(key, out, sizeof(out)));
-    ASSUME_ITS_TRUE(strcmp(out, value) == 0);
+    char *out = fossil_bluecrab_cacheshell_get(key, 32);
+    ASSUME_ITS_TRUE(out && strcmp(out, value) == 0);
 
     const char *new_value = "baz";
     ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_set(key, new_value));
-    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_get(key, out, sizeof(out)));
-    ASSUME_ITS_TRUE(strcmp(out, new_value) == 0);
+    out = fossil_bluecrab_cacheshell_get(key, 32);
+    ASSUME_ITS_TRUE(out && strcmp(out, new_value) == 0);
 
-    char small_out[2] = {0};
-    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_get(key, small_out, sizeof(small_out)));
+    char *small_out = fossil_bluecrab_cacheshell_get(key, 2);
+    ASSUME_ITS_TRUE(small_out);
     ASSUME_ITS_TRUE(small_out[0] == 'b');
 
     fossil_bluecrab_cacheshell_shutdown();
@@ -77,14 +76,13 @@ FOSSIL_TEST(c_test_cacheshell_set_with_ttl_and_expire) {
     fossil_bluecrab_cacheshell_clear();
     const char *key = "ttlkey";
     const char *value = "ttlvalue";
-    char out[32] = {0};
 
     ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_set_with_ttl(key, value, 1));
-    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_get(key, out, sizeof(out)));
-    ASSUME_ITS_TRUE(strcmp(out, value) == 0);
+    char *out = fossil_bluecrab_cacheshell_get(key, 32);
+    ASSUME_ITS_TRUE(out && strcmp(out, value) == 0);
 
     sleep(2);
-    ASSUME_ITS_FALSE(fossil_bluecrab_cacheshell_get(key, out, sizeof(out)));
+    ASSUME_ITS_FALSE(fossil_bluecrab_cacheshell_get(key, 32));
     ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_ttl(key) == -1);
 
     fossil_bluecrab_cacheshell_shutdown();
@@ -120,8 +118,8 @@ FOSSIL_TEST(c_test_cacheshell_touch_and_evict) {
 
     sleep(2);
     size_t evicted = fossil_bluecrab_cacheshell_evict_expired();
-    ASSUME_ITS_TRUE(evicted >= 1); // k1 should be expired, maybe others
-    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_exists("k2")); // k2 should still exist (original 3s)
+    ASSUME_ITS_TRUE(evicted >= 1);
+    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_exists("k2"));
 
     fossil_bluecrab_cacheshell_shutdown();
 }
@@ -157,21 +155,30 @@ FOSSIL_TEST(c_test_cacheshell_set_and_get_binary) {
     fossil_bluecrab_cacheshell_init(0);
     fossil_bluecrab_cacheshell_clear();
     const char *key = "bin";
-    unsigned char data[4] = {0xde, 0xad, 0xbe, 0xef};
-    unsigned char out[4] = {0};
-    size_t out_size = 0;
+    const unsigned char data[4] = {0xde, 0xad, 0xbe, 0xef};
 
     ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_set_binary(key, data, sizeof(data)));
-    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_get_binary(key, out, sizeof(out), &out_size));
-    ASSUME_ITS_TRUE(out_size == sizeof(data));
-    ASSUME_ITS_TRUE(memcmp(data, out, sizeof(data)) == 0);
 
-    unsigned char small_out[2] = {0};
-    size_t small_size = 0;
-    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_get_binary(key, small_out, sizeof(small_out), &small_size));
-    ASSUME_ITS_TRUE(small_size == sizeof(data));
-    // When buffer is smaller than stored data, implementation may not copy; accept either original byte or zero.
-    ASSUME_ITS_TRUE(small_out[0] == 0xde || small_out[0] == 0x00);
+    // Retrieve with size output
+    size_t got_size = 0;
+    const unsigned char *stored = (const unsigned char *)fossil_bluecrab_cacheshell_get_binary(key, &got_size);
+    ASSUME_ITS_TRUE(stored);
+    ASSUME_ITS_TRUE(got_size == sizeof(data));
+    ASSUME_ITS_TRUE(memcmp(stored, data, sizeof(data)) == 0);
+
+    // Retrieve with NULL out_size (optional parameter)
+    const unsigned char *stored_no_size = (const unsigned char *)fossil_bluecrab_cacheshell_get_binary(key, NULL);
+    ASSUME_ITS_TRUE(stored_no_size == stored);
+
+    // Request nonexistent key
+    size_t missing_size = 1234;
+    const unsigned char *missing = (const unsigned char *)fossil_bluecrab_cacheshell_get_binary("no-such-key", &missing_size);
+    ASSUME_ITS_FALSE(missing);
+
+    // Partial copy safety
+    unsigned char small_copy[2] = {0};
+    memcpy(small_copy, stored, sizeof(small_copy));
+    ASSUME_ITS_TRUE(small_copy[0] == 0xde);
 
     fossil_bluecrab_cacheshell_shutdown();
 }
@@ -179,8 +186,7 @@ FOSSIL_TEST(c_test_cacheshell_set_and_get_binary) {
 FOSSIL_TEST(c_test_cacheshell_get_nonexistent_key) {
     fossil_bluecrab_cacheshell_init(0);
     fossil_bluecrab_cacheshell_clear();
-    char out[32] = {0};
-    ASSUME_ITS_FALSE(fossil_bluecrab_cacheshell_get("nope", out, sizeof(out)));
+    ASSUME_ITS_FALSE(fossil_bluecrab_cacheshell_get("nope", 32));
     fossil_bluecrab_cacheshell_shutdown();
 }
 
@@ -204,10 +210,9 @@ FOSSIL_TEST(c_test_cacheshell_stats) {
     size_t base_hits = hits;
     size_t base_misses = misses;
 
-    char buf[16];
-    fossil_bluecrab_cacheshell_get("missing", buf, sizeof(buf)); // miss
+    (void)fossil_bluecrab_cacheshell_get("missing", 16); // miss
     fossil_bluecrab_cacheshell_set("k", "v");
-    fossil_bluecrab_cacheshell_get("k", buf, sizeof(buf)); // hit
+    (void)fossil_bluecrab_cacheshell_get("k", 16); // hit
 
     fossil_bluecrab_cacheshell_stats(&hits, &misses);
     ASSUME_ITS_TRUE(hits == base_hits + 1);
@@ -248,8 +253,8 @@ FOSSIL_TEST(c_test_cacheshell_threadsafe_toggle) {
     fossil_bluecrab_cacheshell_init(0);
     fossil_bluecrab_cacheshell_threadsafe(true);
     fossil_bluecrab_cacheshell_set("ts", "on");
-    char buf[8];
-    ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_get("ts", buf, sizeof(buf)));
+    char *val = fossil_bluecrab_cacheshell_get("ts", 8);
+    ASSUME_ITS_TRUE(val && strcmp(val, "on") == 0);
     fossil_bluecrab_cacheshell_threadsafe(false);
     fossil_bluecrab_cacheshell_shutdown();
 }
@@ -257,20 +262,16 @@ FOSSIL_TEST(c_test_cacheshell_threadsafe_toggle) {
 FOSSIL_TEST(c_test_cacheshell_persistence_save_load) {
     fossil_bluecrab_cacheshell_init(0);
     fossil_bluecrab_cacheshell_clear();
-    // Save a simple key/value
     ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_set("persist", "value"));
     ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_save("/tmp/cacheshell_test.snapshot"));
 
-    // Force flush of any buffered persistence state
     fossil_bluecrab_cacheshell_shutdown();
 
     ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_init(0));
 
-    // Clear and ensure it is gone
     fossil_bluecrab_cacheshell_clear();
     ASSUME_ITS_FALSE(fossil_bluecrab_cacheshell_exists("persist"));
 
-    // Load back (call twice to ensure idempotent behavior)
     ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_load("/tmp/cacheshell_test.snapshot"));
     ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_load("/tmp/cacheshell_test.snapshot"));
 
@@ -282,9 +283,7 @@ FOSSIL_TEST(c_test_cacheshell_init_with_limit) {
     fossil_bluecrab_cacheshell_clear();
     ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_set("L1", "A"));
     ASSUME_ITS_TRUE(fossil_bluecrab_cacheshell_set("L2", "B"));
-    // Behavior when exceeding limit depends on implementation; just attempt:
     fossil_bluecrab_cacheshell_set("L3", "C");
-    // Ensure at least two still exist
     int exist_count = 0;
     exist_count += fossil_bluecrab_cacheshell_exists("L1") ? 1 : 0;
     exist_count += fossil_bluecrab_cacheshell_exists("L2") ? 1 : 0;
